@@ -56,7 +56,7 @@ Only after this path is proven should it be integrated into the main application
 
 ```text
 Model: DH-IPC-HDBW7459Z-Z-PV-X
-Host:  192.168.1.213
+Host:  192.168.1.XXX
 RTSP:  554
 ```
 
@@ -91,7 +91,7 @@ A Windows test command is:
 
 ```powershell
 curl.exe --digest -u "admin:PASSWORD" --no-buffer --globoff `
-  "http://192.168.1.213/cgi-bin/eventManager.cgi?action=attach&codes=[All]"
+  "http://192.168.1.XXX/cgi-bin/eventManager.cgi?action=attach&codes=[All]"
 ```
 
 This endpoint returns textual multipart event metadata and has produced `HumanTrait` events.

@@ -1,1 +1,8 @@
 .env
+__pycache__/
+*.py[cod]
+**/sdk_log/
+experiments/dahua-netsdk/build/
+experiments/dahua-netsdk/output/
+experiments/dahua-netsdk/cameras.local.json
+tests/dahua-events/output/

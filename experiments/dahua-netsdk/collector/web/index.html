@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dahua Collector</title>
+  <style>
+    :root { color-scheme: dark; --bg:#080d12; --panel:#101922; --line:#20303d; --text:#edf7f7; --muted:#8ca3ad; --cyan:#42e8d4; --amber:#ffbb54; --red:#ff6b6b; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 20% 0,#10242c 0,transparent 35%),var(--bg); color:var(--text); font:14px/1.45 Inter,Segoe UI,sans-serif; }
+    header { max-width:1180px; margin:auto; padding:34px 24px 20px; display:flex; justify-content:space-between; align-items:end; gap:20px; }
+    h1 { margin:0; font-size:28px; letter-spacing:-.04em; } h1 span { color:var(--cyan); }
+    .eyebrow { color:var(--cyan); text-transform:uppercase; letter-spacing:.18em; font-size:11px; margin-bottom:7px; }
+    .summary { color:var(--muted); text-align:right; }
+    main { max-width:1180px; margin:auto; padding:0 24px 48px; }
+    .toolbar { display:flex; justify-content:space-between; align-items:center; padding:18px 0; border-top:1px solid var(--line); }
+    button { border:1px solid #2b4652; border-radius:8px; padding:9px 13px; background:#14232c; color:var(--text); cursor:pointer; font-weight:600; }
+    button:hover { border-color:var(--cyan); } button.primary { color:#061311; background:var(--cyan); border-color:var(--cyan); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:16px; }
+    .card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(145deg,rgba(18,30,39,.96),rgba(11,18,24,.96)); padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.18); }
+    .card-head { display:flex; justify-content:space-between; gap:12px; } .camera-id { font-size:18px; font-weight:700; }
+    .host { color:var(--muted); margin-top:3px; font-family:Consolas,monospace; }
+    .status { display:inline-flex; align-items:center; gap:7px; color:var(--muted); } .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+    .running .dot { background:var(--cyan); box-shadow:0 0 10px var(--cyan); } .warning .dot { background:var(--red); } .starting .dot,.connecting .dot { background:var(--amber); }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0; }
+    .metric { background:#0a1218; border:1px solid #182832; border-radius:9px; padding:10px; } .metric strong { display:block; font-size:18px; } .metric small { color:var(--muted); }
+    .detail { min-height:22px; color:var(--muted); } .event { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+    .event-line { display:flex; justify-content:space-between; gap:12px; margin:4px 0; } .event-line span:first-child { color:var(--muted); }
+    .thumbs { display:flex; gap:8px; overflow:auto; margin-top:12px; } .thumb { position:relative; flex:0 0 92px; }
+    .thumb img { width:92px; height:76px; border-radius:7px; object-fit:cover; background:#05090c; } .thumb small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
+    .actions { display:flex; gap:8px; margin-top:16px; }
+    dialog { width:min(520px,calc(100% - 30px)); border:1px solid var(--line); border-radius:14px; color:var(--text); background:#0e171e; padding:0; box-shadow:0 30px 90px #000; } dialog::backdrop { background:rgba(0,0,0,.72); backdrop-filter:blur(3px); }
+    form { padding:22px; } h2 { margin:0 0 18px; } label { display:block; color:var(--muted); font-size:12px; margin:12px 0 5px; }
+    input { width:100%; border:1px solid #29404c; border-radius:8px; padding:10px; background:#071016; color:var(--text); outline:none; } input:focus { border-color:var(--cyan); }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .check { display:flex; gap:8px; align-items:center; } .check input { width:auto; }
+    .form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; } .error { color:var(--red); min-height:20px; margin-top:10px; }
+    .empty { border:1px dashed var(--line); padding:40px; border-radius:14px; text-align:center; color:var(--muted); }
+    @media(max-width:600px){ header { align-items:start; flex-direction:column; } .summary{text-align:left}.row{grid-template-columns:1fr}.grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <header>
+    <div><div class="eyebrow">Control local</div><h1>Dahua <span>Collector</span></h1></div>
+    <div class="summary" id="summary">Conectando…</div>
+  </header>
+  <main>
+    <div class="toolbar"><span id="retention">Retención: 7 días</span><button class="primary" onclick="openCamera()">+ Añadir cámara</button></div>
+    <section class="grid" id="cameras"></section>
+  </main>
+  <dialog id="camera-dialog">
+    <form id="camera-form">
+      <h2 id="form-title">Añadir cámara Dahua</h2>
+      <label for="camera_id">Identificador</label><input id="camera_id" name="camera_id" placeholder="entrada_principal" required pattern="[A-Za-z0-9_-]+">
+      <label for="host">IP o host</label><input id="host" name="host" placeholder="192.168.1.XXX" required>
+      <div class="row"><div><label for="sdk_port">Puerto NetSDK</label><input id="sdk_port" name="sdk_port" type="number" value="37777" min="1" max="65535" required></div><div><label for="http_port">Puerto HTTP</label><input id="http_port" name="http_port" type="number" value="80" min="1" max="65535" required></div></div>
+      <div class="row"><div><label for="username">Usuario</label><input id="username" name="username" autocomplete="username"></div><div><label for="password">Contraseña</label><input id="password" name="password" type="password" autocomplete="current-password"></div></div>
+      <label class="check"><input id="enabled" name="enabled" type="checkbox" checked> Iniciar automáticamente</label>
+      <div class="error" id="form-error"></div>
+      <div class="form-actions"><button type="button" onclick="dialog.close()">Cancelar</button><button class="primary" type="submit">Guardar e iniciar</button></div>
+    </form>
+  </dialog>
+  <script>
+    const cards = document.querySelector('#cameras');
+    const dialog = document.querySelector('#camera-dialog');
+    const form = document.querySelector('#camera-form');
+    let current = [];
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    async function request(url, options) { const response = await fetch(url, options); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Error'); return data; }
+    async function refresh() {
+      try {
+        const data = await request('/api/status'); current = data.cameras;
+        document.querySelector('#summary').textContent = `${current.filter(c=>c.runtime.status==='running').length}/${current.length} cámaras activas`;
+        document.querySelector('#retention').textContent = `Retención: ${data.retention_days} días · última limpieza ${data.retention.last_run ? new Date(data.retention.last_run).toLocaleTimeString() : 'pendiente'}`;
+        cards.innerHTML = current.length ? current.map(card).join('') : '<div class="empty">No hay cámaras configuradas.<br>Añade la primera para iniciar el collector.</div>';
+      } catch (error) { document.querySelector('#summary').textContent = error.message; }
+    }
+    function card(camera) {
+      const r=camera.runtime, e=r.last_observation;
+      const thumbs=e?.media?.map(m=>`<div class="thumb"><img src="${esc(m.url)}" alt="${esc(m.role)}"><small>${esc(m.role)}</small></div>`).join('') || '';
+      return `<article class="card"><div class="card-head"><div><div class="camera-id">${esc(camera.camera_id)}</div><div class="host">${esc(camera.host)} · SDK ${camera.sdk_port}</div></div><div class="status ${esc(r.status)}"><i class="dot"></i>${esc(r.status)}</div></div><div class="metrics"><div class="metric"><strong>${r.observations}</strong><small>observaciones</small></div><div class="metric"><strong>${r.messages}</strong><small>mensajes</small></div><div class="metric"><strong>${r.pipeline_latency_ms ?? '—'}</strong><small>latencia ms</small></div></div><div class="detail">${esc(r.detail)}</div>${e?`<div class="event"><div class="event-line"><span>Último track</span><b>${esc(e.local_track_id ?? 'sin identificar')}</b></div><div class="event-line"><span>Fase / calidad</span><b>${esc(e.phase)} · ${esc(e.quality)}</b></div><div class="thumbs">${thumbs}</div></div>`:''}<div class="actions"><button onclick="operate('${esc(camera.camera_id)}','${r.status==='stopped'?'start':'stop'}')">${r.status==='stopped'?'Iniciar':'Detener'}</button><button onclick="openCamera('${esc(camera.camera_id)}')">Configurar</button></div></article>`;
+    }
+    function openCamera(id) {
+      form.reset(); document.querySelector('#enabled').checked=true; document.querySelector('#sdk_port').value=37777; document.querySelector('#http_port').value=80; document.querySelector('#form-error').textContent='';
+      const camera=current.find(c=>c.camera_id===id); document.querySelector('#form-title').textContent=camera?'Configurar cámara':'Añadir cámara Dahua'; document.querySelector('#camera_id').readOnly=Boolean(camera);
+      if(camera){ for(const key of ['camera_id','host','sdk_port','http_port']) document.querySelector('#'+key).value=camera[key]; document.querySelector('#enabled').checked=camera.enabled; }
+      dialog.showModal();
+    }
+    async function operate(id, action){ try { await request(`/api/cameras/${id}/${action}`,{method:'POST'}); await refresh(); } catch(error){ alert(error.message); } }
+    form.addEventListener('submit', async event => { event.preventDefault(); const body=Object.fromEntries(new FormData(form)); body.enabled=document.querySelector('#enabled').checked; body.sdk_port=Number(body.sdk_port); body.http_port=Number(body.http_port); try { await request('/api/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); dialog.close(); await refresh(); } catch(error){ document.querySelector('#form-error').textContent=error.message; } });
+    const stream=new EventSource('/api/events'); stream.onmessage=()=>refresh(); stream.onerror=()=>setTimeout(refresh,1000); setInterval(refresh,5000); refresh();
+  </script>
+</body>
+</html>

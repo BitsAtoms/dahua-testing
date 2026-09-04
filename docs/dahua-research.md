@@ -20,18 +20,18 @@ Do not assume that one camera-local track ID is a persistent identity across app
 ## Camera currently under test
 
 - Model: `DH-IPC-HDBW7459Z-Z-PV-X`
-- Test IP: `192.168.1.213`
+- Test IP: `192.168.1.XXX`
 - RTSP port: `554`
 - Main stream example:
 
 ```text
-rtsp://USER:PASSWORD@192.168.1.213:554/cam/realmonitor?channel=1&subtype=0
+rtsp://USER:PASSWORD@192.168.1.XXX:554/cam/realmonitor?channel=1&subtype=0
 ```
 
 - Substream example:
 
 ```text
-rtsp://USER:PASSWORD@192.168.1.213:554/cam/realmonitor?channel=1&subtype=1
+rtsp://USER:PASSWORD@192.168.1.XXX:554/cam/realmonitor?channel=1&subtype=1
 ```
 
 The camera is configured in PAL / 50 Hz for the current environment.
@@ -63,20 +63,20 @@ The camera also exposes face-related metadata while Video Metadata is running.
 The following Dahua CGI endpoint works on the camera and provides a persistent event stream:
 
 ```text
-http://192.168.1.213/cgi-bin/eventManager.cgi?action=attach&codes=[All]
+http://192.168.1.XXX/cgi-bin/eventManager.cgi?action=attach&codes=[All]
 ```
 
 Use Digest authentication. Example on Windows PowerShell:
 
 ```powershell
 curl.exe --digest -u "admin:PASSWORD" --no-buffer --globoff `
-  "http://192.168.1.213/cgi-bin/eventManager.cgi?action=attach&codes=[All]"
+  "http://192.168.1.XXX/cgi-bin/eventManager.cgi?action=attach&codes=[All]"
 ```
 
 Equivalent URL-encoded form:
 
 ```text
-http://192.168.1.213/cgi-bin/eventManager.cgi?action=attach&codes=%5BAll%5D
+http://192.168.1.XXX/cgi-bin/eventManager.cgi?action=attach&codes=%5BAll%5D
 ```
 
 Important: `--globoff` is required if literal square brackets are used with curl, otherwise curl may report `bad range in URL`.
@@ -305,7 +305,7 @@ This matches the `BelongID` / `RelativeID` relationship and suggests the body/lo
 Browser DevTools showed repeated calls to:
 
 ```text
-POST http://192.168.1.213/RPC2
+POST http://192.168.1.XXX/RPC2
 ```
 
 Observed calls were mainly polling camera state, for example hardware/alarm state operations. These were not the snapshot transport path.
@@ -313,7 +313,7 @@ Observed calls were mainly polling camera state, for example hardware/alarm stat
 In Metadata live view, snapshots are displayed through browser-generated URLs such as:
 
 ```text
-blob:http://192.168.1.213/<uuid>
+blob:http://192.168.1.XXX/<uuid>
 ```
 
 Important:
@@ -502,7 +502,7 @@ Minimum success criteria:
 
 ```text
 1. Initialize NetSDK
-2. Login to 192.168.1.213
+2. Login to 192.168.1.XXX
 3. Subscribe to intelligent events / pictures
 4. Detect HumanTrait / Video Metadata events
 5. Print useful event fields
@@ -527,7 +527,7 @@ Never commit real camera credentials.
 Use environment variables or a local ignored config file, for example:
 
 ```text
-DAHUA_HOST=192.168.1.213
+DAHUA_HOST=192.168.1.XXX
 DAHUA_PORT=37777
 DAHUA_USER=admin
 DAHUA_PASSWORD=...
@@ -571,8 +571,160 @@ Confirmed:
 [NO] persistent identity after leaving/re-entering
 [NO] cross-camera identity from camera-local ObjectID
 [NO] JPEG embedded in tested eventManager.cgi stream
-[PENDING] programmatic retrieval of native Dahua AI snapshots
-[PENDING] NetSDK image callback test
+[YES] programmatic retrieval of native Dahua AI snapshots
+[YES] NetSDK image callback test
+[YES] live CGI + NetSDK hybrid correlation
 [PENDING] multi-camera normalized collector
 [PENDING] cross-camera ReID
 ```
+
+---
+
+## Confirmed NetSDK callback findings
+
+The official Win64 NetSDK package in this repository was validated against the
+real camera using `CLIENT_LoginWithHighLevelSecurity` and
+`CLIENT_RealLoadPictureEx` with image delivery enabled.
+
+Confirmed callback results:
+
+```text
+[YES] EVENT_IVS_HUMANTRAIT received
+[YES] native human body JPEG received
+[YES] native face JPEG received
+[YES] native panoramic/context JPEG received
+[YES] native face-associated panoramic JPEG received
+[YES] all image offsets and lengths fit the callback buffer
+[YES] unsubscribe, logout, and SDK cleanup completed without crash
+```
+
+One callback containing all four image types reported:
+
+```text
+buffer size:             672089 bytes
+human body:              1104 x 2160
+face:                     928 x 928
+panoramic/context:       3840 x 2224
+face panoramic/context: 3840 x 2224
+```
+
+### NetSDK and CGI identifier correlation
+
+For this camera/firmware, `DEV_EVENT_HUMANTRAIT_INFO.nObjectID` and
+`nEventID` were zero in the NetSDK callback. They must not be treated as usable
+local identifiers.
+
+A simultaneous CGI and NetSDK capture produced four exact `GroupID` matches:
+
+```text
+NetSDK GroupID 216 <-> CGI GroupID 216 <-> CGI ObjectID 961
+NetSDK GroupID 217 <-> CGI GroupID 217 <-> CGI ObjectID 962
+NetSDK GroupID 218 <-> CGI GroupID 218 <-> CGI ObjectID 963
+NetSDK GroupID 219 <-> CGI GroupID 219 <-> CGI ObjectID 965
+```
+
+Confirmed interpretation for this firmware:
+
+```text
+GroupID       = cross-channel correlation key for the capture group
+CGI ObjectID  = camera-local temporary track ID
+NetSDK nObjectID = unavailable (zero) in observed callbacks
+```
+
+`GroupID` must not be renamed to `local_track_id`; the values are different.
+The current experimental collector preserves `GroupID` and requires CGI
+correlation to recover the camera-local `ObjectID` when NetSDK reports zero.
+
+A later simultaneous facial capture confirmed the complete association:
+
+```text
+NetSDK HumanTrait GroupID 333:
+  body JPEG + face JPEG + panoramic JPEG + face panoramic JPEG
+
+CGI body event:
+  GroupID=333, ObjectID=1520, RelativeID=1001520, EventID=11112
+
+CGI face event:
+  GroupID=334, ObjectID=1001520, BelongID=1520,
+  RelativeID=1520, EventID=11113
+```
+
+The NetSDK callback carrying all four images correlated directly with the CGI
+body event by `GroupID=333`. The associated CGI face event used another group
+(`334`) and must be joined through the reciprocal body/face identifiers. This
+means the future merger needs both relationships: `GroupID` for the NetSDK to
+CGI body match, then `RelativeID`/`BelongID` for the CGI body to face match.
+
+The first combined live collector subsequently emitted normalized events
+without an offline comparison pass. One live facial event produced:
+
+```text
+camera_id=dahua_213
+local_track_id=1559
+face_object_id=1001559
+body GroupID=362
+face GroupID=363
+body EventID=11141
+face EventID=11142
+snapshots=body,face,panoramic,face-panoramic
+correlation.status=complete
+```
+
+The live run also recovered automatically after an idle CGI read timeout and
+shut down the native NetSDK child without leaving it running.
+
+---
+
+## Planned Dahua collector control panel
+
+The collector should eventually include a small local web control panel rather
+than requiring operators to infer its state from output files. The UI must be a
+client of the collector service; closing the browser must not stop active camera
+connections.
+
+Suggested separation:
+
+```text
+Windows collector service / supervisor
+  -> one isolated camera worker per configured camera
+  -> NetSDK + CGI connection lifecycle
+  -> status, counters, logs and normalized events
+  -> local HTTP API + SSE/WebSocket
+
+Local web control panel
+  -> add, edit, enable or disable cameras
+  -> connect, disconnect and restart a camera worker
+  -> show SDK and CGI status independently
+  -> show last event, image thumbnails and correlation state
+  -> show reconnect attempts and recent errors
+```
+
+Initial camera configuration fields:
+
+```text
+nickname / camera_id
+host or IP
+NetSDK port
+HTTP port
+username
+password secret reference
+enabled state
+```
+
+The API must never return stored passwords to the browser. For the experiment,
+credentials can continue to come from ignored environment files. A packaged
+Windows version should use an OS-backed secret store or encrypted-at-rest
+credentials rather than plain text configuration.
+
+### Retention requirement
+
+Collector output must be bounded. At the time this requirement was added, 34
+JPEG files occupied 6.67 MiB while all JSON and log files together occupied
+about 0.06 MiB, confirming that snapshots dominate storage growth.
+
+The product decision is a uniform seven-day lifetime for every collected file,
+including snapshots, raw CGI logs, raw NetSDK JSON, normalized JSONL, and
+future collector artifacts. The multicamera supervisor applies this policy at
+startup and once per hour to its entire output root. No size ceiling currently
+removes younger data. The standalone retention command remains a dry-run unless
+the operator explicitly supplies `--apply`.
