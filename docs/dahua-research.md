@@ -586,6 +586,24 @@ The official Win64 NetSDK package in this repository was validated against the
 real camera using `CLIENT_LoginWithHighLevelSecurity` and
 `CLIENT_RealLoadPictureEx` with image delivery enabled.
 
+The same official header also exposes
+`CLIENT_AttachVideoAnalyseTrackProc`. Its callback structure contains a list
+of live video targets with object UUID, object type and an 8192-based bounding
+box. This is now the primary candidate for the low-latency tracking lane, but
+support by the current IPC is not yet confirmed. The experiment requests it as
+an optional parallel subscription; failure does not interrupt `HumanTrait`.
+
+A controlled real-camera probe subsequently returned a valid subscription
+handle, but produced zero track callbacks while one person moved in view for
+about 12 seconds. `live-track-updates.jsonl` remained empty while the normal
+`HumanTrait` event arrived with body, face, panoramic and face-panoramic JPEGs.
+For this IPC/firmware/configuration, accepting the attach request therefore
+does not prove that the live track feed is implemented or enabled.
+
+The main RTSP URL was also inspected through its SDP. It advertised one HEVC
+video stream and no ONVIF/application metadata stream. Thus the ordinary RTSP
+URL cannot currently provide native bounding boxes alongside the video.
+
 Confirmed callback results:
 
 ```text

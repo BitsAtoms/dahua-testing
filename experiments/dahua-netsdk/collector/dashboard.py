@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from datetime import datetime, timezone
 import hashlib
 from http import HTTPStatus
@@ -12,6 +13,7 @@ import json
 from pathlib import Path
 import queue
 import re
+import socket
 import threading
 import time
 from typing import Any
@@ -31,10 +33,24 @@ from supervisor import CameraWorker
 CAMERA_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 HOST_RE = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
 OBSERVATION_PREFIX = "collector_observation="
+MAX_CONSOLE_ENTRIES = 200
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _elapsed_ms(start: Any, end: Any) -> float | None:
+    if not isinstance(start, str) or not isinstance(end, str):
+        return None
+    try:
+        elapsed = (
+            datetime.fromisoformat(end.replace("Z", "+00:00"))
+            - datetime.fromisoformat(start.replace("Z", "+00:00"))
+        ).total_seconds() * 1000
+    except (TypeError, ValueError):
+        return None
+    return round(elapsed, 1)
 
 
 def _write_json_atomic(path: Path, document: dict[str, Any]) -> None:
@@ -88,6 +104,8 @@ class ControlPlane:
         self.states: dict[str, dict[str, Any]] = {}
         self.subscribers: list[queue.Queue[str]] = []
         self.media: dict[str, Path] = {}
+        self.logs: deque[dict[str, Any]] = deque(maxlen=MAX_CONSOLE_ENTRIES)
+        self._log_sequence = 0
         self.retention = {"last_run": None, "removed_files": 0, "removed_bytes": 0}
         self.live_script = Path(__file__).with_name("live.py").resolve()
         self.static_root = Path(__file__).with_name("web").resolve()
@@ -101,6 +119,7 @@ class ControlPlane:
         for camera in self.cameras.values():
             if camera.enabled:
                 self._start_worker(camera)
+        self._log("info", None, f"Servicio iniciado con {len(self.cameras)} cámara(s)")
         self._thread.start()
 
     def close(self) -> None:
@@ -122,6 +141,19 @@ class ControlPlane:
                 "observations": 0,
                 "last_observation": None,
                 "pipeline_latency_ms": None,
+                "latency_ms": {
+                    "event_age_at_dashboard": None,
+                    "cgi_to_dashboard": None,
+                    "netsdk_callback_to_python": None,
+                    "netsdk_callback_to_dashboard": None,
+                    "normalized_to_dashboard": None,
+                    "correlation_wait": None,
+                },
+                "channels": {
+                    "process": "stopped",
+                    "netsdk": "stopped",
+                    "cgi": "stopped",
+                },
             },
         )
 
@@ -133,6 +165,11 @@ class ControlPlane:
         self.workers[camera.camera_id] = worker
         state = self._initial_state(camera)
         state.update(status="starting", detail="Iniciando collector", updated_at=_utc_now())
+        state["channels"] = {
+            "process": "starting",
+            "netsdk": "connecting",
+            "cgi": "connecting",
+        }
         worker.start()
 
     def start_camera(self, camera_id: str) -> None:
@@ -153,6 +190,12 @@ class ControlPlane:
             self._initial_state(self.cameras[camera_id]).update(
                 status="stopped", detail="Collector detenido", updated_at=_utc_now()
             )
+            self.states[camera_id]["channels"] = {
+                "process": "stopped",
+                "netsdk": "stopped",
+                "cgi": "stopped",
+            }
+            self._log("info", camera_id, "Collector detenido por el operador")
         self._publish("status")
 
     def _camera(self, camera_id: str) -> CameraConfig:
@@ -209,6 +252,12 @@ class ControlPlane:
             self._initial_state(camera).update(
                 status="stopped", detail="Configuración guardada", updated_at=_utc_now()
             )
+            self.states[camera_id]["channels"] = {
+                "process": "stopped",
+                "netsdk": "stopped",
+                "cgi": "stopped",
+            }
+            self._log("info", camera_id, "Configuración guardada")
             if camera.enabled:
                 self._start_worker(camera)
         self._publish("status")
@@ -252,8 +301,26 @@ class ControlPlane:
                 "now": _utc_now(),
                 "retention_days": self.retention_policy.max_age_days,
                 "retention": dict(self.retention),
+                "logs": list(self.logs),
                 "cameras": cameras,
             }
+
+    def clear_logs(self) -> None:
+        with self.lock:
+            self.logs.clear()
+        self._publish("logs")
+
+    def _log(self, level: str, camera_id: str | None, message: str) -> None:
+        self._log_sequence += 1
+        self.logs.append(
+            {
+                "id": self._log_sequence,
+                "at": _utc_now(),
+                "level": level,
+                "camera_id": camera_id,
+                "message": message[:500],
+            }
+        )
 
     def resolve_media(self, token: str) -> Path | None:
         with self.lock:
@@ -277,8 +344,10 @@ class ControlPlane:
             if subscriber in self.subscribers:
                 self.subscribers.remove(subscriber)
 
-    def _publish(self, kind: str) -> None:
-        message = json.dumps({"type": kind, "at": _utc_now()}, separators=(",", ":"))
+    def _publish(self, kind: str, **details: Any) -> None:
+        message = json.dumps(
+            {"type": kind, "at": _utc_now(), **details}, separators=(",", ":")
+        )
         with self.lock:
             subscribers = list(self.subscribers)
         for subscriber in subscribers:
@@ -303,6 +372,13 @@ class ControlPlane:
                     "removed_files": len(candidates),
                     "removed_bytes": removed_bytes,
                 }
+                if candidates:
+                    with self.lock:
+                        self._log(
+                            "info",
+                            None,
+                            f"Retención eliminó {len(candidates)} archivo(s)",
+                        )
                 next_retention = now + self.retention_interval
             with self.lock:
                 workers = list(self.workers.values())
@@ -315,6 +391,7 @@ class ControlPlane:
             self._handle_worker_message(camera_id, message)
 
     def _handle_worker_message(self, camera_id: str, message: str) -> None:
+        notification: dict[str, Any] = {}
         with self.lock:
             camera = self.cameras.get(camera_id)
             if camera is None:
@@ -323,25 +400,128 @@ class ControlPlane:
             state["updated_at"] = _utc_now()
             if message == "worker_started":
                 state.update(status="starting", detail="Proceso iniciado")
+                state["channels"]["process"] = "running"
+                self._log("info", camera_id, "Proceso collector iniciado")
+            elif message.startswith("netsdk: SDK version="):
+                self._log("info", camera_id, message.removeprefix("netsdk: "))
             elif "Login succeeded" in message:
                 state.update(status="connecting", detail="Login NetSDK correcto")
+                state["channels"]["netsdk"] = "connected"
+                self._log("info", camera_id, "Login NetSDK correcto")
             elif message.startswith("netsdk: Subscribed"):
-                state.update(status="running", detail="Eventos e imágenes activos")
+                state["channels"]["netsdk"] = "running"
+                self._log("info", camera_id, "Suscripción NetSDK activa")
+            elif message == "netsdk: Live track subscription active.":
+                self._log("info", camera_id, "Suscripción de tracks solicitada")
+            elif message == "netsdk: Live track feed receiving updates":
+                self._log("event", camera_id, "Canal de tracks en vivo confirmado")
+            elif message.startswith("netsdk: Live track subscription unavailable"):
+                self._log("warning", camera_id, "Canal de tracks no soportado")
+            elif message.startswith("netsdk: Live track subscription error="):
+                self._log("warning", camera_id, message.removeprefix("netsdk: "))
+            elif message.startswith("netsdk: Analyzer event"):
+                self._log("info", camera_id, message.removeprefix("netsdk: "))
             elif message == "status: CGI connected":
-                state.update(status="running", detail="NetSDK y metadatos activos")
+                state["channels"]["cgi"] = "running"
+                self._log("info", camera_id, "Canal CGI conectado")
+            elif "Camera disconnected" in message:
+                state["channels"]["netsdk"] = "warning"
+                self._log("warning", camera_id, "Cámara desconectada; NetSDK reintentará")
+            elif "Camera reconnected" in message:
+                state["channels"]["netsdk"] = "running"
+                self._log("info", camera_id, "Cámara reconectada por NetSDK")
             elif message.startswith(("warning:", "error:")) or "worker_exited" in message:
-                state.update(status="warning", detail=message[:240])
+                if "CGI disconnected" in message:
+                    state["channels"]["cgi"] = "warning"
+                if "worker_exited" in message:
+                    state["channels"] = {
+                        "process": "warning",
+                        "netsdk": "stopped",
+                        "cgi": "stopped",
+                    }
+                elif "CGI disconnected" not in message:
+                    state["channels"]["process"] = "warning"
+                self._log(
+                    "error" if message.startswith("error:") else "warning",
+                    camera_id,
+                    message,
+                )
             elif message.startswith(OBSERVATION_PREFIX):
                 self._record_observation(state, message[len(OBSERVATION_PREFIX):])
-        self._publish("observation" if message.startswith(OBSERVATION_PREFIX) else "status")
+                state["channels"]["process"] = "running"
+                observation = state.get("last_observation")
+                if observation and observation.get("phase") in {"observation", "new"}:
+                    event_age = state["latency_ms"].get("event_age_at_dashboard")
+                    age_text = (
+                        f" · antigüedad {event_age:g} ms"
+                        if event_age is not None
+                        else ""
+                    )
+                    self._log(
+                        "event",
+                        camera_id,
+                        f"Observación recibida · track "
+                        f"{observation.get('local_track_id') or 'sin ID'}"
+                        f"{age_text}",
+                    )
+                if observation:
+                    timing = observation.get("timing", {})
+                    notification = {
+                        "camera_id": camera_id,
+                        "observed_at": observation.get("observed_at"),
+                        "normalized_at": timing.get("normalized_at"),
+                        "dashboard_received_at": timing.get("dashboard_received_at"),
+                    }
+            self._derive_status(state)
+        self._publish(
+            "observation" if message.startswith(OBSERVATION_PREFIX) else "status",
+            **notification,
+        )
+
+    @staticmethod
+    def _derive_status(state: dict[str, Any]) -> None:
+        channels = state["channels"]
+        if channels["process"] == "stopped":
+            state.update(status="stopped", detail="Collector detenido")
+        elif "warning" in channels.values():
+            failed = [name.upper() for name, value in channels.items() if value == "warning"]
+            state.update(status="warning", detail=f"Revisar: {', '.join(failed)}")
+        elif channels["netsdk"] == "running" and channels["cgi"] == "running":
+            state.update(status="running", detail="Captura y metadatos activos")
+        else:
+            state.update(status="connecting", detail="Conectando canales")
 
     def _record_observation(self, state: dict[str, Any], payload: str) -> None:
         try:
             observation = json.loads(payload)
-            ingested = datetime.fromisoformat(observation["ingested_at"])
         except (ValueError, KeyError, TypeError, json.JSONDecodeError):
             state.update(status="warning", detail="Evento de control inválido")
             return
+        dashboard_received_at = _utc_now()
+        timing = observation.setdefault("timing", {})
+        timing["dashboard_received_at"] = dashboard_received_at
+        latency = {
+            # This is event age, not transport latency: Dahua's RealUTC may
+            # identify an early/best frame and HumanTrait can be published
+            # only when the camera finalizes the local track.
+            "event_age_at_dashboard": _elapsed_ms(
+                observation.get("observed_at"), dashboard_received_at
+            ),
+            "cgi_to_dashboard": _elapsed_ms(
+                timing.get("cgi_received_at"), dashboard_received_at
+            ),
+            "netsdk_callback_to_python": _elapsed_ms(
+                timing.get("netsdk_callback_received_at"),
+                timing.get("netsdk_python_received_at"),
+            ),
+            "netsdk_callback_to_dashboard": _elapsed_ms(
+                timing.get("netsdk_callback_received_at"), dashboard_received_at
+            ),
+            "normalized_to_dashboard": _elapsed_ms(
+                timing.get("normalized_at"), dashboard_received_at
+            ),
+            "correlation_wait": timing.get("correlation_wait_ms"),
+        }
         media_for_ui = []
         for item in observation.get("media", []):
             path = Path(item.get("path", ""))
@@ -353,14 +533,20 @@ class ControlPlane:
         if observation.get("phase") in {"observation", "new"}:
             state["observations"] += 1
         state["last_observation"] = observation
-        state["pipeline_latency_ms"] = max(
-            0, round((datetime.now(timezone.utc) - ingested).total_seconds() * 1000, 1)
-        )
+        state["latency_ms"] = latency
+        state["pipeline_latency_ms"] = latency["normalized_to_dashboard"]
         state.update(status="running", detail="Recibiendo observaciones")
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
     server: "DashboardServer"
+
+    def handle(self) -> None:
+        """Treat local browser disconnects as normal connection lifecycle."""
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -385,6 +571,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/cameras":
                 self.server.control.save_camera(self._body())
                 self._json(HTTPStatus.OK, self.server.control.snapshot())
+                return
+            if path == "/api/logs/clear":
+                self.server.control.clear_logs()
+                self._json(HTTPStatus.OK, {"ok": True})
                 return
             match = re.fullmatch(r"/api/cameras/([A-Za-z0-9_-]+)/(?P<action>start|stop)", path)
             if match:
@@ -427,7 +617,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     wire = b": heartbeat\n\n"
                 self.wfile.write(wire)
                 self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
         finally:
             self.server.control.unsubscribe(subscriber)
@@ -459,10 +649,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 class DashboardServer(ThreadingHTTPServer):
     daemon_threads = True
+    allow_reuse_address = False
 
     def __init__(self, address: tuple[str, int], control: ControlPlane) -> None:
         self.control = control
         super().__init__(address, DashboardHandler)
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1
+            )
+        super().server_bind()
 
 
 def main() -> int:
@@ -488,10 +686,17 @@ def main() -> int:
         args.retention_days,
         args.retention_interval_seconds,
     )
-    control.start()
-    server = DashboardServer((args.host, args.port), control)
-    print(f"dashboard=http://{args.host}:{args.port}", flush=True)
     try:
+        server = DashboardServer((args.host, args.port), control)
+    except OSError as error:
+        print(
+            f"dashboard_start_failed address={args.host}:{args.port} error={error}",
+            flush=True,
+        )
+        return 1
+    try:
+        control.start()
+        print(f"dashboard=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         print("Stopping dashboard...", flush=True)

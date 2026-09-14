@@ -55,8 +55,8 @@ Definiciones de las métricas actuales:
 
 ## Próximas tareas para terminar el collector
 
-1. Añadir timestamps en CGI, NetSDK, receptor y navegador y mostrar latencia
-   extremo a extremo y por etapa.
+1. Descubrir y validar un canal Dahua que publique posiciones mientras el
+   track permanece activo; conservar `HumanTrait` como evento final enriquecido.
 2. Sustituir el paso NetSDK `archivo -> notificación -> lectura Python` por un
    canal directo para metadatos; mantener los JPEG como archivos referenciados.
 3. Acotar y medir las colas C++ y Python, definiendo una política explícita de
@@ -74,6 +74,20 @@ Para declarar terminado el módulo, la prueba prolongada debe confirmar
 reconexión automática, apagado limpio, retención de siete días, ausencia de
 pérdidas bajo la carga prevista y entrega de metadatos visibles por debajo del
 objetivo acordado.
+
+La instrumentación ya demostró que `HumanTrait` se publica al finalizar el
+track. En una prueba con permanencia de 20--30 segundos, `EVENT AGE` midió
+27,5 s, mientras que CGI-a-dashboard fue 213 ms, callback NetSDK-a-Python
+19 ms, correlación 219 ms y `PIPE>UI` 2 ms. `EVENT AGE` es la antigüedad de la
+captura indicada por `RealUTC`, no latencia de transporte.
+
+La primera sonda del canal rápido usó
+`CLIENT_AttachVideoAnalyseTrackProc`. La cámara devolvió un handle válido, pero
+no envió callbacks durante una prueba con movimiento; el archivo de muestras
+quedó vacío. El RTSP principal anunció solamente video HEVC, sin una pista de
+metadatos. Las siguientes opciones son inspeccionar el transporte propietario
+que usa Web 5.0 o usar detección RTSP central para el canal rápido, manteniendo
+`HumanTrait` como enriquecimiento final.
 
 ## Roadmap breve posterior
 

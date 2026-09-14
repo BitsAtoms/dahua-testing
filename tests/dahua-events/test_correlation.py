@@ -42,6 +42,8 @@ def body(group_id: int = 333) -> dict:
         "belong_id": 1520,
         "event_id": 11112,
         "event_uuid": "cgi-body-uuid",
+        "timestamp": 1788511446,
+        "_received_at": "2026-09-04T08:44:06.100000+00:00",
         "attributes": {"bag": "Unknown"},
         "raw_field": "preserved",
     }
@@ -69,6 +71,8 @@ def netsdk(group_id: int = 333) -> dict:
             {"type": "panoramic", "file": "scene.jpg"},
         ],
         "buffer_size": 831384,
+        "callback_received_at": "2026-09-04T08:44:06.120Z",
+        "_python_received_at": "2026-09-04T08:44:06.180000+00:00",
     }
 
 
@@ -95,6 +99,11 @@ class DahuaEventCorrelatorTests(unittest.TestCase):
         self.assertEqual(event["source_data"]["group_id"], 333)
         self.assertEqual(event["source_data"]["face_event_id"], 11113)
         self.assertEqual(event["quality"]["status"], "complete")
+        self.assertEqual(event["observed_at"], "2026-09-04T08:44:06+00:00")
+        self.assertEqual(
+            event["timing"]["netsdk_callback_received_at"],
+            "2026-09-04T08:44:06.120Z",
+        )
         self.assertEqual(event["raw"]["cgi_body"]["raw_field"], "preserved")
 
     def test_cameras_with_same_group_id_do_not_mix(self) -> None:
@@ -293,11 +302,19 @@ class DashboardTests(unittest.TestCase):
                 "last_observation": None,
                 "pipeline_latency_ms": None,
             }
+            now = datetime.now(timezone.utc).isoformat()
             payload = json.dumps(
                 {
-                    "ingested_at": datetime.now(timezone.utc).isoformat(),
+                    "ingested_at": now,
+                    "observed_at": now,
                     "phase": "observation",
                     "media": [{"role": "body", "path": str(image)}],
+                    "timing": {
+                        "camera_observed_at": now,
+                        "cgi_received_at": now,
+                        "normalized_at": now,
+                        "correlation_wait_ms": 0.2,
+                    },
                 }
             )
 
@@ -307,6 +324,9 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(state["observations"], 1)
             self.assertTrue(state["last_observation"]["media"][0]["url"].startswith("/api/media/"))
             self.assertGreaterEqual(state["pipeline_latency_ms"], 0)
+            self.assertGreaterEqual(
+                state["latency_ms"]["event_age_at_dashboard"], 0
+            )
 
     def test_common_contract_is_valid_json(self) -> None:
         schema = json.loads(
@@ -314,6 +334,46 @@ class DashboardTests(unittest.TestCase):
             .read_text(encoding="utf-8")
         )
         self.assertEqual(schema["properties"]["schema_version"]["const"], "observation.v1")
+
+    def test_channel_health_and_bounded_console(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            output.mkdir()
+            control = ControlPlane(root / "cameras.json", root / ".env", output, 7, 3600)
+            camera = CameraConfig(
+                camera_id="cam-1",
+                host="192.0.2.1",
+                sdk_port=37777,
+                http_port=80,
+                username_env="CAM_USER",
+                password_env="CAM_PASSWORD",
+            )
+            control.cameras[camera.camera_id] = camera
+            control._initial_state(camera)
+
+            control._handle_worker_message("cam-1", "worker_started")
+            control._handle_worker_message("cam-1", "netsdk: Login succeeded")
+            control._handle_worker_message("cam-1", "netsdk: Subscribed")
+            control._handle_worker_message("cam-1", "status: CGI connected")
+
+            runtime = control.snapshot()["cameras"][0]["runtime"]
+            self.assertEqual(runtime["status"], "running")
+            self.assertEqual(runtime["channels"]["netsdk"], "running")
+            self.assertEqual(runtime["channels"]["cgi"], "running")
+
+            control._handle_worker_message(
+                "cam-1", "warning: CGI disconnected: timed out"
+            )
+            runtime = control.snapshot()["cameras"][0]["runtime"]
+            self.assertEqual(runtime["status"], "warning")
+            self.assertEqual(runtime["channels"]["cgi"], "warning")
+
+            for index in range(250):
+                control._log("info", None, f"message {index}")
+            self.assertEqual(len(control.snapshot()["logs"]), 200)
+            control.clear_logs()
+            self.assertEqual(control.snapshot()["logs"], [])
 
 
 if __name__ == "__main__":

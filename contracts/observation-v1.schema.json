@@ -19,7 +19,7 @@
     },
     "camera_id": { "type": "string", "minLength": 1 },
     "phase": { "enum": ["observation", "new", "update", "end"] },
-    "observed_at": { "type": ["string", "null"] },
+    "observed_at": { "type": ["string", "null"], "format": "date-time" },
     "ingested_at": { "type": "string", "format": "date-time" },
     "subject": {
       "type": "object",
@@ -61,7 +61,20 @@
       "properties": { "status": { "enum": ["partial", "complete"] } },
       "additionalProperties": true
     },
-    "timing": { "type": "object" },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "camera_observed_at": { "type": ["string", "null"], "format": "date-time" },
+        "cgi_received_at": { "type": ["string", "null"], "format": "date-time" },
+        "netsdk_callback_received_at": { "type": ["string", "null"], "format": "date-time" },
+        "netsdk_python_received_at": { "type": ["string", "null"], "format": "date-time" },
+        "normalized_at": { "type": ["string", "null"], "format": "date-time" },
+        "collector_published_at": { "type": ["string", "null"], "format": "date-time" },
+        "correlation_wait_ms": { "type": ["number", "null"] },
+        "source_timestamps": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
     "source_data": { "type": "object" },
     "raw": { "type": "object" }
   },

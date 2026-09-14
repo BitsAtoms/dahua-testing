@@ -24,6 +24,7 @@ from dahua_collector.sinks import EventSink, JsonlEventSink
 
 
 _EVENT_FILE_RE = re.compile(r"^event_json=(?P<path>.+)$")
+_LIVE_TRACK_RE = re.compile(r"^live_track_update=(?P<payload>\{.+\})$")
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -92,6 +93,9 @@ def cgi_worker(
                         log.write(line + "\n")
                         log.flush()
                         for event in parser.feed_line(line):
+                            event["_received_at"] = datetime.now(
+                                timezone.utc
+                            ).isoformat()
                             messages.put(("cgi", event))
             except Exception as error:  # transport errors are retried centrally
                 if stop.is_set():
@@ -141,12 +145,23 @@ def netsdk_worker(
     assert process.stdout is not None
     for original in process.stdout:
         line = original.rstrip("\r\n")
+        track_match = _LIVE_TRACK_RE.match(line)
+        if track_match:
+            try:
+                messages.put(("live-track", json.loads(track_match.group("payload"))))
+            except json.JSONDecodeError as error:
+                messages.put(("warning", f"Invalid live track payload: {error}"))
+            continue
         if line:
             messages.put(("sdk-log", line))
         match = _EVENT_FILE_RE.match(line)
         if match:
             try:
-                messages.put(("netsdk", load_event_file(match.group("path"))))
+                event = load_event_file(match.group("path"))
+                event["_python_received_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+                messages.put(("netsdk", event))
             except Exception as error:
                 messages.put(("error", str(error)))
         if stop.is_set():
@@ -180,6 +195,9 @@ def write_normalized(
     output: EventSink, events: list[dict[str, Any]]
 ) -> None:
     for event in events:
+        event["timing"]["collector_published_at"] = datetime.now(
+            timezone.utc
+        ).isoformat()
         output.publish(event)
         media = ",".join(item["role"] for item in event["media"])
         projection = {
@@ -191,6 +209,8 @@ def write_normalized(
             "local_track_id": event["subject"]["local_track_id"],
             "quality": event["quality"]["status"],
             "media": event["media"],
+            "observed_at": event["observed_at"],
+            "timing": event["timing"],
         }
         print(
             "collector_observation="
@@ -243,6 +263,7 @@ def main() -> int:
     sdk_output.mkdir(parents=True)
     cgi_log = session_root / "cgi-events.log"
     normalized_path = session_root / "normalized-events.jsonl"
+    live_tracks_path = session_root / "live-track-updates.jsonl"
 
     messages: queue.Queue[tuple[str, Any]] = queue.Queue()
     stop = threading.Event()
@@ -282,7 +303,11 @@ def main() -> int:
     print("Press Ctrl+C to stop.", flush=True)
 
     try:
-        with JsonlEventSink(normalized_path) as output:
+        with (
+            JsonlEventSink(normalized_path) as output,
+            JsonlEventSink(live_tracks_path) as live_tracks,
+        ):
+            live_track_announced = False
             while not shutdown.is_set():
                 try:
                     kind, payload = messages.get(timeout=0.5)
@@ -294,12 +319,20 @@ def main() -> int:
                     write_normalized(output, correlator.ingest_cgi(camera_id, payload))
                 elif kind == "netsdk":
                     write_normalized(output, correlator.ingest_netsdk(camera_id, payload))
+                elif kind == "live-track":
+                    payload["camera_id"] = camera_id
+                    live_tracks.publish(payload)
+                    if not live_track_announced:
+                        print("netsdk: Live track feed receiving updates", flush=True)
+                        live_track_announced = True
                 elif kind in {"status", "warning", "error"}:
                     print(f"{kind}: {payload}", flush=True)
                 elif kind == "sdk-log" and (
                     payload.startswith("SDK version=")
                     or payload.startswith("Login succeeded")
                     or payload.startswith("Subscribed")
+                    or payload.startswith("Live track")
+                    or payload.startswith("Analyzer event")
                     or payload.startswith("Camera ")
                 ):
                     print(f"netsdk: {payload}", flush=True)

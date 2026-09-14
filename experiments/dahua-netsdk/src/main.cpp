@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <chrono>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
@@ -67,11 +68,14 @@ struct EventRecord {
     NET_TIME_EX utc{};
     NET_TIME_EX2 real_utc{};
     bool has_real_utc{};
+    std::chrono::system_clock::time_point callback_received_at{};
     std::vector<ImageDescriptor> images;
     std::vector<BYTE> buffer;
 };
 
 std::mutex g_console_mutex;
+std::mutex g_track_console_mutex;
+std::chrono::steady_clock::time_point g_last_track_report{};
 
 template <std::size_t N>
 std::string fixed_string(const char (&value)[N]) {
@@ -172,6 +176,20 @@ std::string format_time(const NET_TIME_EX& time) {
         << std::setw(2) << time.dwMinute
         << std::setw(2) << time.dwSecond << '-'
         << std::setw(3) << time.dwMillisecond;
+    return out.str();
+}
+
+std::string format_utc_time(
+    const std::chrono::system_clock::time_point& value) {
+    const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(value);
+    const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+        value - seconds).count();
+    const std::time_t raw_time = std::chrono::system_clock::to_time_t(value);
+    std::tm utc{};
+    gmtime_s(&utc, &raw_time);
+    std::ostringstream out;
+    out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%S") << '.'
+        << std::setfill('0') << std::setw(3) << milliseconds << 'Z';
     return out.str();
 }
 
@@ -348,6 +366,8 @@ private:
              << "  \"pts\": " << std::setprecision(17) << record.pts << ",\n"
              << "  \"event_name\": \"" << json_escape(record.event_name) << "\",\n"
              << "  \"timestamp\": \"" << timestamp << "\",\n"
+             << "  \"callback_received_at\": \""
+             << format_utc_time(record.callback_received_at) << "\",\n"
              << "  \"callback_sequence\": " << record.callback_sequence << ",\n"
              << "  \"transfer_state\": " << record.transfer_state << ",\n"
              << "  \"buffer_size\": " << record.buffer.size() << ",\n"
@@ -413,6 +433,7 @@ void copy_human_trait_event(
     int callback_sequence,
     void* reserved) {
     EventRecord record;
+    record.callback_received_at = std::chrono::system_clock::now();
     record.alarm_type = alarm_type;
     record.callback_sequence = callback_sequence;
     if (reserved != nullptr) {
@@ -513,8 +534,69 @@ int CALLBACK on_analyzer_data(
             buffer_size,
             sequence,
             reserved);
+    } else {
+        // EVENT_IVS_ALL is intentional. Keep the first few occurrences of
+        // every other event type visible so a camera capability is not
+        // silently discarded during discovery.
+        static std::map<DWORD, unsigned int> event_counts;
+        std::lock_guard<std::mutex> lock(g_console_mutex);
+        const auto count = ++event_counts[alarm_type];
+        if (count <= 3) {
+            std::cout << "Analyzer event type=0x" << std::hex << std::uppercase
+                      << alarm_type << std::dec << " count=" << count
+                      << " buffer_size=" << buffer_size << '\n'
+                      << std::flush;
+        }
     }
     return 0;
+}
+
+void CALLBACK on_video_track(
+    LLONG,
+    NET_VIDEO_ANALYSE_TRACK_PROC* info,
+    LDWORD) {
+    if (info == nullptr) {
+        return;
+    }
+
+    // Discovery output is capped at four samples per second. This keeps the
+    // native callback short and prevents a live metadata feed from flooding
+    // the Python supervisor while still proving that positions are updating.
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_track_console_mutex);
+    if (g_last_track_report.time_since_epoch().count() != 0 &&
+        now - g_last_track_report < std::chrono::milliseconds(250)) {
+        return;
+    }
+    g_last_track_report = now;
+
+    const int object_count = std::clamp(info->nTrackObjectNum, 0, 128);
+    std::ostringstream output;
+    output << "live_track_update={\"channel\":" << info->nChannelId
+           << ",\"received_at_ms\":"
+           << std::chrono::duration_cast<std::chrono::milliseconds>(
+                  std::chrono::system_clock::now().time_since_epoch())
+                  .count()
+           << ",\"object_count\":" << object_count << ",\"objects\":[";
+    for (int index = 0; index < object_count; ++index) {
+        if (index > 0) {
+            output << ',';
+        }
+        const auto& object = info->stuTrackObject[index];
+        output << "{\"uuid\":\"" << fixed_string(object.szObjectUUID)
+               << "\",\"type\":"
+               << (object.nObjectTypeNum > 0
+                       ? static_cast<int>(object.emObjectType[0])
+                       : static_cast<int>(EM_TRACK_OBJECT_TYPE_UNKNOWN))
+               << ",\"bbox\":[" << object.stuBoundingBox.nLeft << ','
+               << object.stuBoundingBox.nTop << ','
+               << object.stuBoundingBox.nRight << ','
+               << object.stuBoundingBox.nBottom << "]}";
+    }
+    output << "]}";
+
+    std::lock_guard<std::mutex> console_lock(g_console_mutex);
+    std::cout << output.str() << '\n' << std::flush;
 }
 
 std::string sdk_error() {
@@ -536,6 +618,7 @@ int main(int argc, char** argv) {
     bool initialized = false;
     LLONG login_handle = 0;
     LLONG subscription_handle = 0;
+    LLONG track_subscription_handle = 0;
 
     try {
         const auto env = env_path == fs::path("-")
@@ -593,10 +676,33 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Event subscription failed: " + sdk_error());
         }
 
+        NET_IN_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_in{};
+        track_in.dwSize = sizeof(track_in);
+        track_in.nChannelId = 0;
+        track_in.cbVideoAnalyseTrackProc = on_video_track;
+        NET_OUT_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_out{};
+        track_out.dwSize = sizeof(track_out);
+        track_subscription_handle = CLIENT_AttachVideoAnalyseTrackProc(
+            login_handle, &track_in, &track_out, 3000);
+
         std::cout << "Subscribed to intelligent events with pictures.\n"
+                  << (track_subscription_handle != 0
+                          ? "Live track subscription active.\n"
+                          : "Live track subscription unavailable; continuing with HumanTrait.\n")
                   << "Walk through the camera view, then press Enter to stop.\n";
+        if (track_subscription_handle == 0) {
+            std::cout << "Live track subscription error=" << sdk_error() << '\n';
+        }
+        std::cout << std::flush;
         std::string ignored;
         std::getline(std::cin, ignored);
+
+        if (track_subscription_handle != 0 &&
+            !CLIENT_DetachVideoAnalyseTrackProc(track_subscription_handle)) {
+            std::cerr << "CLIENT_DetachVideoAnalyseTrackProc failed: "
+                      << sdk_error() << '\n';
+        }
+        track_subscription_handle = 0;
 
         if (!CLIENT_StopLoadPic(subscription_handle)) {
             std::cerr << "CLIENT_StopLoadPic failed: " << sdk_error() << '\n';
@@ -614,6 +720,9 @@ int main(int argc, char** argv) {
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
+        if (track_subscription_handle != 0) {
+            CLIENT_DetachVideoAnalyseTrackProc(track_subscription_handle);
+        }
         if (subscription_handle != 0) {
             CLIENT_StopLoadPic(subscription_handle);
         }

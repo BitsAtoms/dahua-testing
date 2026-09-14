@@ -231,6 +231,40 @@ credentials entered in the form are saved as dedicated variables in the
 ignored root `.env`; API responses never return them. `cameras.local.json`
 remains the ignored non-secret camera inventory.
 
+The compact monitor reports the worker, NetSDK, and CGI channels separately.
+Its in-memory console keeps only the latest 200 important state, error, and
+detection messages and can be cleared from the browser. Browser SSE disconnects
+are handled as normal client lifecycle events, and Windows exclusive binding
+prevents two dashboard instances from sharing the same port.
+
+Latency instrumentation preserves timestamps for the camera's CGI `RealUTC`,
+CGI receipt, the native NetSDK callback, Python receipt, correlation,
+normalization, dashboard receipt, and browser SSE receipt. The card reports:
+
+```text
+EVENT AGE  camera RealUTC to browser receipt (not transport latency)
+PIPE>UI    normalized observation to browser receipt
+```
+
+Hovering the latency row exposes CGI-to-dashboard, NetSDK callback-to-Python,
+and correlation timings. `EVENT AGE` includes the lifetime of the camera-local
+track: on the tested firmware, `RealUTC` identifies an early/best frame while
+`HumanTrait` is commonly published when the track is finalized. It must not be
+read as network latency. A high `PIPE>UI` indicates a collector, dashboard, or
+browser delivery problem.
+
 The dashboard receives only a small event projection. Raw structures stay in
 JSONL and JPEG data is loaded through a local media URL, keeping the real-time
 control channel independent from image size.
+
+### Live-track capability probe
+
+The native process also requests the official
+`CLIENT_AttachVideoAnalyseTrackProc` feed in parallel with
+`CLIENT_RealLoadPictureEx`. If the camera supports it, bounded position samples
+are stored in the session's `live-track-updates.jsonl`; the dashboard reports
+the first received update without streaming the high-frequency payload through
+its operator console. Failure to attach is non-fatal and `HumanTrait` capture
+continues normally. Because the existing picture subscription uses
+`EVENT_IVS_ALL`, the first three occurrences of any non-`HumanTrait` analyzer
+event code are also reported for capability discovery.

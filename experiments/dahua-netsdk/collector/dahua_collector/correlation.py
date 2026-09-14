@@ -13,6 +13,16 @@ from typing import Any
 CorrelationKey = tuple[str, int]
 
 
+def _source_time_to_iso(value: Any) -> str | None:
+    """Convert Dahua RealUTC epoch seconds without guessing local timestamps."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(value, timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 @dataclass
 class _Pending:
     payload: dict[str, Any]
@@ -200,13 +210,24 @@ class DahuaEventCorrelator:
             for role, path in snapshots.items()
         ]
 
-        source_timestamp = (
-            netsdk.get("timestamp") if netsdk else body.get("timestamp") if body else None
-        )
+        cgi_source_timestamp = body.get("timestamp") if body else None
+        netsdk_source_timestamp = netsdk.get("timestamp") if netsdk else None
+        source_timestamp = netsdk_source_timestamp or cgi_source_timestamp
         source_event_uuid = body.get("event_uuid") if body else None
         identity = source_event_uuid or f"group-{key[1]}:{source_timestamp or 'unknown'}"
         observation_id = f"dahua:{key[0]}:{identity}"
         complete_sources = body is not None and netsdk is not None
+        normalized_at = datetime.now(timezone.utc).isoformat()
+        pending_times = [
+            pending.received_at
+            for pending in (self._bodies.get(key), self._netsdk.get(key), face_pending)
+            if pending is not None
+        ]
+        correlation_wait_ms = (
+            round((self._clock() - min(pending_times)) * 1000, 1)
+            if pending_times
+            else None
+        )
 
         return {
             "schema_version": "observation.v1",
@@ -215,8 +236,8 @@ class DahuaEventCorrelator:
             "source": {"type": "dahua", "instance_id": None},
             "camera_id": key[0],
             "phase": phase,
-            "observed_at": None,
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
+            "observed_at": _source_time_to_iso(cgi_source_timestamp),
+            "ingested_at": normalized_at,
             "subject": {
                 "type": "person",
                 "local_track_id": (
@@ -242,7 +263,22 @@ class DahuaEventCorrelator:
                 "netsdk_body_group_match": complete_sources,
                 "body_face_relation_match": face is not None,
             },
-            "timing": {"source_timestamp": source_timestamp},
+            "timing": {
+                "camera_observed_at": _source_time_to_iso(cgi_source_timestamp),
+                "cgi_received_at": body.get("_received_at") if body else None,
+                "netsdk_callback_received_at": (
+                    netsdk.get("callback_received_at") if netsdk else None
+                ),
+                "netsdk_python_received_at": (
+                    netsdk.get("_python_received_at") if netsdk else None
+                ),
+                "normalized_at": normalized_at,
+                "correlation_wait_ms": correlation_wait_ms,
+                "source_timestamps": {
+                    "cgi_real_utc": cgi_source_timestamp,
+                    "netsdk_camera_local": netsdk_source_timestamp,
+                },
+            },
             "source_data": {
                 "group_id": key[1],
                 "body_event_id": body.get("event_id") if body else None,

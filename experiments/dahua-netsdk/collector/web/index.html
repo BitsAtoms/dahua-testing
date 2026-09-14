@@ -5,89 +5,121 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dahua Collector</title>
   <style>
-    :root { color-scheme: dark; --bg:#080d12; --panel:#101922; --line:#20303d; --text:#edf7f7; --muted:#8ca3ad; --cyan:#42e8d4; --amber:#ffbb54; --red:#ff6b6b; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; background:radial-gradient(circle at 20% 0,#10242c 0,transparent 35%),var(--bg); color:var(--text); font:14px/1.45 Inter,Segoe UI,sans-serif; }
-    header { max-width:1180px; margin:auto; padding:34px 24px 20px; display:flex; justify-content:space-between; align-items:end; gap:20px; }
-    h1 { margin:0; font-size:28px; letter-spacing:-.04em; } h1 span { color:var(--cyan); }
-    .eyebrow { color:var(--cyan); text-transform:uppercase; letter-spacing:.18em; font-size:11px; margin-bottom:7px; }
-    .summary { color:var(--muted); text-align:right; }
-    main { max-width:1180px; margin:auto; padding:0 24px 48px; }
-    .toolbar { display:flex; justify-content:space-between; align-items:center; padding:18px 0; border-top:1px solid var(--line); }
-    button { border:1px solid #2b4652; border-radius:8px; padding:9px 13px; background:#14232c; color:var(--text); cursor:pointer; font-weight:600; }
-    button:hover { border-color:var(--cyan); } button.primary { color:#061311; background:var(--cyan); border-color:var(--cyan); }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:16px; }
-    .card { border:1px solid var(--line); border-radius:14px; background:linear-gradient(145deg,rgba(18,30,39,.96),rgba(11,18,24,.96)); padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.18); }
-    .card-head { display:flex; justify-content:space-between; gap:12px; } .camera-id { font-size:18px; font-weight:700; }
-    .host { color:var(--muted); margin-top:3px; font-family:Consolas,monospace; }
-    .status { display:inline-flex; align-items:center; gap:7px; color:var(--muted); } .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
-    .running .dot { background:var(--cyan); box-shadow:0 0 10px var(--cyan); } .warning .dot { background:var(--red); } .starting .dot,.connecting .dot { background:var(--amber); }
-    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0; }
-    .metric { background:#0a1218; border:1px solid #182832; border-radius:9px; padding:10px; } .metric strong { display:block; font-size:18px; } .metric small { color:var(--muted); }
-    .detail { min-height:22px; color:var(--muted); } .event { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
-    .event-line { display:flex; justify-content:space-between; gap:12px; margin:4px 0; } .event-line span:first-child { color:var(--muted); }
-    .thumbs { display:flex; gap:8px; overflow:auto; margin-top:12px; } .thumb { position:relative; flex:0 0 92px; }
-    .thumb img { width:92px; height:76px; border-radius:7px; object-fit:cover; background:#05090c; } .thumb small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
-    .actions { display:flex; gap:8px; margin-top:16px; }
-    dialog { width:min(520px,calc(100% - 30px)); border:1px solid var(--line); border-radius:14px; color:var(--text); background:#0e171e; padding:0; box-shadow:0 30px 90px #000; } dialog::backdrop { background:rgba(0,0,0,.72); backdrop-filter:blur(3px); }
-    form { padding:22px; } h2 { margin:0 0 18px; } label { display:block; color:var(--muted); font-size:12px; margin:12px 0 5px; }
-    input { width:100%; border:1px solid #29404c; border-radius:8px; padding:10px; background:#071016; color:var(--text); outline:none; } input:focus { border-color:var(--cyan); }
-    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .check { display:flex; gap:8px; align-items:center; } .check input { width:auto; }
-    .form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; } .error { color:var(--red); min-height:20px; margin-top:10px; }
-    .empty { border:1px dashed var(--line); padding:40px; border-radius:14px; text-align:center; color:var(--muted); }
-    @media(max-width:600px){ header { align-items:start; flex-direction:column; } .summary{text-align:left}.row{grid-template-columns:1fr}.grid{grid-template-columns:1fr} }
+    :root { color-scheme:dark; --bg:#090a0b; --panel:#0e1011; --raised:#141617; --line:#292d2f; --line2:#1b1e20; --text:#d8dcde; --muted:#777f83; --green:#72c991; --yellow:#d6b45f; --red:#d36b6b; --blue:#71a8c4; }
+    * { box-sizing:border-box }
+    html { background:var(--bg) }
+    body { margin:0; color:var(--text); background:var(--bg); font:12px/1.45 Consolas,"Cascadia Mono","Courier New",monospace }
+    header,main { width:min(1180px,calc(100% - 32px)); margin:auto }
+    header { min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:18px; border-bottom:1px solid var(--line) }
+    h1 { margin:0; font-size:14px; font-weight:600; letter-spacing:.06em }
+    h1::before { content:"> "; color:var(--green) }
+    .top-health { display:flex; align-items:center; gap:16px; color:var(--muted) }
+    .live,.state,.channel { display:inline-flex; align-items:center; gap:7px }
+    .indicator { width:7px; height:7px; display:inline-block; background:#565d60 }
+    .running .indicator,.connected .indicator,.ok .indicator { background:var(--green) }
+    .connecting .indicator,.starting .indicator { background:var(--yellow) }
+    .warning .indicator,.error .indicator { background:var(--red) }
+    .toolbar { min-height:48px; display:flex; justify-content:space-between; align-items:center; gap:16px }
+    .muted { color:var(--muted) }
+    button { border:1px solid #3a4043; border-radius:2px; padding:6px 10px; color:var(--text); background:#151819; font:inherit; cursor:pointer }
+    button:hover { color:#fff; background:#1d2022; border-color:#646c70 }
+    button.primary { color:var(--bg); background:var(--text); border-color:var(--text) }
+    .layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(390px,.85fr); gap:12px; padding-bottom:28px }
+    .camera-list { display:grid; gap:8px; align-content:start }
+    .card { border:1px solid var(--line); border-radius:2px; background:var(--panel); padding:12px }
+    .card.warning { border-left:3px solid var(--red) }
+    .card-head,.head-controls,.last-row,.console-head { display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .card-head { flex-wrap:wrap }
+    .head-controls { justify-content:flex-end; gap:6px }
+    .head-controls button { padding:4px 7px; font-size:10px }
+    .camera-name { color:#f0f2f3; font-size:13px; font-weight:600 }
+    .host { margin-top:1px; color:var(--muted); font-size:11px }
+    .state { color:var(--muted); text-transform:uppercase; font-size:10px }
+    .channel-strip { display:flex; flex-wrap:wrap; gap:14px; margin:10px 0; padding:7px 0; border-top:1px solid var(--line2); border-bottom:1px solid var(--line2) }
+    .channel { gap:6px; color:#a9afb1; font-size:10px }
+    .channel .indicator { width:6px; height:6px }
+    .stats { display:flex; flex-wrap:wrap; gap:20px; margin:9px 0 }
+    .stat { display:flex; align-items:baseline; gap:6px }
+    .stat strong { font-size:14px; font-weight:500 }
+    .stat small { color:var(--muted) }
+    .detail { color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+    .last { margin-top:9px; padding-top:9px; border-top:1px solid var(--line2) }
+    .last-row { justify-content:flex-start; color:var(--muted) }
+    .last-row b { color:var(--text); font-weight:500; margin-right:10px }
+    .preview { width:52px; height:40px; object-fit:cover; border:1px solid var(--line); margin-left:auto; filter:saturate(.75) }
+    .console { height:calc(100vh - 121px); height:calc(100dvh - 121px); min-height:430px; display:flex; flex-direction:column; position:sticky; top:8px; border:1px solid #303537; border-radius:2px; background:#050606; overflow:hidden }
+    .console-head { flex:0 0 auto; padding:8px 10px; border-bottom:1px solid #25292b; background:#0c0e0f }
+    .console-head b { font-size:11px; font-weight:500 }
+    .console-head b::before { content:"C:\\> "; color:var(--green) }
+    .console-list { min-height:0; overflow-x:hidden; overflow-y:auto; flex:1 1 auto; padding:5px 0; scrollbar-color:#34393b #080909 }
+    .log { display:grid; grid-template-columns:62px 62px 76px minmax(0,1fr); gap:7px; padding:3px 9px; color:#aeb4b6 }
+    .log:hover { background:#0c0e0f }
+    .log time,.log .source { color:#596165 }
+    .level { color:#7d8589 }
+    .log.info .level { color:var(--blue) }
+    .log.event .level,.log.event .message { color:var(--green) }
+    .log.warning .level,.log.warning .message { color:var(--yellow) }
+    .log.error .level,.log.error .message { color:var(--red) }
+    .message { overflow-wrap:anywhere }
+    .empty { border:1px dashed var(--line); border-radius:2px; padding:30px; text-align:center; color:var(--muted) }
+    dialog { width:min(500px,calc(100% - 24px)); padding:0; color:var(--text); background:#0d0f10; border:1px solid #3a4043; border-radius:2px }
+    dialog::backdrop { background:#000c }
+    form { padding:18px }
+    h2 { margin:0 0 14px; font-size:14px; font-weight:500 }
+    h2::before { content:"$ "; color:var(--green) }
+    label { display:block; margin:9px 0 3px; color:var(--muted); font-size:10px }
+    input { width:100%; padding:7px 8px; color:var(--text); background:#060707; border:1px solid #33383a; border-radius:1px; outline:none; font:inherit }
+    input:focus { border-color:#697276 }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    .check { display:flex; align-items:center; gap:7px }
+    .check input { width:auto }
+    .form-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:17px }
+    .form-error { min-height:18px; margin-top:7px; color:var(--red) }
+    @media(max-width:840px){ .layout{grid-template-columns:1fr}.console{position:static;height:400px;min-height:400px}.top-health{gap:9px} }
+    @media(max-width:520px){ header{padding:13px 0;align-items:flex-start}.top-health{align-items:flex-end;flex-direction:column;gap:3px}.row{grid-template-columns:1fr}.log{grid-template-columns:55px 55px 1fr}.log .source{display:none}.stats{gap:12px} }
   </style>
 </head>
 <body>
   <header>
-    <div><div class="eyebrow">Control local</div><h1>Dahua <span>Collector</span></h1></div>
-    <div class="summary" id="summary">Conectando…</div>
+    <h1>DAHUA_COLLECTOR</h1>
+    <div class="top-health"><span class="live connecting" id="browser"><i class="indicator"></i><span>PANEL CONNECTING</span></span><strong id="summary">—</strong></div>
   </header>
   <main>
-    <div class="toolbar"><span id="retention">Retención: 7 días</span><button class="primary" onclick="openCamera()">+ Añadir cámara</button></div>
-    <section class="grid" id="cameras"></section>
+    <div class="toolbar"><span class="muted" id="problem-summary">Esperando estado...</span><button class="primary" onclick="openCamera()">[ + CAMARA ]</button></div>
+    <div class="layout">
+      <section class="camera-list" id="cameras"></section>
+      <aside class="console">
+        <div class="console-head"><b>collector.log</b><button onclick="clearConsole()">[ LIMPIAR ]</button></div>
+        <div class="console-list" id="console"><div class="empty">Esperando mensajes...</div></div>
+      </aside>
+    </div>
   </main>
-  <dialog id="camera-dialog">
-    <form id="camera-form">
-      <h2 id="form-title">Añadir cámara Dahua</h2>
-      <label for="camera_id">Identificador</label><input id="camera_id" name="camera_id" placeholder="entrada_principal" required pattern="[A-Za-z0-9_-]+">
-      <label for="host">IP o host</label><input id="host" name="host" placeholder="192.168.1.XXX" required>
-      <div class="row"><div><label for="sdk_port">Puerto NetSDK</label><input id="sdk_port" name="sdk_port" type="number" value="37777" min="1" max="65535" required></div><div><label for="http_port">Puerto HTTP</label><input id="http_port" name="http_port" type="number" value="80" min="1" max="65535" required></div></div>
-      <div class="row"><div><label for="username">Usuario</label><input id="username" name="username" autocomplete="username"></div><div><label for="password">Contraseña</label><input id="password" name="password" type="password" autocomplete="current-password"></div></div>
-      <label class="check"><input id="enabled" name="enabled" type="checkbox" checked> Iniciar automáticamente</label>
-      <div class="error" id="form-error"></div>
-      <div class="form-actions"><button type="button" onclick="dialog.close()">Cancelar</button><button class="primary" type="submit">Guardar e iniciar</button></div>
-    </form>
-  </dialog>
+  <dialog id="camera-dialog"><form id="camera-form">
+    <h2 id="form-title">CAMARA_DAHUA</h2>
+    <label for="camera_id">CAMERA_ID</label><input id="camera_id" name="camera_id" placeholder="entrada_principal" required pattern="[A-Za-z0-9_-]+">
+    <label for="host">HOST</label><input id="host" name="host" placeholder="192.168.1.XXX" required>
+    <div class="row"><div><label for="sdk_port">NETSDK_PORT</label><input id="sdk_port" name="sdk_port" type="number" value="37777" min="1" max="65535" required></div><div><label for="http_port">HTTP_PORT</label><input id="http_port" name="http_port" type="number" value="80" min="1" max="65535" required></div></div>
+    <div class="row"><div><label for="username">USER</label><input id="username" name="username" autocomplete="username"></div><div><label for="password">PASSWORD</label><input id="password" name="password" type="password" autocomplete="current-password"></div></div>
+    <label class="check"><input id="enabled" name="enabled" type="checkbox" checked> START_AUTO</label>
+    <div class="form-error" id="form-error"></div><div class="form-actions"><button type="button" onclick="dialog.close()">[ CANCELAR ]</button><button class="primary" type="submit">[ GUARDAR ]</button></div>
+  </form></dialog>
   <script>
-    const cards = document.querySelector('#cameras');
-    const dialog = document.querySelector('#camera-dialog');
-    const form = document.querySelector('#camera-form');
-    let current = [];
-    const esc = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    async function request(url, options) { const response = await fetch(url, options); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Error'); return data; }
-    async function refresh() {
-      try {
-        const data = await request('/api/status'); current = data.cameras;
-        document.querySelector('#summary').textContent = `${current.filter(c=>c.runtime.status==='running').length}/${current.length} cámaras activas`;
-        document.querySelector('#retention').textContent = `Retención: ${data.retention_days} días · última limpieza ${data.retention.last_run ? new Date(data.retention.last_run).toLocaleTimeString() : 'pendiente'}`;
-        cards.innerHTML = current.length ? current.map(card).join('') : '<div class="empty">No hay cámaras configuradas.<br>Añade la primera para iniciar el collector.</div>';
-      } catch (error) { document.querySelector('#summary').textContent = error.message; }
-    }
-    function card(camera) {
-      const r=camera.runtime, e=r.last_observation;
-      const thumbs=e?.media?.map(m=>`<div class="thumb"><img src="${esc(m.url)}" alt="${esc(m.role)}"><small>${esc(m.role)}</small></div>`).join('') || '';
-      return `<article class="card"><div class="card-head"><div><div class="camera-id">${esc(camera.camera_id)}</div><div class="host">${esc(camera.host)} · SDK ${camera.sdk_port}</div></div><div class="status ${esc(r.status)}"><i class="dot"></i>${esc(r.status)}</div></div><div class="metrics"><div class="metric"><strong>${r.observations}</strong><small>observaciones</small></div><div class="metric"><strong>${r.messages}</strong><small>mensajes</small></div><div class="metric"><strong>${r.pipeline_latency_ms ?? '—'}</strong><small>latencia ms</small></div></div><div class="detail">${esc(r.detail)}</div>${e?`<div class="event"><div class="event-line"><span>Último track</span><b>${esc(e.local_track_id ?? 'sin identificar')}</b></div><div class="event-line"><span>Fase / calidad</span><b>${esc(e.phase)} · ${esc(e.quality)}</b></div><div class="thumbs">${thumbs}</div></div>`:''}<div class="actions"><button onclick="operate('${esc(camera.camera_id)}','${r.status==='stopped'?'start':'stop'}')">${r.status==='stopped'?'Iniciar':'Detener'}</button><button onclick="openCamera('${esc(camera.camera_id)}')">Configurar</button></div></article>`;
-    }
-    function openCamera(id) {
-      form.reset(); document.querySelector('#enabled').checked=true; document.querySelector('#sdk_port').value=37777; document.querySelector('#http_port').value=80; document.querySelector('#form-error').textContent='';
-      const camera=current.find(c=>c.camera_id===id); document.querySelector('#form-title').textContent=camera?'Configurar cámara':'Añadir cámara Dahua'; document.querySelector('#camera_id').readOnly=Boolean(camera);
-      if(camera){ for(const key of ['camera_id','host','sdk_port','http_port']) document.querySelector('#'+key).value=camera[key]; document.querySelector('#enabled').checked=camera.enabled; }
-      dialog.showModal();
-    }
-    async function operate(id, action){ try { await request(`/api/cameras/${id}/${action}`,{method:'POST'}); await refresh(); } catch(error){ alert(error.message); } }
-    form.addEventListener('submit', async event => { event.preventDefault(); const body=Object.fromEntries(new FormData(form)); body.enabled=document.querySelector('#enabled').checked; body.sdk_port=Number(body.sdk_port); body.http_port=Number(body.http_port); try { await request('/api/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); dialog.close(); await refresh(); } catch(error){ document.querySelector('#form-error').textContent=error.message; } });
-    const stream=new EventSource('/api/events'); stream.onmessage=()=>refresh(); stream.onerror=()=>setTimeout(refresh,1000); setInterval(refresh,5000); refresh();
+    const cards=document.querySelector('#cameras'),dialog=document.querySelector('#camera-dialog'),form=document.querySelector('#camera-form'),consoleBox=document.querySelector('#console');
+    let current=[],lastLogId=0,uiTiming={};
+    const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const label={running:'RUN',connected:'READY',connecting:'WAIT',starting:'BOOT',warning:'FAIL',stopped:'STOP'};
+    const level={info:'INFO',event:'EVENT',warning:'WARN',error:'ERROR'};
+    const latency=value=>value==null?'—':Math.abs(value)>=1000?`${(value/1000).toFixed(1)} s`:`${Math.round(value)} ms`;
+    async function request(url,options){const response=await fetch(url,options),data=await response.json();if(!response.ok)throw new Error(data.error||'Error');return data}
+    function channel(name,state){return `<span class="channel ${esc(state)}"><i class="indicator" title="${esc(label[state]||state)}"></i>${name}</span>`}
+    function cameraCard(camera){const r=camera.runtime,e=r.last_observation,media=e?.media||[],preview=media.find(m=>m.role==='face')||media.find(m=>m.role==='body')||media[0],browser=uiTiming[camera.camera_id]||{},backend=r.latency_ms||{},eventAge=browser.event_age_at_browser??backend.event_age_at_dashboard,pipeUi=browser.normalized_to_browser??backend.normalized_to_dashboard,diagnostic=`CGI>dashboard ${latency(backend.cgi_to_dashboard)} | NetSDK callback>Python ${latency(backend.netsdk_callback_to_python)} | correlación ${latency(backend.correlation_wait)}`;return `<article class="card ${esc(r.status)}"><div class="card-head"><div><div class="camera-name">${esc(camera.camera_id)}</div><div class="host">${esc(camera.host)}:${camera.sdk_port}</div></div><div class="head-controls"><div class="state ${esc(r.status)}"><i class="indicator"></i>${esc(label[r.status]||r.status)}</div><button onclick="operate('${esc(camera.camera_id)}','${r.status==='stopped'?'start':'stop'}')">[ ${r.status==='stopped'?'INICIAR':'DETENER'} ]</button><button onclick="openCamera('${esc(camera.camera_id)}')">[ CONFIG ]</button></div></div><div class="channel-strip">${channel('PROCESS',r.channels?.process||'stopped')}${channel('NETSDK',r.channels?.netsdk||'stopped')}${channel('CGI',r.channels?.cgi||'stopped')}</div><div class="stats" title="${esc(diagnostic)}"><div class="stat"><strong>${r.observations}</strong><small>detecciones</small></div><div class="stat"><strong>${r.messages}</strong><small>mensajes</small></div><div class="stat"><strong>${latency(eventAge)}</strong><small>event age</small></div><div class="stat"><strong>${latency(pipeUi)}</strong><small>pipe&gt;ui</small></div></div><div class="detail">${esc(r.detail)}</div>${e?`<div class="last"><div class="last-row"><span>TRACK</span><b>${esc(e.local_track_id||'N/A')}</b><span>${esc(e.phase)} / ${esc(e.quality)}</span>${preview?`<img class="preview" src="${esc(preview.url)}" alt="captura">`:''}</div></div>`:''}</article>`}
+    function renderLogs(logs){const stick=consoleBox.scrollHeight-consoleBox.scrollTop-consoleBox.clientHeight<35;consoleBox.innerHTML=logs.length?logs.map(item=>`<div class="log ${esc(item.level)}"><time>${new Date(item.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</time><span class="level">[${esc(level[item.level]||item.level.toUpperCase())}]</span><span class="source">${esc(item.camera_id||'system')}</span><span class="message">${esc(item.message)}</span></div>`).join(''):'<div class="empty">C:\\&gt; consola vacia<span class="cursor">_</span></div>';const newest=logs.at(-1)?.id||0;if(stick||lastLogId===0)consoleBox.scrollTop=consoleBox.scrollHeight;lastLogId=newest}
+    async function refresh(){try{const data=await request('/api/status');current=data.cameras;const active=current.filter(c=>c.runtime.status==='running').length,problems=current.filter(c=>c.runtime.status==='warning').length;document.querySelector('#summary').textContent=`CAM ${active}/${current.length}`;document.querySelector('#problem-summary').textContent=problems?`[!] ${problems} CAMARA(S) REQUIEREN ATENCION`:'[OK] SIN PROBLEMAS';document.querySelector('#problem-summary').style.color=problems?'var(--red)':'var(--muted)';cards.innerHTML=current.length?current.map(cameraCard).join(''):'<div class="empty">NO_CAMERAS_CONFIGURED</div>';renderLogs(data.logs||[])}catch(error){document.querySelector('#problem-summary').textContent=`[ERROR] ${error.message}`;document.querySelector('#problem-summary').style.color='var(--red)'}}
+    function openCamera(id){form.reset();document.querySelector('#enabled').checked=true;document.querySelector('#sdk_port').value=37777;document.querySelector('#http_port').value=80;document.querySelector('#form-error').textContent='';const camera=current.find(c=>c.camera_id===id);document.querySelector('#form-title').textContent=camera?'CONFIG_CAMERA':'ADD_CAMERA';document.querySelector('#camera_id').readOnly=Boolean(camera);if(camera){for(const key of ['camera_id','host','sdk_port','http_port'])document.querySelector('#'+key).value=camera[key];document.querySelector('#enabled').checked=camera.enabled}dialog.showModal()}
+    async function operate(id,action){try{await request(`/api/cameras/${id}/${action}`,{method:'POST'});await refresh()}catch(error){alert(error.message)}}
+    async function clearConsole(){try{await request('/api/logs/clear',{method:'POST'});await refresh()}catch(error){alert(error.message)}}
+    form.addEventListener('submit',async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(form));body.enabled=document.querySelector('#enabled').checked;body.sdk_port=Number(body.sdk_port);body.http_port=Number(body.http_port);try{await request('/api/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});dialog.close();await refresh()}catch(error){document.querySelector('#form-error').textContent=error.message}});
+    const browser=document.querySelector('#browser'),stream=new EventSource('/api/events');stream.onopen=()=>{browser.className='live ok';browser.querySelector('span').textContent='PANEL ONLINE'};stream.onmessage=event=>{try{const signal=JSON.parse(event.data),now=Date.now();if(signal.type==='observation'&&signal.camera_id){uiTiming[signal.camera_id]={event_age_at_browser:signal.observed_at?now-Date.parse(signal.observed_at):null,normalized_to_browser:signal.normalized_at?now-Date.parse(signal.normalized_at):null,dashboard_to_browser:signal.dashboard_received_at?now-Date.parse(signal.dashboard_received_at):null}}}catch(error){}refresh()};stream.onerror=()=>{browser.className='live warning';browser.querySelector('span').textContent='PANEL RETRY'};setInterval(refresh,5000);refresh();
   </script>
 </body>
 </html>
