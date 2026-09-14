@@ -61,8 +61,9 @@ Definiciones de las métricas actuales:
    canal directo para metadatos; mantener los JPEG como archivos referenciados.
 3. Acotar y medir las colas C++ y Python, definiendo una política explícita de
    backpressure para ráfagas.
-4. Implementar el receptor local de `observation.v1`, con deduplicación por
-   `message_id` y outbox SQLite para reintentos.
+4. Implementar el receptor local de `track_update.v1`, con deduplicación por
+   `message_id` y outbox SQLite para reintentos. Conservar `observation.v1`
+   como registro enriquecido y evidencia raw del colector.
 5. Separar en la consola los estados NetSDK y CGI, añadir historial corto de
    errores y contadores de reconexión/cola.
 6. Convertir supervisor y consola en un servicio de Windows que arranque sin
@@ -92,7 +93,7 @@ que usa Web 5.0 o usar detección RTSP central para el canal rápido, manteniend
 ## Roadmap breve posterior
 
 1. Crear un adaptador Frigate que escuche `frigate/events`, traduzca
-   `new/update/end` a `observation.v1` y recupere snapshots por la API de
+   `new/update/end` a `track_update.v1` y recupere snapshots por la API de
    Frigate sin modificar su código fuente.
 2. Conectar Dahua y Frigate al mismo receptor local y validar eventos grabados
    de ambas fuentes con pruebas de contrato.

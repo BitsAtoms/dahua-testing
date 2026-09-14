@@ -13,6 +13,8 @@ DAHUA_HOST=...
 DAHUA_PORT=37777
 DAHUA_USER=...
 DAHUA_PASSWORD=...
+# Diagnostic only; omit during normal operation:
+# DAHUA_LIVE_TRACK_PROBE=1
 ```
 
 Confirm the actual TCP/NetSDK port in the camera configuration. Do not use the
@@ -175,18 +177,32 @@ backoff, and requests a clean shutdown from every worker on `Ctrl+C`. The
 worker passes credentials to the native SDK child through its process
 environment rather than command-line arguments or generated config files.
 
-## Event contract and output destinations
+## Event contracts and output destinations
 
-Normalized events use the provider-neutral versioned contract in:
+The collector writes two complementary versioned contracts:
 
 ```text
 ../../contracts/observation-v1.schema.json
+../../contracts/track-update-v1.schema.json
 ```
 
 The CGI body is emitted immediately as an `observation`; NetSDK media and face
 metadata are later `update` messages with the same `observation_id`. The UI no
 longer waits for full correlation. Every message has a unique `message_id` for
 idempotency, while source-specific structures remain under `raw`.
+
+Each observation revision is also projected into the lean `track_update.v1`
+contract and written to `track-updates.jsonl`. Its stable `track_id` is the
+observation ID and `sequence` preserves the observation revision. Dahua
+`HumanTrait` uses phase `snapshot` and quality `source_lifecycle=finalized_only`
+because this firmware delivers the capture at track finalization; it must not
+be presented to consumers as live position data. The contract also supports
+`new`, `update` and `end` for a live source such as Frigate.
+
+Provider-specific raw payloads remain exclusively in `observation.v1`. This
+keeps the tracking connector small while retaining complete diagnostic data in
+the collector output. Dahua's numeric AI attribute enums are not copied into
+the tracking message until a provider-neutral semantic mapping is defined.
 
 `JsonlEventSink` is the current destination. The sink interface allows a future
 HTTP receiver to be added without changing camera ingestion or correlation.
@@ -259,12 +275,14 @@ control channel independent from image size.
 
 ### Live-track capability probe
 
-The native process also requests the official
-`CLIENT_AttachVideoAnalyseTrackProc` feed in parallel with
-`CLIENT_RealLoadPictureEx`. If the camera supports it, bounded position samples
-are stored in the session's `live-track-updates.jsonl`; the dashboard reports
-the first received update without streaming the high-frequency payload through
-its operator console. Failure to attach is non-fatal and `HumanTrait` capture
-continues normally. Because the existing picture subscription uses
+The optional `DAHUA_LIVE_TRACK_PROBE=1` diagnostic makes the native process
+request the official `CLIENT_AttachVideoAnalyseTrackProc` feed in parallel
+with `CLIENT_RealLoadPictureEx`. It is disabled by default because the tested
+IPC accepted the subscription but emitted no track callbacks. If another
+firmware or model supports it, bounded position samples are stored in the
+session's `live-track-updates.jsonl`; the dashboard reports the first received
+update without streaming the high-frequency payload through its operator
+console. Failure to attach is non-fatal and `HumanTrait` capture continues
+normally. Because the existing picture subscription uses
 `EVENT_IVS_ALL`, the first three occurrences of any non-`HumanTrait` analyzer
 event code are also reported for capability discovery.

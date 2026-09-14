@@ -17,7 +17,11 @@ COLLECTOR_ROOT = (
 )
 sys.path.insert(0, str(COLLECTOR_ROOT))
 
-from dahua_collector import CgiHumanTraitStreamParser, DahuaEventCorrelator  # noqa: E402
+from dahua_collector import (  # noqa: E402
+    CgiHumanTraitStreamParser,
+    DahuaEventCorrelator,
+    observation_to_track_update,
+)
 from dahua_collector.configuration import CameraConfig, load_camera_config  # noqa: E402
 from dahua_collector.retention import RetentionPolicy, plan_retention  # noqa: E402
 from dahua_collector.sinks import JsonlEventSink  # noqa: E402
@@ -173,6 +177,26 @@ class DahuaEventCorrelatorTests(unittest.TestCase):
         self.assertEqual(emitted[0]["media"], [])
         self.assertEqual(emitted[0]["subject"]["local_track_id"], "1520")
 
+    def test_dahua_geometry_is_normalized_for_tracking(self) -> None:
+        event = body()
+        event["bounding_box"] = [819, 1638, 4096, 6554]
+        event["center"] = [2458, 4096]
+
+        observation = DahuaEventCorrelator().ingest_cgi("cam-1", event)[0]
+
+        self.assertEqual(
+            observation["geometry"]["coordinate_space"], "normalized_0_1"
+        )
+        self.assertAlmostEqual(
+            observation["geometry"]["box"]["x_min"], 0.1, places=3
+        )
+        self.assertAlmostEqual(
+            observation["geometry"]["box"]["y_max"], 0.8, places=3
+        )
+        self.assertAlmostEqual(
+            observation["geometry"]["center"]["x"], 0.3, places=3
+        )
+
 
 class CgiHumanTraitStreamParserTests(unittest.TestCase):
     def test_parses_multiline_body_event(self) -> None:
@@ -227,9 +251,62 @@ class CameraConfigurationTests(unittest.TestCase):
 
         self.assertEqual(environment["DAHUA_USER"], "operator")
         self.assertEqual(environment["DAHUA_PASSWORD"], "secret")
+        self.assertNotIn("DAHUA_LIVE_TRACK_PROBE", environment)
+
+        diagnostic_environment = camera.worker_environment(
+            {
+                "CAM_USER": "operator",
+                "CAM_PASSWORD": "secret",
+                "DAHUA_LIVE_TRACK_PROBE": "1",
+            }
+        )
+        self.assertEqual(diagnostic_environment["DAHUA_LIVE_TRACK_PROBE"], "1")
 
 
 class OutputTests(unittest.TestCase):
+    def test_dahua_observation_projects_to_common_track_update(self) -> None:
+        correlator = DahuaEventCorrelator()
+        observation = correlator.ingest_cgi("cam-1", body())[0]
+        observation["timing"]["collector_published_at"] = (
+            "2026-09-04T08:44:06.200000+00:00"
+        )
+
+        update = observation_to_track_update(observation)
+
+        self.assertEqual(update["schema_version"], "track_update.v1")
+        self.assertEqual(update["track_id"], observation["observation_id"])
+        self.assertEqual(update["phase"], "snapshot")
+        self.assertEqual(update["sequence"], 1)
+        self.assertEqual(update["subject"]["local_track_id"], "1520")
+        self.assertEqual(update["quality"]["source_lifecycle"], "finalized_only")
+        self.assertEqual(
+            update["source_ref"]["event_id"], observation["observation_id"]
+        )
+        self.assertEqual(update["attributes"], {})
+        self.assertNotIn("raw", update)
+
+        schema = json.loads(
+            (
+                COLLECTOR_ROOT.parents[2]
+                / "contracts"
+                / "track-update-v1.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(update), set(schema["required"]))
+        self.assertIn(update["phase"], schema["properties"]["phase"]["enum"])
+
+    def test_track_update_revision_is_preserved(self) -> None:
+        correlator = DahuaEventCorrelator()
+        correlator.ingest_netsdk("cam-1", netsdk())
+        observations = correlator.ingest_cgi("cam-1", body())
+        observation = observations[1]
+
+        update = observation_to_track_update(observation)
+
+        self.assertEqual(observation["message_id"].split(":")[-1], "r2")
+        self.assertEqual(update["sequence"], 2)
+        self.assertEqual(len(update["media"]), 3)
+
     def test_jsonl_sink_appends_one_event_per_line(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "events.jsonl"
@@ -329,11 +406,21 @@ class DashboardTests(unittest.TestCase):
             )
 
     def test_common_contract_is_valid_json(self) -> None:
-        schema = json.loads(
-            (COLLECTOR_ROOT.parents[2] / "contracts" / "observation-v1.schema.json")
-            .read_text(encoding="utf-8")
+        contracts = COLLECTOR_ROOT.parents[2] / "contracts"
+        observation_schema = json.loads(
+            (contracts / "observation-v1.schema.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(schema["properties"]["schema_version"]["const"], "observation.v1")
+        track_schema = json.loads(
+            (contracts / "track-update-v1.schema.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            observation_schema["properties"]["schema_version"]["const"],
+            "observation.v1",
+        )
+        self.assertEqual(
+            track_schema["properties"]["schema_version"]["const"],
+            "track_update.v1",
+        )
 
     def test_channel_health_and_bounded_console(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

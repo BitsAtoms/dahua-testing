@@ -262,6 +262,51 @@ LOCAL TRACK 144
 
 For current experiments, the body `ObjectID` should be treated as the main local track ID.
 
+### Controlled two-person result
+
+A controlled test with two people visible at the same time but kept on opposite
+sides of the image produced exactly two complete local tracks:
+
+```text
+track 4573 -> body GroupID 1724 -> face object 1004573
+track 4574 -> body GroupID 1726 -> face object 1004574
+```
+
+Each track recovered one body JPEG, one face JPEG, one panoramic JPEG and one
+face-panoramic JPEG. Reciprocal `RelativeID`/`BelongID` relationships were
+correct, the bounding boxes remained on opposite sides of the scene, and
+visual inspection found no body/face association swapped between subjects.
+The two NetSDK callbacks produced eight JPEGs in total. This validates the
+separated multi-person case.
+
+### Controlled crossing and occlusion result
+
+A later test had the same two people enter from opposite sides, cross with a
+brief partial occlusion, continue towards the opposite sides and leave the
+scene. The camera emitted four completed local tracks for the two physical
+people:
+
+```text
+person A -> track 4577 (body + face) and track 4579 (body only)
+person B -> track 4578 (body + face) and track 4581 (body only)
+```
+
+The four NetSDK callbacks produced twelve JPEGs. Visual inspection confirmed
+that the face and body crops within the two face-bearing tracks belonged to
+the correct subjects; there was no observed cross-person body/face swap. The
+two body-only tracks matched the clothing and appearance of the corresponding
+face-bearing tracks.
+
+This proves track fragmentation around crossing/occlusion on the current
+camera configuration. A `(camera_id, ObjectID)` pair therefore represents a
+camera-local track segment, not necessarily a complete uninterrupted visit by
+one person. A downstream tracking layer must be able to merge plausible
+segments using visual appearance, time, image geometry and later camera
+topology. Since this test used completed `HumanTrait` events rather than a
+continuous metadata stream, it does not prove whether an ID swap occurred at
+any intermediate frame; it only proves the final fragmentation and recovered
+associations described above.
+
 ---
 
 ## Snapshot findings
@@ -381,6 +426,34 @@ The eventual collector should normalize Dahua metadata into something similar to
 ```
 
 The exact schema is not final.
+
+The implemented boundary now separates the enriched source record from the
+tracking message:
+
+```text
+observation.v1
+  -> complete Dahua correlation, media references and raw source evidence
+
+track_update.v1
+  -> provider-neutral, lightweight input for the tracking engine
+```
+
+`track_update.v1` supports `new`, `update`, `end` and `snapshot`. Frigate can
+provide the live three-phase lifecycle. The current Dahua `HumanTrait` adapter
+uses `snapshot` with `source_lifecycle=finalized_only`, because the tested
+firmware publishes the useful event at track finalization. Its `track_id` is a
+stable identifier for that source track segment, not a persistent person ID.
+Cross-camera identity and same-camera fragment merging remain responsibilities
+of the downstream tracking engine.
+
+A real-camera validation produced three progressive `track_update.v1`
+revisions for local track `4583`. All shared one `track_id`, sequences advanced
+from 1 to 3, the final revision contained body, face and both panoramic media,
+and its quality became `complete`. The Dahua bounding box and center were
+converted from the native 0..8192 coordinate system to `normalized_0_1`. The
+first revision was published about 8.9 seconds after the camera timestamp
+(track lifetime), while enrichment completed roughly 230 ms later. This
+confirms the connector does not add the multi-second delay.
 
 ---
 
@@ -590,8 +663,9 @@ The same official header also exposes
 `CLIENT_AttachVideoAnalyseTrackProc`. Its callback structure contains a list
 of live video targets with object UUID, object type and an 8192-based bounding
 box. This is now the primary candidate for the low-latency tracking lane, but
-support by the current IPC is not yet confirmed. The experiment requests it as
-an optional parallel subscription; failure does not interrupt `HumanTrait`.
+support by the current IPC is not yet confirmed. The experiment can request it
+as an optional parallel subscription with `DAHUA_LIVE_TRACK_PROBE=1`; it is
+disabled by default and failure does not interrupt `HumanTrait`.
 
 A controlled real-camera probe subsequently returned a valid subscription
 handle, but produced zero track callbacks while one person moved in view for

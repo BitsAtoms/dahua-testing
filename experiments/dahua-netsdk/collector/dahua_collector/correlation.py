@@ -23,6 +23,53 @@ def _source_time_to_iso(value: Any) -> str | None:
         return None
 
 
+def _normalized_dahua_geometry(body: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map Dahua's 0..8192 box coordinates into provider-neutral 0..1 space."""
+    if body is None:
+        return None
+    box = body.get("bounding_box")
+    if not isinstance(box, (list, tuple)) or len(box) != 4:
+        return None
+    if any(
+        not isinstance(value, (int, float)) or isinstance(value, bool)
+        for value in box
+    ):
+        return None
+
+    values = [
+        round(max(0.0, min(8192.0, float(value))) / 8192.0, 6)
+        for value in box
+    ]
+    x_min, y_min, x_max, y_max = values
+    center = body.get("center")
+    if (
+        isinstance(center, (list, tuple))
+        and len(center) == 2
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in center
+        )
+    ):
+        center_x, center_y = [
+            round(max(0.0, min(8192.0, float(value))) / 8192.0, 6)
+            for value in center
+        ]
+    else:
+        center_x = round((x_min + x_max) / 2, 6)
+        center_y = round((y_min + y_max) / 2, 6)
+
+    return {
+        "coordinate_space": "normalized_0_1",
+        "box": {
+            "x_min": x_min,
+            "y_min": y_min,
+            "x_max": x_max,
+            "y_max": y_max,
+        },
+        "center": {"x": center_x, "y": center_y},
+    }
+
+
 @dataclass
 class _Pending:
     payload: dict[str, Any]
@@ -247,7 +294,7 @@ class DahuaEventCorrelator:
                 ),
                 "confidence": None,
             },
-            "geometry": None,
+            "geometry": _normalized_dahua_geometry(body),
             "zones": {"current": [], "entered": []},
             "attributes": deepcopy(body.get("attributes", {})) if body else {},
             "media": media,

@@ -28,13 +28,20 @@ class CameraConfig:
             ) from error
         if not username or not password:
             raise ValueError(f"{self.camera_id}: username and password cannot be empty")
-        return {
+        environment = {
             "DAHUA_HOST": self.host,
             "DAHUA_PORT": str(self.sdk_port),
             "DAHUA_HTTP_PORT": str(self.http_port),
             "DAHUA_USER": username,
             "DAHUA_PASSWORD": password,
         }
+        # Diagnostic switches are global and optional. They live in the
+        # ignored environment file but are not credentials.
+        if "DAHUA_LIVE_TRACK_PROBE" in secrets:
+            environment["DAHUA_LIVE_TRACK_PROBE"] = secrets[
+                "DAHUA_LIVE_TRACK_PROBE"
+            ]
+        return environment
 
 
 def _valid_port(value: Any, field: str, camera_id: str) -> int:

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.example/contracts/track-update-v1.schema.json",
+  "title": "Provider-neutral camera track update",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_id",
+    "track_id",
+    "source",
+    "camera_id",
+    "phase",
+    "sequence",
+    "observed_at",
+    "published_at",
+    "subject",
+    "geometry",
+    "zones",
+    "attributes",
+    "media",
+    "quality",
+    "source_ref"
+  ],
+  "properties": {
+    "schema_version": { "const": "track_update.v1" },
+    "message_id": { "type": "string", "minLength": 1 },
+    "track_id": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "required": ["type", "instance_id"],
+      "properties": {
+        "type": { "enum": ["dahua", "frigate"] },
+        "instance_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "camera_id": { "type": "string", "minLength": 1 },
+    "phase": { "enum": ["new", "update", "end", "snapshot"] },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "observed_at": { "type": ["string", "null"], "format": "date-time" },
+    "published_at": { "type": "string", "format": "date-time" },
+    "subject": {
+      "type": "object",
+      "required": ["type", "local_track_id", "confidence"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "local_track_id": { "type": ["string", "null"] },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "geometry": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["coordinate_space", "box", "center"],
+          "properties": {
+            "coordinate_space": { "const": "normalized_0_1" },
+            "box": {
+              "type": "object",
+              "required": ["x_min", "y_min", "x_max", "y_max"],
+              "properties": {
+                "x_min": { "type": "number", "minimum": 0, "maximum": 1 },
+                "y_min": { "type": "number", "minimum": 0, "maximum": 1 },
+                "x_max": { "type": "number", "minimum": 0, "maximum": 1 },
+                "y_max": { "type": "number", "minimum": 0, "maximum": 1 }
+              },
+              "additionalProperties": false
+            },
+            "center": {
+              "type": "object",
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number", "minimum": 0, "maximum": 1 },
+                "y": { "type": "number", "minimum": 0, "maximum": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "zones": {
+      "type": "object",
+      "required": ["current", "entered"],
+      "properties": {
+        "current": { "type": "array", "items": { "type": "string" } },
+        "entered": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "attributes": { "type": "object" },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "content_type", "path"],
+        "properties": {
+          "role": { "type": "string", "minLength": 1 },
+          "content_type": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": ["status", "source_lifecycle"],
+      "properties": {
+        "status": { "enum": ["partial", "complete"] },
+        "source_lifecycle": { "enum": ["live", "finalized_only"] }
+      },
+      "additionalProperties": true
+    },
+    "source_ref": {
+      "type": "object",
+      "required": ["event_id", "message_id"],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "message_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

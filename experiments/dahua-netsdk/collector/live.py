@@ -21,6 +21,7 @@ import urllib.request
 from dahua_collector.adapters import CgiHumanTraitStreamParser, load_netsdk_event
 from dahua_collector.correlation import DahuaEventCorrelator
 from dahua_collector.sinks import EventSink, JsonlEventSink
+from dahua_collector.track_updates import observation_to_track_update
 
 
 _EVENT_FILE_RE = re.compile(r"^event_json=(?P<path>.+)$")
@@ -129,6 +130,10 @@ def netsdk_worker(
     child_environment = os.environ.copy()
     for key in ("DAHUA_HOST", "DAHUA_PORT", "DAHUA_USER", "DAHUA_PASSWORD"):
         child_environment[key] = require(config, key)
+    if "DAHUA_LIVE_TRACK_PROBE" in config:
+        child_environment["DAHUA_LIVE_TRACK_PROBE"] = config[
+            "DAHUA_LIVE_TRACK_PROBE"
+        ]
     process = subprocess.Popen(
         [str(executable), "-", str(raw_output)],
         stdin=subprocess.PIPE,
@@ -192,13 +197,16 @@ def stop_netsdk(process_holder: list[subprocess.Popen[str]]) -> None:
 
 
 def write_normalized(
-    output: EventSink, events: list[dict[str, Any]]
+    output: EventSink,
+    track_output: EventSink,
+    events: list[dict[str, Any]],
 ) -> None:
     for event in events:
         event["timing"]["collector_published_at"] = datetime.now(
             timezone.utc
         ).isoformat()
         output.publish(event)
+        track_output.publish(observation_to_track_update(event))
         media = ",".join(item["role"] for item in event["media"])
         projection = {
             "message_id": event["message_id"],
@@ -263,6 +271,7 @@ def main() -> int:
     sdk_output.mkdir(parents=True)
     cgi_log = session_root / "cgi-events.log"
     normalized_path = session_root / "normalized-events.jsonl"
+    track_updates_path = session_root / "track-updates.jsonl"
     live_tracks_path = session_root / "live-track-updates.jsonl"
 
     messages: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -305,6 +314,7 @@ def main() -> int:
     try:
         with (
             JsonlEventSink(normalized_path) as output,
+            JsonlEventSink(track_updates_path) as track_output,
             JsonlEventSink(live_tracks_path) as live_tracks,
         ):
             live_track_announced = False
@@ -312,13 +322,21 @@ def main() -> int:
                 try:
                     kind, payload = messages.get(timeout=0.5)
                 except queue.Empty:
-                    write_normalized(output, correlator.expire())
+                    write_normalized(output, track_output, correlator.expire())
                     continue
 
                 if kind == "cgi":
-                    write_normalized(output, correlator.ingest_cgi(camera_id, payload))
+                    write_normalized(
+                        output,
+                        track_output,
+                        correlator.ingest_cgi(camera_id, payload),
+                    )
                 elif kind == "netsdk":
-                    write_normalized(output, correlator.ingest_netsdk(camera_id, payload))
+                    write_normalized(
+                        output,
+                        track_output,
+                        correlator.ingest_netsdk(camera_id, payload),
+                    )
                 elif kind == "live-track":
                     payload["camera_id"] = camera_id
                     live_tracks.publish(payload)

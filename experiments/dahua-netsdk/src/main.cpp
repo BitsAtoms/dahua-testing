@@ -122,7 +122,12 @@ std::map<std::string, std::string> load_env(const fs::path& path) {
 
 std::map<std::string, std::string> load_process_env() {
     std::map<std::string, std::string> result;
-    for (const char* key : {"DAHUA_HOST", "DAHUA_PORT", "DAHUA_USER", "DAHUA_PASSWORD"}) {
+    for (const char* key : {
+             "DAHUA_HOST",
+             "DAHUA_PORT",
+             "DAHUA_USER",
+             "DAHUA_PASSWORD",
+             "DAHUA_LIVE_TRACK_PROBE"}) {
         char* value = nullptr;
         std::size_t length = 0;
         if (_dupenv_s(&value, &length, key) == 0 && value != nullptr) {
@@ -131,6 +136,18 @@ std::map<std::string, std::string> load_process_env() {
         std::free(value);
     }
     return result;
+}
+
+bool env_flag_enabled(
+    const std::map<std::string, std::string>& values,
+    const std::string& key) {
+    const auto it = values.find(key);
+    if (it == values.end()) {
+        return false;
+    }
+    return it->second == "1" || it->second == "true" ||
+           it->second == "TRUE" || it->second == "yes" ||
+           it->second == "YES";
 }
 
 const std::string& require_env(
@@ -628,6 +645,8 @@ int main(int argc, char** argv) {
         const auto& user = require_env(env, "DAHUA_USER");
         const auto& password = require_env(env, "DAHUA_PASSWORD");
         const int port = std::stoi(require_env(env, "DAHUA_PORT"));
+        const bool live_track_probe = env_flag_enabled(
+            env, "DAHUA_LIVE_TRACK_PROBE");
         if (port < 1 || port > 65535) {
             throw std::runtime_error("DAHUA_PORT is outside the valid TCP port range");
         }
@@ -676,24 +695,26 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Event subscription failed: " + sdk_error());
         }
 
-        NET_IN_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_in{};
-        track_in.dwSize = sizeof(track_in);
-        track_in.nChannelId = 0;
-        track_in.cbVideoAnalyseTrackProc = on_video_track;
-        NET_OUT_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_out{};
-        track_out.dwSize = sizeof(track_out);
-        track_subscription_handle = CLIENT_AttachVideoAnalyseTrackProc(
-            login_handle, &track_in, &track_out, 3000);
+        if (live_track_probe) {
+            NET_IN_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_in{};
+            track_in.dwSize = sizeof(track_in);
+            track_in.nChannelId = 0;
+            track_in.cbVideoAnalyseTrackProc = on_video_track;
+            NET_OUT_ATTACH_VIDEO_ANALYSE_TRACK_PROC track_out{};
+            track_out.dwSize = sizeof(track_out);
+            track_subscription_handle = CLIENT_AttachVideoAnalyseTrackProc(
+                login_handle, &track_in, &track_out, 3000);
+        }
 
-        std::cout << "Subscribed to intelligent events with pictures.\n"
-                  << (track_subscription_handle != 0
-                          ? "Live track subscription active.\n"
-                          : "Live track subscription unavailable; continuing with HumanTrait.\n")
-                  << "Walk through the camera view, then press Enter to stop.\n";
-        if (track_subscription_handle == 0) {
+        std::cout << "Subscribed to intelligent events with pictures.\n";
+        if (live_track_probe && track_subscription_handle != 0) {
+            std::cout << "Live track subscription active.\n";
+        } else if (live_track_probe) {
+            std::cout << "Live track subscription unavailable; continuing with HumanTrait.\n";
             std::cout << "Live track subscription error=" << sdk_error() << '\n';
         }
-        std::cout << std::flush;
+        std::cout << "Walk through the camera view, then press Enter to stop.\n"
+                  << std::flush;
         std::string ignored;
         std::getline(std::cin, ignored);
 
