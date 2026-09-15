@@ -101,3 +101,8 @@ que usa Web 5.0 o usar detección RTSP central para el canal rápido, manteniend
    correlación visual entre cámaras como una capa independiente.
 4. Persistir historial y publicar el estado agregado por WebSocket hacia la UI
    2D, manteniendo imágenes y datos pesados fuera del canal en tiempo real.
+5. Preparar el despliegue del ordenador final con dos GPU: asignar
+   explícitamente una GPU a decodificación/detección Frigate y evaluar la otra
+   para embeddings de tracking/reidentificación. Validar la distribución con
+   cinco cámaras midiendo VRAM, carga GPU, cola del detector, frames perdidos y
+   latencias p50/p95/p99; no depender de selección automática de dispositivo.

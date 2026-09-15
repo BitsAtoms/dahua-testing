@@ -1,0 +1,20 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: frigate-mqtt
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - frigate-mqtt-data:/mosquitto/data
+    networks:
+      - frigate-runtime
+
+volumes:
+  frigate-mqtt-data:
+
+networks:
+  frigate-runtime:
+    external: true
+    name: ${FRIGATE_DOCKER_NETWORK:-frigate-runtime_default}
