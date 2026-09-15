@@ -153,6 +153,7 @@ class ControlPlane:
                     "process": "stopped",
                     "netsdk": "stopped",
                     "cgi": "stopped",
+                    "transport": "stopped",
                 },
             },
         )
@@ -169,6 +170,7 @@ class ControlPlane:
             "process": "starting",
             "netsdk": "connecting",
             "cgi": "connecting",
+            "transport": "connecting",
         }
         worker.start()
 
@@ -194,6 +196,7 @@ class ControlPlane:
                 "process": "stopped",
                 "netsdk": "stopped",
                 "cgi": "stopped",
+                "transport": "stopped",
             }
             self._log("info", camera_id, "Collector detenido por el operador")
         self._publish("status")
@@ -256,6 +259,7 @@ class ControlPlane:
                 "process": "stopped",
                 "netsdk": "stopped",
                 "cgi": "stopped",
+                "transport": "stopped",
             }
             self._log("info", camera_id, "Configuración guardada")
             if camera.enabled:
@@ -424,6 +428,20 @@ class ControlPlane:
             elif message == "status: CGI connected":
                 state["channels"]["cgi"] = "running"
                 self._log("info", camera_id, "Canal CGI conectado")
+            elif message.startswith("track_transport_connected"):
+                state["channels"]["transport"] = "running"
+                self._log("info", camera_id, "Salida MQTT conectada")
+            elif message.startswith(
+                (
+                    "track_transport_connection_failed",
+                    "track_transport_disconnected",
+                    "track_transport_retry",
+                )
+            ):
+                state["channels"]["transport"] = "warning"
+                self._log("warning", camera_id, message)
+            elif message.startswith("track_transport_stopped"):
+                state["channels"]["transport"] = "stopped"
             elif "Camera disconnected" in message:
                 state["channels"]["netsdk"] = "warning"
                 self._log("warning", camera_id, "Cámara desconectada; NetSDK reintentará")
@@ -438,6 +456,7 @@ class ControlPlane:
                         "process": "warning",
                         "netsdk": "stopped",
                         "cgi": "stopped",
+                        "transport": "stopped",
                     }
                 elif "CGI disconnected" not in message:
                     state["channels"]["process"] = "warning"
@@ -486,7 +505,10 @@ class ControlPlane:
         elif "warning" in channels.values():
             failed = [name.upper() for name, value in channels.items() if value == "warning"]
             state.update(status="warning", detail=f"Revisar: {', '.join(failed)}")
-        elif channels["netsdk"] == "running" and channels["cgi"] == "running":
+        elif all(
+            channels.get(name) == "running"
+            for name in ("netsdk", "cgi", "transport")
+        ):
             state.update(status="running", detail="Captura y metadatos activos")
         else:
             state.update(status="connecting", detail="Conectando canales")

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from contextlib import redirect_stdout
+import io
 import json
 import sys
 from pathlib import Path
@@ -26,6 +28,7 @@ from dahua_collector.configuration import CameraConfig, load_camera_config  # no
 from dahua_collector.retention import RetentionPolicy, plan_retention  # noqa: E402
 from dahua_collector.sinks import JsonlEventSink  # noqa: E402
 from dashboard import ControlPlane  # noqa: E402
+from live import write_normalized  # noqa: E402
 
 
 class FakeClock:
@@ -262,8 +265,56 @@ class CameraConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(diagnostic_environment["DAHUA_LIVE_TRACK_PROBE"], "1")
 
+    def test_worker_environment_passes_only_known_transport_settings(self) -> None:
+        camera = CameraConfig(
+            camera_id="cam-1",
+            host="192.0.2.1",
+            sdk_port=37777,
+            http_port=80,
+            username_env="CAM_USER",
+            password_env="CAM_PASSWORD",
+        )
+
+        environment = camera.worker_environment(
+            {
+                "CAM_USER": "operator",
+                "CAM_PASSWORD": "secret",
+                "TRACK_MQTT_HOST": "127.0.0.1",
+                "TRACK_MQTT_TOPIC": "tracking/track-updates",
+                "UNRELATED_SECRET": "must-not-leak",
+            }
+        )
+
+        self.assertEqual(environment["TRACK_MQTT_HOST"], "127.0.0.1")
+        self.assertEqual(
+            environment["TRACK_MQTT_TOPIC"], "tracking/track-updates"
+        )
+        self.assertNotIn("UNRELATED_SECRET", environment)
+
 
 class OutputTests(unittest.TestCase):
+    def test_write_normalized_persists_and_enqueues_same_update(self) -> None:
+        observation = DahuaEventCorrelator().ingest_cgi("cam-1", body())[0]
+        observations = RecordingSink()
+        track_updates = RecordingSink()
+        publisher = RecordingSink()
+
+        with redirect_stdout(io.StringIO()):
+            write_normalized(
+                observations,
+                track_updates,
+                publisher,
+                [observation],
+            )
+
+        self.assertEqual(len(observations.events), 1)
+        self.assertEqual(len(track_updates.events), 1)
+        self.assertEqual(track_updates.events, publisher.events)
+        self.assertEqual(
+            track_updates.events[0]["message_id"],
+            f"track-update:{observation['message_id']}",
+        )
+
     def test_dahua_observation_projects_to_common_track_update(self) -> None:
         correlator = DahuaEventCorrelator()
         observation = correlator.ingest_cgi("cam-1", body())[0]
@@ -331,6 +382,15 @@ class OutputTests(unittest.TestCase):
             self.assertEqual([item.path for item in candidates], [snapshot])
             self.assertEqual(candidates[0].reason, "age")
             self.assertTrue(snapshot.exists())
+
+
+class RecordingSink:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    def publish(self, event: dict) -> bool:
+        self.events.append(event)
+        return True
 
 
 class DashboardTests(unittest.TestCase):
@@ -443,11 +503,16 @@ class DashboardTests(unittest.TestCase):
             control._handle_worker_message("cam-1", "netsdk: Login succeeded")
             control._handle_worker_message("cam-1", "netsdk: Subscribed")
             control._handle_worker_message("cam-1", "status: CGI connected")
+            control._handle_worker_message(
+                "cam-1",
+                "track_transport_connected topic=tracking/track-updates qos=1",
+            )
 
             runtime = control.snapshot()["cameras"][0]["runtime"]
             self.assertEqual(runtime["status"], "running")
             self.assertEqual(runtime["channels"]["netsdk"], "running")
             self.assertEqual(runtime["channels"]["cgi"], "running")
+            self.assertEqual(runtime["channels"]["transport"], "running")
 
             control._handle_worker_message(
                 "cam-1", "warning: CGI disconnected: timed out"

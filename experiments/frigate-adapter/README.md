@@ -55,6 +55,7 @@ FRIGATE_MQTT_TOPIC_PREFIX=frigate
 FRIGATE_INSTANCE_ID=local-frigate
 FRIGATE_CAMERA_FRAME_SIZES=puerta_planeta=1280x720,dahua_213=704x576
 FRIGATE_API_URL=http://127.0.0.1:5000
+TRACK_MQTT_TOPIC=tracking/track-updates
 ```
 
 Install the small client dependency and start the runner:
@@ -85,6 +86,20 @@ durations use a monotonic clock and remain valid if the system clock adjusts.
 The MQTT callback uses a bounded queue and stops loudly instead of silently
 dropping an event if the queue fills. All adapter output uses the same
 seven-day retention policy as the Dahua collector.
+
+Every normalized update is also placed in the SQLite outbox at
+`runtime/track-outbox/frigate.sqlite3` and published to
+`tracking/track-updates` with MQTT QoS 1. The row is deleted only after the
+broker's PUBACK. If the broker or receiver is unavailable, Frigate ingestion
+continues. Broker outages remain in the local outbox and are retried after
+reconnection. Receiver outages are queued by Mosquitto after the receiver has
+registered its persistent MQTT session at least once. A crash between PUBACK
+and deletion can produce a redelivery; the receiver deduplicates it by
+`message_id`. Pending records also follow the seven-day retention policy.
+
+`TRACK_MQTT_HOST`, `TRACK_MQTT_PORT`, `TRACK_MQTT_USER`, and
+`TRACK_MQTT_PASSWORD` can override the input-broker settings when transport
+uses a separate broker. `TRACK_OUTBOX_DATABASE` can override the outbox path.
 
 Snapshot retrieval runs in a bounded worker pool outside the MQTT event path.
 An `end` update is persisted immediately; when Frigate's JPEG becomes

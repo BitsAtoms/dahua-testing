@@ -15,10 +15,15 @@ import threading
 import time
 from typing import Any
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+TRACK_TRANSPORT_ROOT = REPOSITORY_ROOT / "services" / "track-transport"
+sys.path.insert(0, str(TRACK_TRANSPORT_ROOT))
+
 from frigate_adapter import FrigateEventAdapter
 from frigate_adapter.retention import remove_expired_files
 from frigate_adapter.snapshots import SnapshotEnricher
 from frigate_adapter.timing import build_pipeline_timing
+from track_transport import MqttOutboxPublisher, OutboxStore
 
 
 QueueItem = tuple[str, bytes, str, int]
@@ -95,6 +100,7 @@ def main() -> int:
         default=Path("experiments/frigate-adapter/output"),
     )
     parser.add_argument("--queue-size", type=int, default=1000)
+    parser.add_argument("--outbox-database", type=Path)
     args = parser.parse_args()
     if args.queue_size <= 0:
         raise ValueError("queue size must be positive")
@@ -108,6 +114,15 @@ def main() -> int:
     frame_sizes = parse_frame_sizes(require(config, "FRIGATE_CAMERA_FRAME_SIZES"))
     adapter = FrigateEventAdapter(frame_sizes, instance_id=instance_id)
     snapshot_api_url = config.get("FRIGATE_API_URL", "")
+    track_host = config.get("TRACK_MQTT_HOST") or host
+    track_port = int(config.get("TRACK_MQTT_PORT", str(port)))
+    track_topic = config.get("TRACK_MQTT_TOPIC", "tracking/track-updates")
+    outbox_path = args.outbox_database or Path(
+        config.get(
+            "TRACK_OUTBOX_DATABASE",
+            "runtime/track-outbox/frigate.sqlite3",
+        )
+    )
 
     try:
         import paho.mqtt.client as mqtt
@@ -126,6 +141,17 @@ def main() -> int:
         SnapshotEnricher(adapter, snapshot_api_url, session_root / "media")
         if snapshot_api_url
         else None
+    )
+    track_publisher = MqttOutboxPublisher(
+        OutboxStore(outbox_path),
+        host=track_host,
+        port=track_port,
+        topic=track_topic,
+        client_id=f"track-publisher-{instance_id}",
+        username=config.get("TRACK_MQTT_USER")
+        or config.get("FRIGATE_MQTT_USER", ""),
+        password=config.get("TRACK_MQTT_PASSWORD")
+        or config.get("FRIGATE_MQTT_PASSWORD", ""),
     )
 
     messages: queue.Queue[QueueItem] = queue.Queue(maxsize=args.queue_size)
@@ -192,6 +218,8 @@ def main() -> int:
     print(f"output={session_root}")
     print(f"retention_removed files={removed_files} bytes={removed_bytes}")
     print(f"snapshots={'enabled' if snapshot_enricher else 'disabled'}")
+    print(f"track_outbox={outbox_path.resolve()}")
+    track_publisher.start()
     client.connect(host, port, keepalive=60)
     client.loop_start()
     next_retention = time.monotonic() + 3600
@@ -216,6 +244,7 @@ def main() -> int:
                         )
                         continue
                     append_json_line(update_output, result.update)
+                    track_publisher.publish(result.update)
                     print(
                         "snapshot_update "
                         f"camera={result.camera_id} "
@@ -269,6 +298,7 @@ def main() -> int:
                 if update is None:
                     continue
                 append_json_line(update_output, update)
+                track_publisher.publish(update)
                 output_persisted_at = datetime.now(timezone.utc).isoformat()
                 output_persisted_ns = time.perf_counter_ns()
                 timing = build_pipeline_timing(
@@ -319,6 +349,7 @@ def main() -> int:
             snapshot_enricher.shutdown()
         client.disconnect()
         client.loop_stop()
+        track_publisher.stop()
         print("mqtt_runner_stopped", flush=True)
     return 2 if overflow.is_set() else 0
 

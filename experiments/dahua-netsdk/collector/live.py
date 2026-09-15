@@ -18,10 +18,15 @@ from typing import Any
 import urllib.error
 import urllib.request
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+TRACK_TRANSPORT_ROOT = REPOSITORY_ROOT / "services" / "track-transport"
+sys.path.insert(0, str(TRACK_TRANSPORT_ROOT))
+
 from dahua_collector.adapters import CgiHumanTraitStreamParser, load_netsdk_event
 from dahua_collector.correlation import DahuaEventCorrelator
 from dahua_collector.sinks import EventSink, JsonlEventSink
 from dahua_collector.track_updates import observation_to_track_update
+from track_transport import MqttOutboxPublisher, OutboxStore
 
 
 _EVENT_FILE_RE = re.compile(r"^event_json=(?P<path>.+)$")
@@ -199,6 +204,7 @@ def stop_netsdk(process_holder: list[subprocess.Popen[str]]) -> None:
 def write_normalized(
     output: EventSink,
     track_output: EventSink,
+    track_publisher: MqttOutboxPublisher,
     events: list[dict[str, Any]],
 ) -> None:
     for event in events:
@@ -206,7 +212,9 @@ def write_normalized(
             timezone.utc
         ).isoformat()
         output.publish(event)
-        track_output.publish(observation_to_track_update(event))
+        track_update = observation_to_track_update(event)
+        track_output.publish(track_update)
+        track_publisher.publish(track_update)
         media = ",".join(item["role"] for item in event["media"])
         projection = {
             "message_id": event["message_id"],
@@ -274,6 +282,31 @@ def main() -> int:
     track_updates_path = session_root / "track-updates.jsonl"
     live_tracks_path = session_root / "live-track-updates.jsonl"
 
+    track_host = config.get("TRACK_MQTT_HOST") or require(
+        config, "FRIGATE_MQTT_HOST"
+    )
+    track_port = int(
+        config.get("TRACK_MQTT_PORT")
+        or config.get("FRIGATE_MQTT_PORT", "1883")
+    )
+    track_topic = config.get("TRACK_MQTT_TOPIC", "tracking/track-updates")
+    safe_camera_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", camera_id).strip("._")
+    if not safe_camera_id:
+        raise ValueError("camera_id cannot be used as an outbox name")
+    outbox_root = Path(config.get("TRACK_OUTBOX_ROOT", "runtime/track-outbox"))
+    outbox_path = outbox_root / f"dahua-{safe_camera_id}.sqlite3"
+    track_publisher = MqttOutboxPublisher(
+        OutboxStore(outbox_path),
+        host=track_host,
+        port=track_port,
+        topic=track_topic,
+        client_id=f"track-publisher-dahua-{safe_camera_id}",
+        username=config.get("TRACK_MQTT_USER")
+        or config.get("FRIGATE_MQTT_USER", ""),
+        password=config.get("TRACK_MQTT_PASSWORD")
+        or config.get("FRIGATE_MQTT_PASSWORD", ""),
+    )
+
     messages: queue.Queue[tuple[str, Any]] = queue.Queue()
     stop = threading.Event()
     shutdown = threading.Event()
@@ -309,6 +342,8 @@ def main() -> int:
 
     print(f"collector_started camera={camera_id}")
     print(f"session_output={session_root}")
+    print(f"track_outbox={outbox_path.resolve()}")
+    track_publisher.start()
     print("Press Ctrl+C to stop.", flush=True)
 
     try:
@@ -322,19 +357,26 @@ def main() -> int:
                 try:
                     kind, payload = messages.get(timeout=0.5)
                 except queue.Empty:
-                    write_normalized(output, track_output, correlator.expire())
+                    write_normalized(
+                        output,
+                        track_output,
+                        track_publisher,
+                        correlator.expire(),
+                    )
                     continue
 
                 if kind == "cgi":
                     write_normalized(
                         output,
                         track_output,
+                        track_publisher,
                         correlator.ingest_cgi(camera_id, payload),
                     )
                 elif kind == "netsdk":
                     write_normalized(
                         output,
                         track_output,
+                        track_publisher,
                         correlator.ingest_netsdk(camera_id, payload),
                     )
                 elif kind == "live-track":
@@ -359,6 +401,7 @@ def main() -> int:
     finally:
         stop.set()
         stop_netsdk(process_holder)
+        track_publisher.stop()
         print("collector_stopped", flush=True)
     return 0
 
