@@ -129,3 +129,23 @@ experiments\visual-reid\.venv\Scripts\python.exe `
 
 This command is read-only and ephemeral. `n/a` means that a modality is
 missing or failed its quality gate; score fusion must treat it as neutral.
+
+## Continuous evidence worker
+
+Run the asynchronous worker with the experiment environment:
+
+```powershell
+experiments\visual-reid\.venv\Scripts\python.exe `
+  experiments\visual-reid\live_service.py
+```
+
+It polls new handoff candidates, caches embeddings only in process memory and
+persists `visual_handoff_evidence.v1` under
+`runtime/visual-reid/evidence.sqlite3`. Stored evidence contains scores,
+quality, model version and an explicit `identity_decision: null`; no embedding
+vector is written. Evidence follows seven-day retention.
+
+The provisional ranking weights are timing 35%, face 40%, body 20% and weak
+color 5%. Missing modalities contribute no support and reduce
+`visual_coverage`; they are not interpreted as a mismatch. The ranking is for
+candidate ordering only and is explicitly not an identity probability.
