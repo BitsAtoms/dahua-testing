@@ -57,11 +57,17 @@ class FusionTests(unittest.TestCase):
             "timing_score": 0.5,
             "gap_seconds": 3.0,
             "observed_us": 123,
+            "origin_revision_us": 100,
+            "destination_revision_us": 200,
         }
         changed = {**candidate, "timing_score": 0.6}
+        media_changed = {**candidate, "destination_revision_us": 201}
 
         self.assertNotEqual(
             candidate_fingerprint(candidate), candidate_fingerprint(changed)
+        )
+        self.assertNotEqual(
+            candidate_fingerprint(candidate), candidate_fingerprint(media_changed)
         )
 
 

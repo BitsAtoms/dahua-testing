@@ -102,11 +102,17 @@ def _load_candidates(path: Path, cutoff_us: int) -> list[dict[str, Any]]:
     try:
         rows = connection.execute(
             """
-            SELECT candidate_id, origin_track_id, destination_track_id,
-                   score AS timing_score, gap_seconds, observed_at, observed_us
-            FROM handoff_candidates
-            WHERE observed_us >= ?
-            ORDER BY observed_us DESC, score DESC
+            SELECT h.candidate_id, h.origin_track_id, h.destination_track_id,
+                   h.score AS timing_score, h.gap_seconds,
+                   h.observed_at, h.observed_us,
+                   origin.last_received_us AS origin_revision_us,
+                   destination.last_received_us AS destination_revision_us
+            FROM handoff_candidates h
+            JOIN local_tracks origin ON origin.track_id = h.origin_track_id
+            JOIN local_tracks destination
+              ON destination.track_id = h.destination_track_id
+            WHERE h.observed_us >= ?
+            ORDER BY h.observed_us DESC, h.score DESC
             """,
             (cutoff_us,),
         )

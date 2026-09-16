@@ -63,35 +63,45 @@ class VisualEvaluator:
         self._bodies: dict[str, EmbeddingResult] = {}
         self._faces: dict[str, EmbeddingResult] = {}
         self._colors: dict[str, AppearanceResult] = {}
+        self._track_revisions: dict[str, int] = {}
 
-    def prepare(self, track_ids: list[str]) -> None:
-        pending_body = [track for track in track_ids if track not in self._bodies]
-        body_visuals = load_track_visuals(self.receiver_database, pending_body)
-        for track_id in pending_body:
+    def prepare(self, track_revisions: dict[str, int]) -> None:
+        pending = [
+            track
+            for track, revision in track_revisions.items()
+            if self._track_revisions.get(track) != revision
+        ]
+        body_visuals = load_track_visuals(self.receiver_database, pending)
+        for track_id in pending:
             visual = body_visuals.get(track_id)
             if visual is None:
                 self._bodies[track_id] = EmbeddingResult("missing", None, (0, 0))
                 self._colors[track_id] = AppearanceResult("missing", None)
-                continue
-            self._bodies[track_id] = self._body.embed(visual)
-            self._colors[track_id] = color_descriptor(visual)
+            else:
+                self._bodies[track_id] = self._body.embed(visual)
+                self._colors[track_id] = color_descriptor(visual)
 
-        pending_face = [track for track in track_ids if track not in self._faces]
         face_visuals = load_track_visuals(
-            self.receiver_database, pending_face, preferred_roles=("face",)
+            self.receiver_database, pending, preferred_roles=("face",)
         )
-        for track_id in pending_face:
+        for track_id in pending:
             visual = face_visuals.get(track_id)
             self._faces[track_id] = (
                 self._face.embed(visual)
                 if visual is not None
                 else EmbeddingResult("missing", None, (0, 0))
             )
+            self._track_revisions[track_id] = track_revisions[track_id]
 
     def evaluate(self, candidate: dict[str, Any]) -> dict[str, Any]:
         origin = candidate["origin_track_id"]
         destination = candidate["destination_track_id"]
-        self.prepare([origin, destination])
+        self.prepare(
+            {
+                origin: int(candidate["origin_revision_us"]),
+                destination: int(candidate["destination_revision_us"]),
+            }
+        )
         face_score = _similarity(self._faces[origin], self._faces[destination])
         body_score = _similarity(self._bodies[origin], self._bodies[destination])
         color_score = _similarity(self._colors[origin], self._colors[destination])
@@ -106,6 +116,8 @@ class VisualEvaluator:
             "candidate_fingerprint": candidate_fingerprint(candidate),
             "origin_track_id": origin,
             "destination_track_id": destination,
+            "origin_revision_us": candidate["origin_revision_us"],
+            "destination_revision_us": candidate["destination_revision_us"],
             "model_version": self.model_version,
             "ranking_not_identity_probability": True,
             "identity_decision": None,
@@ -129,6 +141,8 @@ def candidate_fingerprint(candidate: dict[str, Any]) -> str:
             "timing_score": candidate["timing_score"],
             "gap_seconds": candidate["gap_seconds"],
             "observed_us": candidate["observed_us"],
+            "origin_revision_us": candidate.get("origin_revision_us", 0),
+            "destination_revision_us": candidate.get("destination_revision_us", 0),
         },
         sort_keys=True,
         separators=(",", ":"),

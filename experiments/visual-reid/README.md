@@ -151,3 +151,9 @@ color 5%. Missing modalities contribute no support and reduce
 candidate ordering only and is explicitly not an identity probability.
 Use `--verbose` only for diagnostics when one output line per evaluated
 candidate is needed; normal continuous operation prints one summary per batch.
+
+Track media can arrive after the source's `end` update, especially for Frigate
+snapshots. The worker fingerprints both tracks' latest receiver revisions and
+invalidates its in-memory embedding cache when either revision changes. A
+candidate first evaluated without media is therefore evaluated again after
+late snapshot enrichment instead of remaining permanently `n/a`.
