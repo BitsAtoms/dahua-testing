@@ -71,29 +71,7 @@ def monitor_snapshot(
     finally:
         connection.close()
 
-    evidence = _load_evidence(
-        evidence_database, {str(item["candidate_id"]) for item in candidates}
-    )
-    projected_candidates = []
-    for candidate in candidates:
-        visual = evidence.get(str(candidate["candidate_id"]))
-        projected_candidates.append(
-            {
-                **candidate,
-                "visual_ranking": (
-                    visual.get("ranking_score") if visual is not None else None
-                ),
-                "visual_coverage": (
-                    visual.get("visual_coverage") if visual is not None else None
-                ),
-                "available_modalities": (
-                    visual.get("available_modalities", [])
-                    if visual is not None
-                    else []
-                ),
-                "identity_decision": None,
-            }
-        )
+    projected_candidates = _project_candidates(candidates, evidence_database)
     return {
         "schema_version": "space_monitor.v1",
         "generated_at": current.isoformat(),
@@ -102,6 +80,73 @@ def monitor_snapshot(
         "status": "ok",
         "tracks": tracks,
         "candidates": projected_candidates,
+    }
+
+
+def validation_snapshot(
+    tracking_database: Path,
+    evidence_database: Path,
+    camera_spaces: dict[str, str | None],
+    started_us: int,
+    ended_us: int,
+    *,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Freeze references and scores received during one controlled test."""
+    if not tracking_database.is_file():
+        raise FileNotFoundError(f"tracking database does not exist: {tracking_database}")
+    connection = sqlite3.connect(
+        f"file:{tracking_database.resolve().as_posix()}?mode=ro", uri=True
+    )
+    connection.row_factory = sqlite3.Row
+    try:
+        candidates = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT candidate_id, origin_track_id, destination_track_id,
+                       origin_space_id, destination_space_id, gap_seconds,
+                       score AS timing_score, observed_at, observed_us
+                FROM handoff_candidates
+                WHERE observed_us BETWEEN ? AND ?
+                ORDER BY observed_us, score DESC
+                LIMIT ?
+                """,
+                (started_us, ended_us, limit),
+            )
+        ]
+        referenced = {
+            track_id
+            for candidate in candidates
+            for track_id in (
+                candidate["origin_track_id"],
+                candidate["destination_track_id"],
+            )
+        }
+        received = {
+            str(row[0])
+            for row in connection.execute(
+                """
+                SELECT track_id FROM local_tracks
+                WHERE last_received_us BETWEEN ? AND ?
+                ORDER BY last_received_us, track_id
+                LIMIT ?
+                """,
+                (started_us, ended_us, limit),
+            )
+        }
+        ended = datetime.fromtimestamp(ended_us / 1_000_000, tz=timezone.utc)
+        tracks = _load_tracks(
+            connection, received | referenced, camera_spaces, ended
+        )
+    finally:
+        connection.close()
+    return {
+        "schema_version": "validation_evidence.v1",
+        "started_us": started_us,
+        "ended_us": ended_us,
+        "tracks": tracks,
+        "candidates": _project_candidates(candidates, evidence_database),
     }
 
 
@@ -158,6 +203,36 @@ def _load_evidence(path: Path, candidate_ids: set[str]) -> dict[str, dict[str, A
         return {}
     finally:
         connection.close()
+
+
+def _project_candidates(
+    candidates: list[dict[str, Any]], evidence_database: Path
+) -> list[dict[str, Any]]:
+    evidence = _load_evidence(
+        evidence_database, {str(item["candidate_id"]) for item in candidates}
+    )
+    result = []
+    for candidate in candidates:
+        visual = evidence.get(str(candidate["candidate_id"]))
+        result.append(
+            {
+                **candidate,
+                "visual_ranking": (
+                    visual.get("ranking_score") if visual is not None else None
+                ),
+                "visual_coverage": (
+                    visual.get("visual_coverage") if visual is not None else None
+                ),
+                "available_modalities": (
+                    visual.get("available_modalities", [])
+                    if visual is not None
+                    else []
+                ),
+                "signals": visual.get("signals", {}) if visual is not None else {},
+                "identity_decision": None,
+            }
+        )
+    return result
 
 
 def _empty(now: datetime, status: str) -> dict[str, Any]:

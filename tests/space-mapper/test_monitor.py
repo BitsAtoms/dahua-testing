@@ -13,7 +13,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SERVICE_ROOT = REPOSITORY_ROOT / "services" / "space-mapper"
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from space_mapper.monitor import monitor_snapshot  # noqa: E402
+from space_mapper.monitor import monitor_snapshot, validation_snapshot  # noqa: E402
 
 
 class MonitorTests(unittest.TestCase):
@@ -33,6 +33,13 @@ class MonitorTests(unittest.TestCase):
                 {"cam_a": "room_a", "cam_b": "room_b"},
                 now=now,
             )
+            report = validation_snapshot(
+                tracking,
+                evidence,
+                {"cam_a": "room_a", "cam_b": "room_b"},
+                observed_us - 1,
+                observed_us + 1,
+            )
 
         self.assertEqual(snapshot["status"], "ok")
         self.assertFalse(snapshot["identity_assignment_enabled"])
@@ -43,6 +50,9 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(candidate["visual_ranking"], 0.72)
         self.assertEqual(candidate["available_modalities"], ["face"])
         self.assertIsNone(candidate["identity_decision"])
+        self.assertEqual(report["schema_version"], "validation_evidence.v1")
+        self.assertEqual(len(report["tracks"]), 2)
+        self.assertEqual(report["candidates"][0]["visual_ranking"], 0.72)
 
     @staticmethod
     def _tracking_fixture(path: Path, timestamp: str, timestamp_us: int) -> None:

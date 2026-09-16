@@ -53,6 +53,12 @@
     .monitor-card.active { border-color:var(--cyan); }
     .monitor-card .meta { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
     .monitor-warning { color:var(--warn); line-height:1.5; }
+    .validation { border:1px solid var(--cyan); padding:10px; display:grid; gap:8px; }
+    .validation.complete { border-color:var(--line); }
+    .monitor-live { display:grid; gap:14px; }
+    .evidence-image { width:100%; max-height:150px; object-fit:cover; border:1px solid var(--line); background:#050607; }
+    .evidence-row { display:grid; grid-template-columns:88px 1fr; gap:8px; align-items:start; }
+    .evidence-row .evidence-image { width:88px; height:88px; }
     .empty { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; color:#65777f; text-align:center; line-height:1.6; }
     .property { display:grid; gap:12px; }
     .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
@@ -128,6 +134,8 @@
 const NS='http://www.w3.org/2000/svg', W=1200, H=760;
 let model=null, selected=null, mode='select', draft=[], transitionStart=null, drag=null, dirty=false;
 let monitorMode=false, monitorState=null, monitorTimer=null;
+let validationState={active:null,recent:[]};
+let validationNeedsRender=true;
 const $=id=>document.getElementById(id), svg=$('map');
 
 function svgEl(name, attrs={}) { const node=document.createElementNS(NS,name); for(const [k,v] of Object.entries(attrs)) node.setAttribute(k,v); return node; }
@@ -191,7 +199,7 @@ function setMonitorMode(enabled){
   $('monitorPanel').style.gap='14px';
   if(enabled){
     drag=null; draft=[]; setMode('select');
-    fetchMonitor();
+    fetchMonitor(); fetchValidation();
     monitorTimer=setInterval(fetchMonitor,1000);
   }else{
     clearInterval(monitorTimer); monitorTimer=null; monitorState=null;
@@ -214,6 +222,16 @@ async function fetchMonitor(){
     $('status').textContent='MONITOR SIN DATOS';
     console.error(error);
   }
+}
+
+async function fetchValidation(){
+  try{
+    const response=await fetch('/api/validation',{cache:'no-store'});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    validationState=await response.json();
+    validationNeedsRender=true;
+    renderMonitor();
+  }catch(error){console.error(error);}
 }
 
 function trackPosition(track,index){
@@ -247,12 +265,21 @@ function renderMonitor(){
 }
 
 function renderMonitorPanel(tracksById){
-  const panel=$('monitorPanel'); panel.replaceChildren();
-  const warning=document.createElement('div'); warning.className='monitor-warning'; warning.textContent='SIN IDENTIDAD GLOBAL · Los enlaces son candidatos, no confirmaciones.'; panel.append(warning);
+  const panel=$('monitorPanel');
+  let validationHost=$('validationControls'),live=$('monitorLive');
+  if(!validationHost||!live){
+    panel.replaceChildren();
+    const warning=document.createElement('div'); warning.className='monitor-warning'; warning.textContent='SIN IDENTIDAD GLOBAL · Los enlaces son candidatos, no confirmaciones.';
+    validationHost=document.createElement('div');validationHost.id='validationControls';
+    live=document.createElement('div');live.id='monitorLive';live.className='monitor-live';
+    panel.append(warning,validationHost,live);
+  }
+  renderValidationControls(validationHost);
+  live.replaceChildren();
   const summary=document.createElement('div'); summary.className='monitor-summary';
   const active=monitorState.tracks.filter(track=>track.status==='active').length;
-  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); panel.append(summary);
-  panel.append(sectionTitle('Tracks locales'));
+  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); live.append(summary);
+  live.append(sectionTitle('Tracks locales'));
   const trackList=document.createElement('div');trackList.className='list';
   for(const track of monitorState.tracks.slice(0,30)){
     const card=document.createElement('div');card.className='monitor-card '+track.status;
@@ -261,7 +288,7 @@ function renderMonitorPanel(tracksById){
     card.append(name,meta);trackList.append(card);
   }
   if(!monitorState.tracks.length)trackList.append(emptyHint('Sin tracks dentro de la ventana.'));
-  panel.append(trackList,sectionTitle('Continuidades candidatas'));
+  live.append(trackList,sectionTitle('Continuidades candidatas'));
   const candidateList=document.createElement('div');candidateList.className='list';
   for(const candidate of monitorState.candidates.slice(0,20)){
     const card=document.createElement('div');card.className='monitor-card';
@@ -272,7 +299,93 @@ function renderMonitorPanel(tracksById){
     card.append(name,meta);candidateList.append(card);
   }
   if(!monitorState.candidates.length)candidateList.append(emptyHint('Sin candidatos recientes.'));
-  panel.append(candidateList);
+  live.append(candidateList);
+}
+
+function renderValidationControls(box){
+  if(!validationNeedsRender&&box.childNodes.length)return;
+  validationNeedsRender=false;box.replaceChildren();
+  const active=validationState.active;
+  box.className='validation'+(active?'':' complete');
+  box.append(sectionTitle('Sesión de prueba'));
+  if(active){
+    const name=document.createElement('strong');name.textContent=active.name;
+    const route=document.createElement('span');route.className='meta';route.textContent=`Ruta: ${active.expected_route.join(' → ')} · sujetos ${active.subjects.join(', ')}`;
+    const stop=document.createElement('button');stop.textContent='[ FINALIZAR Y CAPTURAR ]';stop.onclick=completeValidation;
+    box.append(name,route,stop);
+  }else{
+    const start=document.createElement('button');start.textContent='[ INICIAR SESIÓN ]';start.onclick=startValidation;box.append(start);
+    const latest=validationState.recent.find(item=>item.status==='complete');
+    if(latest)renderValidationReport(box,latest);
+  }
+}
+
+async function startValidation(){
+  const available=model.cameras.map(camera=>camera.camera_id);
+  const suggested=['dahua_213','recepcion_terminator','dahua_213'].every(id=>available.includes(id))?'dahua_213 > recepcion_terminator > dahua_213':available.join(' > ');
+  const name=prompt('Nombre de la prueba','recorrido controlado');if(name===null)return;
+  const routeText=prompt('Ruta esperada, separada por >',suggested);if(routeText===null)return;
+  const subjectsText=prompt('Alias temporales, separados por coma','A');if(subjectsText===null)return;
+  const document={name,expected_route:routeText.split('>').map(value=>value.trim()).filter(Boolean),subjects:subjectsText.split(',').map(value=>value.trim()).filter(Boolean)};
+  await validationRequest('/api/validation/start','POST',document);
+}
+
+async function completeValidation(){
+  if(!validationState.active)return;
+  await validationRequest(`/api/validation/${validationState.active.session_id}/complete`,'POST');
+}
+
+async function validationRequest(url,method,document){
+  try{
+    const options={method,headers:{}};
+    if(document!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(document);}
+    const response=await fetch(url,options),body=await response.json();
+    if(!response.ok)throw new Error(body.error||`HTTP ${response.status}`);
+    await fetchValidation(); await fetchMonitor();
+  }catch(error){alert(error.message);}
+}
+
+function renderValidationReport(box,session){
+  const report=session.report||{tracks:[],candidates:[]},annotations=session.annotations||{};
+  annotations.track_subjects??={};annotations.candidate_verdicts??={};annotations.notes??='';session.annotations=annotations;
+  const title=document.createElement('strong');title.textContent=`ÚLTIMA: ${session.name}`;
+  const route=document.createElement('span');route.className='meta';route.textContent=`${session.expected_route.join(' → ')} · ${report.tracks.length} tracks · ${report.candidates.length} candidatos`;
+  box.append(title,route,sectionTitle('Evidencia por track'));
+  for(const track of report.tracks){
+    const row=document.createElement('div');row.className='monitor-card evidence-row';
+    const media=(track.media||[]).find(item=>item.url);
+    if(media){const image=document.createElement('img');image.className='evidence-image';image.src=media.url;image.alt=`Captura ${track.camera_id}`;row.append(image);}
+    else row.append(emptyHint('Sin imagen'));
+    const detail=document.createElement('div');detail.className='property';
+    const name=document.createElement('strong');name.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
+    const select=document.createElement('select');select.append(new Option('Sin asignar',''));
+    for(const alias of session.subjects)select.append(new Option(`Persona ${alias}`,alias));
+    select.value=annotations.track_subjects[track.track_id]||'';
+    select.onchange=()=>{if(select.value)annotations.track_subjects[track.track_id]=select.value;else delete annotations.track_subjects[track.track_id];saveAnnotations(session);};
+    detail.append(name,select);row.append(detail);box.append(row);
+  }
+  box.append(sectionTitle('¿Misma persona entre tracks?'));
+  const byId=new Map(report.tracks.map(track=>[track.track_id,track]));
+  for(const candidate of report.candidates){
+    const row=document.createElement('div');row.className='monitor-card';
+    const origin=byId.get(candidate.origin_track_id),destination=byId.get(candidate.destination_track_id);
+    const name=document.createElement('strong');name.textContent=`${origin?.camera_id||'?'} → ${destination?.camera_id||'?'}`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
+    const select=document.createElement('select');
+    for(const [value,label] of [['','Sin evaluar'],['same_person','Misma persona'],['different_person','Persona diferente'],['uncertain','Dudoso']])select.append(new Option(label,value));
+    select.value=annotations.candidate_verdicts[candidate.candidate_id]||'';
+    select.onchange=()=>{if(select.value)annotations.candidate_verdicts[candidate.candidate_id]=select.value;else delete annotations.candidate_verdicts[candidate.candidate_id];saveAnnotations(session);};
+    row.append(name,meta,select);box.append(row);
+  }
+  const notes=document.createElement('button');notes.textContent='[ NOTAS ]';notes.onclick=()=>{const value=prompt('Notas de la sesión',annotations.notes||'');if(value!==null){annotations.notes=value;saveAnnotations(session);}};box.append(notes);
+}
+
+async function saveAnnotations(session){
+  try{
+    const response=await fetch(`/api/validation/${session.session_id}/annotations`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(session.annotations)});
+    const body=await response.json();if(!response.ok)throw new Error(body.error||`HTTP ${response.status}`);
+    const index=validationState.recent.findIndex(item=>item.session_id===body.session_id);if(index>=0)validationState.recent[index]=body;
+  }catch(error){alert(error.message);}
 }
 
 function metric(label,value){const item=document.createElement('div');item.className='metric';const strong=document.createElement('strong');strong.textContent=value;const text=document.createElement('span');text.textContent=label;item.append(strong,text);return item;}

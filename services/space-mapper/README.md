@@ -45,6 +45,24 @@ The monitor reads `runtime/tracking-engine/tracking.sqlite3` and
 `runtime/visual-reid/evidence.sqlite3` without modifying either database. Its
 default recent-event window is 120 seconds.
 
+### Controlled validation sessions
+
+Inside monitor mode, `[ INICIAR SESIÓN ]` records a bounded test interval. Use
+anonymous temporary aliases such as `A` and `B`, never personal names. Enter
+the expected camera route in physical order, perform the test, wait until the
+final snapshots and visual scores appear, and then use
+`[ FINALIZAR Y CAPTURAR ]`.
+
+The completed report references the existing retained snapshots instead of
+copying image bytes. It lets the operator assign each local track to an alias
+and label each candidate pair as `Misma persona`, `Persona diferente` or
+`Dudoso`. These labels are explicit test ground truth; they are not biometric
+identity decisions made by the application.
+
+Session reports and annotations are stored in the ignored local database
+`runtime/space-mapper/validation.sqlite3` and removed after seven days. The
+local HTTP server exposes only JPEG references located inside this repository.
+
 All positions use normalized `0..1` map coordinates. A fixed pose can later be
 used for approximate spatial projection after calibration. A mobile pose only
 states which logical space currently contains the camera; its image geometry
