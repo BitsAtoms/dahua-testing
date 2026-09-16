@@ -22,10 +22,22 @@ Project the current receiver log from the repository root:
 python services/tracking-engine/project_receiver.py
 ```
 
+Run the incremental projector continuously:
+
+```powershell
+python services/tracking-engine/live_service.py
+```
+
+It reads committed receiver rows in small batches every 200 ms. Its cursor is
+stored in the tracking database, so a restart resumes from the next receiver
+row. Applying a row and advancing the cursor are separately idempotent: a
+crash between them can replay a message but cannot duplicate track state.
+`Ctrl+C` requests a clean shutdown. A compact status line reports active and
+ended tracks plus the current input backlog.
+
 The ignored output database is
 `runtime/tracking-engine/tracking.sqlite3`. Derived records and processed
 message IDs use the same seven-day retention period as the ingestion modules.
 
-The next milestone is a continuously running projector followed by camera
-topology and temporal handoff candidates. Visual identity is a later,
-independent scoring layer.
+The next milestone is camera topology and temporal handoff candidates. Visual
+identity is a later, independent scoring layer.

@@ -12,7 +12,7 @@ from typing import Any
 
 RETENTION_DAYS = 7
 STALE_TRACK_SECONDS = 120
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -197,6 +197,40 @@ class TrackingStore:
             self._connection.execute("SELECT COUNT(*) FROM local_tracks").fetchone()[0]
         )
 
+    def status_counts(self) -> dict[str, int]:
+        rows = self._connection.execute(
+            "SELECT status, COUNT(*) AS count FROM local_tracks GROUP BY status"
+        )
+        return {str(row["status"]): int(row["count"]) for row in rows}
+
+    def get_cursor(self, source_id: str) -> int:
+        row = self._connection.execute(
+            "SELECT last_rowid FROM projection_cursors WHERE source_id = ?",
+            (source_id,),
+        ).fetchone()
+        return int(row["last_rowid"]) if row else 0
+
+    def advance_cursor(
+        self, source_id: str, rowid: int, message_id: str, advanced_at: datetime
+    ) -> None:
+        if rowid <= 0:
+            raise ValueError("cursor rowid must be positive")
+        advanced = _as_utc(advanced_at)
+        self._connection.execute(
+            """
+            INSERT INTO projection_cursors (
+                source_id, last_rowid, last_message_id, advanced_at
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                last_rowid=excluded.last_rowid,
+                last_message_id=excluded.last_message_id,
+                advanced_at=excluded.advanced_at
+            WHERE excluded.last_rowid > projection_cursors.last_rowid
+            """,
+            (source_id, rowid, message_id, advanced.isoformat()),
+        )
+        self._connection.commit()
+
     def close(self) -> None:
         self._connection.close()
 
@@ -264,6 +298,20 @@ class TrackingStore:
                 """
                 ALTER TABLE local_tracks ADD COLUMN end_reason TEXT;
                 PRAGMA user_version=2;
+                """
+            )
+            self._connection.commit()
+            version = 2
+        if version == 2:
+            self._connection.executescript(
+                """
+                CREATE TABLE projection_cursors (
+                    source_id TEXT PRIMARY KEY,
+                    last_rowid INTEGER NOT NULL,
+                    last_message_id TEXT NOT NULL,
+                    advanced_at TEXT NOT NULL
+                );
+                PRAGMA user_version=3;
                 """
             )
             self._connection.commit()

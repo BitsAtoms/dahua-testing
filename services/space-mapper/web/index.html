@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Space Mapper</title>
+  <style>
+    :root { color-scheme: dark; --bg:#080a0b; --panel:#0d1011; --line:#283035; --muted:#7f949e; --text:#dce7eb; --accent:#61f59a; --warn:#ffd166; }
+    * { box-sizing:border-box; }
+    body { margin:0; height:100vh; overflow:hidden; background:var(--bg); color:var(--text); font:13px Consolas,monospace; }
+    button,input,select { font:inherit; color:inherit; background:#101416; border:1px solid #384248; padding:7px 9px; }
+    button { cursor:pointer; }
+    button:hover,button.active { border-color:var(--accent); color:var(--accent); }
+    button.danger:hover { border-color:#ff6b6b; color:#ff6b6b; }
+    input,select { width:100%; }
+    label { display:grid; gap:5px; color:var(--muted); }
+    .app { height:100%; display:grid; grid-template-rows:auto 1fr; }
+    header { min-height:55px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; padding:9px 14px; }
+    .brand { font-weight:700; color:var(--accent); margin-right:10px; }
+    .site-name { width:220px; }
+    .spacer { flex:1; }
+    .status { color:var(--muted); }
+    .status.dirty { color:var(--warn); }
+    main { min-height:0; display:grid; grid-template-columns:250px 1fr 300px; }
+    aside { min-height:0; overflow:auto; background:var(--panel); padding:14px; }
+    aside.left { border-right:1px solid var(--line); }
+    aside.right { border-left:1px solid var(--line); }
+    .group { display:grid; gap:8px; margin-bottom:22px; }
+    .group-title { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.12em; }
+    .hint { color:var(--muted); line-height:1.5; font-size:12px; }
+    .map-wrap { min-width:0; min-height:0; position:relative; }
+    svg { width:100%; height:100%; display:block; touch-action:none; cursor:crosshair; }
+    .space { fill:#182125; fill-opacity:.74; stroke:#647982; stroke-width:2; vector-effect:non-scaling-stroke; }
+    .space.selected { stroke:var(--accent); }
+    .space-label { fill:#c9d8dd; font-size:16px; pointer-events:none; }
+    .transition { stroke:var(--warn); stroke-width:3; stroke-dasharray:8 7; vector-effect:non-scaling-stroke; }
+    .fov { fill:#61f59a; fill-opacity:.08; stroke:#61f59a; stroke-opacity:.35; vector-effect:non-scaling-stroke; }
+    .camera-dot { fill:#080a0b; stroke:var(--accent); stroke-width:3; vector-effect:non-scaling-stroke; cursor:grab; }
+    .camera.selected .camera-dot { fill:var(--accent); }
+    .camera-label { fill:#dce7eb; font-size:14px; pointer-events:none; }
+    .draft { fill:#61f59a; fill-opacity:.08; stroke:var(--accent); stroke-width:2; stroke-dasharray:5 5; }
+    .empty { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; color:#65777f; text-align:center; line-height:1.6; }
+    .property { display:grid; gap:12px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .check { display:flex; align-items:center; gap:8px; }
+    .check input { width:auto; }
+    .list { display:grid; gap:6px; }
+    .list-item { padding:8px; border:1px solid var(--line); color:var(--muted); cursor:pointer; }
+    .list-item:hover { border-color:#647982; color:var(--text); }
+    #finishSpace,#cancelMode { display:none; }
+    @media (max-width:900px) { main { grid-template-columns:190px 1fr; } aside.right { position:absolute; right:0; top:55px; bottom:0; width:280px; z-index:3; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="brand">C:\&gt; SPACE MAPPER</span>
+    <input id="siteName" class="site-name" aria-label="Nombre del sitio">
+    <span id="status" class="status">CARGANDO</span>
+    <span class="spacer"></span>
+    <button id="save">[ GUARDAR ]</button>
+  </header>
+  <main>
+    <aside class="left">
+      <div class="group">
+        <div class="group-title">Construcción</div>
+        <button id="addSpace">[ + ESPACIO ]</button>
+        <button id="finishSpace">[ CERRAR POLÍGONO ]</button>
+        <button id="cancelMode">[ CANCELAR ]</button>
+      </div>
+      <div class="group">
+        <div class="group-title">Cámaras</div>
+        <input id="cameraId" list="cameraIds" placeholder="camera_id">
+        <datalist id="cameraIds"></datalist>
+        <button id="addCamera">[ + COLOCAR CÁMARA ]</button>
+      </div>
+      <div class="group">
+        <div class="group-title">Circulación</div>
+        <button id="addTransition">[ + CONECTAR ESPACIOS ]</button>
+      </div>
+      <div id="modeHint" class="hint">Selecciona un elemento para editarlo. Arrastra las cámaras para moverlas.</div>
+    </aside>
+    <section class="map-wrap">
+      <svg id="map" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#182023" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="1200" height="760" fill="url(#grid)"/>
+        <g id="transitionLayer"></g>
+        <g id="spaceLayer"></g>
+        <g id="cameraLayer"></g>
+        <g id="draftLayer"></g>
+      </svg>
+      <div id="empty" class="empty">NO HAY ESPACIOS<br>Usa [ + ESPACIO ] y marca al menos tres puntos</div>
+    </section>
+    <aside class="right">
+      <div class="group-title">Propiedades</div>
+      <div id="properties" class="property"><p class="hint">Nada seleccionado.</p></div>
+      <div class="group" style="margin-top:24px">
+        <div class="group-title">Transiciones</div>
+        <div id="transitionList" class="list"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg', W=1200, H=760;
+let model=null, selected=null, mode='select', draft=[], transitionStart=null, drag=null, dirty=false;
+const $=id=>document.getElementById(id), svg=$('map');
+
+function svgEl(name, attrs={}) { const node=document.createElementNS(NS,name); for(const [k,v] of Object.entries(attrs)) node.setAttribute(k,v); return node; }
+function pointFromEvent(event) { const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY; const q=p.matrixTransform(svg.getScreenCTM().inverse()); return {x:clamp(q.x/W),y:clamp(q.y/H)}; }
+function clamp(v){ return Math.max(0,Math.min(1,v)); }
+function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,8); }
+function markDirty(){ dirty=true; $('status').textContent='SIN GUARDAR'; $('status').classList.add('dirty'); }
+function setSaved(text='GUARDADO'){ dirty=false; $('status').textContent=text; $('status').classList.remove('dirty'); }
+function centroid(poly){ return poly.reduce((a,p)=>({x:a.x+p.x/poly.length,y:a.y+p.y/poly.length}),{x:0,y:0}); }
+function spaceById(id){ return model.spaces.find(s=>s.id===id); }
+function cameraById(id){ return model.cameras.find(c=>c.camera_id===id); }
+function transitionById(id){ return model.transitions.find(t=>t.id===id); }
+function pointInPolygon(point, polygon){ let inside=false; for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){ const a=polygon[i],b=polygon[j]; if(((a.y>point.y)!==(b.y>point.y))&&(point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y)+a.x)) inside=!inside; } return inside; }
+function containingSpace(point){ return model.spaces.find(s=>pointInPolygon(point,s.polygon))?.id||null; }
+
+function render(){
+  $('spaceLayer').replaceChildren(); $('cameraLayer').replaceChildren(); $('transitionLayer').replaceChildren(); $('draftLayer').replaceChildren();
+  $('empty').style.display=model.spaces.length?'none':'grid';
+  for(const t of model.transitions){ const a=spaceById(t.from_space_id),b=spaceById(t.to_space_id); if(!a||!b) continue; const ca=centroid(a.polygon),cb=centroid(b.polygon); const line=svgEl('line',{x1:ca.x*W,y1:ca.y*H,x2:cb.x*W,y2:cb.y*H,class:'transition'}); line.addEventListener('click',e=>{e.stopPropagation(); select('transition',t.id)}); $('transitionLayer').append(line); }
+  for(const space of model.spaces){ const group=svgEl('g'); const polygon=svgEl('polygon',{points:space.polygon.map(p=>`${p.x*W},${p.y*H}`).join(' '),class:'space'+(selected?.type==='space'&&selected.id===space.id?' selected':'')}); polygon.addEventListener('click',e=>onSpaceClick(e,space.id)); const c=centroid(space.polygon),label=svgEl('text',{x:c.x*W,y:c.y*H,class:'space-label','text-anchor':'middle'}); label.textContent=space.name; group.append(polygon,label); $('spaceLayer').append(group); }
+  for(const camera of model.cameras){ const g=svgEl('g',{class:'camera'+(selected?.type==='camera'&&selected.id===camera.camera_id?' selected':'')}); const p={x:camera.position.x*W,y:camera.position.y*H}; g.append(fovPath(camera)); const dot=svgEl('circle',{cx:p.x,cy:p.y,r:10,class:'camera-dot'}); dot.addEventListener('pointerdown',e=>{ if(mode!=='select')return; e.stopPropagation(); drag=camera.camera_id; svg.setPointerCapture(e.pointerId); select('camera',camera.camera_id); }); dot.addEventListener('click',e=>{e.stopPropagation();select('camera',camera.camera_id)}); const label=svgEl('text',{x:p.x+15,y:p.y-14,class:'camera-label'}); label.textContent=camera.label+(camera.fixed_pose?'':' [MÓVIL]'); g.append(dot,label); $('cameraLayer').append(g); }
+  if(draft.length){ const poly=svgEl('polyline',{points:draft.map(p=>`${p.x*W},${p.y*H}`).join(' '),class:'draft'}); $('draftLayer').append(poly); for(const p of draft) $('draftLayer').append(svgEl('circle',{cx:p.x*W,cy:p.y*H,r:5,fill:'#61f59a'})); }
+  renderProperties(); renderTransitions();
+}
+
+function fovPath(camera){ const cx=camera.position.x*W,cy=camera.position.y*H,r=camera.range*Math.min(W,H),angles=[camera.heading_deg-camera.fov_deg/2,camera.heading_deg+camera.fov_deg/2]; const pts=angles.map(a=>{const rad=a*Math.PI/180; return [cx+Math.sin(rad)*r,cy-Math.cos(rad)*r]}); return svgEl('path',{d:`M ${cx} ${cy} L ${pts[0][0]} ${pts[0][1]} A ${r} ${r} 0 0 1 ${pts[1][0]} ${pts[1][1]} Z`,class:'fov'}); }
+function onSpaceClick(event,id){ if(mode==='camera'||mode==='space')return; event.stopPropagation(); if(mode==='transition'){ if(!transitionStart){ transitionStart=id; $('modeHint').textContent='Selecciona el espacio de destino.'; } else if(transitionStart!==id){ const pair=[transitionStart,id]; model.transitions.push({id:uid('transition'),from_space_id:pair[0],to_space_id:pair[1],bidirectional:true,min_seconds:0,max_seconds:30}); transitionStart=null; setMode('select'); markDirty(); render(); } return; } if(mode==='select') select('space',id); }
+function select(type,id){ selected={type,id}; render(); }
+function setMode(next){ mode=next; transitionStart=null; $('addSpace').classList.toggle('active',next==='space'); $('addCamera').classList.toggle('active',next==='camera'); $('addTransition').classList.toggle('active',next==='transition'); $('finishSpace').style.display=next==='space'?'block':'none'; $('cancelMode').style.display=next==='select'?'none':'block'; const hints={select:'Selecciona un elemento para editarlo. Arrastra las cámaras para moverlas.',space:'Haz clic en cada esquina y cierra el polígono.',camera:'Haz clic en el mapa para colocar la cámara.',transition:'Selecciona el espacio de origen.'}; $('modeHint').textContent=hints[next]; }
+
+svg.addEventListener('click',event=>{ const p=pointFromEvent(event); if(mode==='space'){ draft.push(p); render(); } else if(mode==='camera'){ const id=$('cameraId').value.trim(); if(!/^[A-Za-z0-9_-]{1,64}$/.test(id)){ alert('Introduce un camera_id válido.'); return; } if(cameraById(id)){ alert('Esa cámara ya está colocada.'); return; } model.cameras.push({camera_id:id,label:id,position:p,space_id:containingSpace(p),heading_deg:0,fov_deg:90,range:.22,fixed_pose:true}); selected={type:'camera',id}; setMode('select'); markDirty(); render(); } else if(mode==='select'){ selected=null; render(); } });
+svg.addEventListener('pointermove',event=>{ if(!drag)return; const camera=cameraById(drag),p=pointFromEvent(event); camera.position=p; camera.space_id=containingSpace(p); markDirty(); render(); });
+svg.addEventListener('pointerup',()=>{drag=null}); svg.addEventListener('pointercancel',()=>{drag=null});
+
+$('addSpace').onclick=()=>{draft=[];setMode('space');render()};
+$('finishSpace').onclick=()=>{ if(draft.length<3){alert('El espacio necesita al menos tres puntos.');return;} const id=uid('space'); model.spaces.push({id,name:`Espacio ${model.spaces.length+1}`,polygon:draft}); draft=[]; selected={type:'space',id}; setMode('select'); markDirty(); render(); };
+$('cancelMode').onclick=()=>{draft=[];setMode('select');render()};
+$('addCamera').onclick=()=>setMode('camera');
+$('addTransition').onclick=()=>setMode('transition');
+$('siteName').addEventListener('input',event=>{model.site.name=event.target.value;markDirty()});
+$('save').onclick=async()=>{ try{ $('status').textContent='GUARDANDO'; const response=await fetch('/api/map',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(model)}); const body=await response.json(); if(!response.ok) throw new Error(body.error||'No se pudo guardar'); setSaved(); }catch(error){$('status').textContent='ERROR';$('status').classList.add('dirty');alert(error.message);} };
+
+function renderProperties(){ const panel=$('properties'); panel.replaceChildren(); if(!selected){panel.innerHTML='<p class="hint">Nada seleccionado.</p>';return;} const item=selected.type==='space'?spaceById(selected.id):selected.type==='camera'?cameraById(selected.id):transitionById(selected.id); if(!item){selected=null;render();return;} if(selected.type==='space') spaceProperties(panel,item); else if(selected.type==='camera') cameraProperties(panel,item); else transitionProperties(panel,item); }
+function field(label,type,value,onchange,options){ const wrap=document.createElement('label'); wrap.textContent=label; let input; if(type==='select'){input=document.createElement('select'); for(const [v,t] of options){const o=document.createElement('option');o.value=v;o.textContent=t;input.append(o)}} else {input=document.createElement('input');input.type=type; if(type==='number')input.step='any'} input.value=value??''; input.addEventListener('change',()=>{onchange(input);markDirty();render()}); wrap.append(input); return wrap; }
+function deleteButton(action){ const b=document.createElement('button');b.className='danger';b.textContent='[ ELIMINAR ]';b.onclick=()=>{action();selected=null;markDirty();render()};return b; }
+function spaceProperties(panel,s){ panel.append(field('ID','text',s.id,i=>{if(model.spaces.some(x=>x!==s&&x.id===i.value))return alert('ID duplicado'); const old=s.id;s.id=i.value; for(const c of model.cameras)if(c.space_id===old)c.space_id=s.id;for(const t of model.transitions){if(t.from_space_id===old)t.from_space_id=s.id;if(t.to_space_id===old)t.to_space_id=s.id} selected.id=s.id}),field('Nombre','text',s.name,i=>s.name=i.value),deleteButton(()=>{model.spaces=model.spaces.filter(x=>x!==s);model.cameras.forEach(c=>{if(c.space_id===s.id)c.space_id=null});model.transitions=model.transitions.filter(t=>t.from_space_id!==s.id&&t.to_space_id!==s.id)})); }
+function cameraProperties(panel,c){ const spaces=[['','Sin asignar'],...model.spaces.map(s=>[s.id,s.name])]; panel.append(field('Camera ID','text',c.camera_id,i=>{if(model.cameras.some(x=>x!==c&&x.camera_id===i.value))return alert('ID duplicado');selected.id=i.value;c.camera_id=i.value}),field('Etiqueta','text',c.label,i=>c.label=i.value),field('Espacio','select',c.space_id||'',i=>c.space_id=i.value||null,spaces)); const row=document.createElement('div');row.className='row';row.append(field('Orientación °','number',c.heading_deg,i=>c.heading_deg=Math.max(0,Math.min(359.999,+i.value))),field('FOV °','number',c.fov_deg,i=>c.fov_deg=Math.max(1,Math.min(180,+i.value))));panel.append(row,field('Alcance visual','number',c.range,i=>c.range=Math.max(.01,Math.min(1,+i.value)))); const check=document.createElement('label');check.className='check';const input=document.createElement('input');input.type='checkbox';input.checked=c.fixed_pose;input.onchange=()=>{c.fixed_pose=input.checked;markDirty();render()};check.append(input,document.createTextNode('Pose fija utilizable para geometría'));panel.append(check,deleteButton(()=>model.cameras=model.cameras.filter(x=>x!==c))); }
+function transitionProperties(panel,t){ const spaces=model.spaces.map(s=>[s.id,s.name]); panel.append(field('Origen','select',t.from_space_id,i=>t.from_space_id=i.value,spaces),field('Destino','select',t.to_space_id,i=>t.to_space_id=i.value,spaces)); const row=document.createElement('div');row.className='row';row.append(field('Mínimo s','number',t.min_seconds,i=>t.min_seconds=Math.max(0,+i.value)),field('Máximo s','number',t.max_seconds,i=>t.max_seconds=Math.max(0,+i.value)));panel.append(row);const check=document.createElement('label');check.className='check';const input=document.createElement('input');input.type='checkbox';input.checked=t.bidirectional;input.onchange=()=>{t.bidirectional=input.checked;markDirty();render()};check.append(input,document.createTextNode('Bidireccional'));panel.append(check,deleteButton(()=>model.transitions=model.transitions.filter(x=>x!==t))); }
+function renderTransitions(){ const list=$('transitionList');list.replaceChildren(); if(!model.transitions.length){list.innerHTML='<span class="hint">Sin conexiones.</span>';return;} for(const t of model.transitions){const item=document.createElement('div');item.className='list-item';const a=spaceById(t.from_space_id)?.name||t.from_space_id,b=spaceById(t.to_space_id)?.name||t.to_space_id;item.textContent=`${a} ${t.bidirectional?'↔':'→'} ${b} · ${t.min_seconds}-${t.max_seconds}s`;item.onclick=()=>select('transition',t.id);list.append(item)} }
+
+async function init(){ try{ const [mapResponse,cameraResponse]=await Promise.all([fetch('/api/map'),fetch('/api/cameras')]); model=await mapResponse.json(); const cameras=await cameraResponse.json(); $('siteName').value=model.site.name; const data=$('cameraIds'); for(const id of cameras.camera_ids||[]){const option=document.createElement('option');option.value=id;data.append(option)} setSaved('LISTO');render(); }catch(error){$('status').textContent='ERROR DE CARGA';console.error(error);} }
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}}); init();
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "schema_version": "space_map.v1",
+  "site": {
+    "id": "main",
+    "name": "Example site"
+  },
+  "spaces": [
+    {
+      "id": "entry",
+      "name": "Entry",
+      "polygon": [
+        {"x": 0.05, "y": 0.1},
+        {"x": 0.45, "y": 0.1},
+        {"x": 0.45, "y": 0.9},
+        {"x": 0.05, "y": 0.9}
+      ]
+    },
+    {
+      "id": "room",
+      "name": "Room",
+      "polygon": [
+        {"x": 0.55, "y": 0.1},
+        {"x": 0.95, "y": 0.1},
+        {"x": 0.95, "y": 0.9},
+        {"x": 0.55, "y": 0.9}
+      ]
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "camera_entry",
+      "label": "Entry camera",
+      "position": {"x": 0.15, "y": 0.2},
+      "space_id": "entry",
+      "heading_deg": 135,
+      "fov_deg": 90,
+      "range": 0.3,
+      "fixed_pose": true
+    }
+  ],
+  "transitions": [
+    {
+      "id": "entry_room",
+      "from_space_id": "entry",
+      "to_space_id": "room",
+      "bidirectional": true,
+      "min_seconds": 1,
+      "max_seconds": 30
+    }
+  ]
+}

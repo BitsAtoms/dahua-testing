@@ -8,3 +8,4 @@ experiments/dahua-netsdk/cameras.local.json
 experiments/frigate-adapter/output/
 tests/dahua-events/output/
 runtime/
+.playwright-cli/
