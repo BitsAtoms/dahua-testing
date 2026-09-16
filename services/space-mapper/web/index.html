@@ -6,7 +6,7 @@
   <link rel="icon" href="data:,">
   <title>Space Mapper</title>
   <style>
-    :root { color-scheme: dark; --bg:#080a0b; --panel:#0d1011; --line:#283035; --muted:#7f949e; --text:#dce7eb; --accent:#61f59a; --warn:#ffd166; }
+    :root { color-scheme: dark; --bg:#080a0b; --panel:#0d1011; --line:#283035; --muted:#7f949e; --text:#dce7eb; --accent:#61f59a; --warn:#ffd166; --cyan:#52d9ff; }
     * { box-sizing:border-box; }
     body { margin:0; height:100vh; overflow:hidden; background:var(--bg); color:var(--text); font:13px Consolas,monospace; }
     button,input,select { font:inherit; color:inherit; background:#101416; border:1px solid #384248; padding:7px 9px; }
@@ -16,6 +16,8 @@
     input,select { width:100%; }
     label { display:grid; gap:5px; color:var(--muted); }
     .app { height:100%; display:grid; grid-template-rows:auto 1fr; }
+    .app.monitor main { grid-template-columns:1fr 320px; }
+    .app.monitor aside.left { display:none; }
     header { min-height:55px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; padding:9px 14px; }
     .brand { font-weight:700; color:var(--accent); margin-right:10px; }
     .site-name { width:220px; }
@@ -40,6 +42,17 @@
     .camera.selected .camera-dot { fill:var(--accent); }
     .camera-label { fill:#dce7eb; font-size:14px; pointer-events:none; }
     .draft { fill:#61f59a; fill-opacity:.08; stroke:var(--accent); stroke-width:2; stroke-dasharray:5 5; }
+    .candidate-link { stroke:var(--cyan); stroke-width:4; stroke-dasharray:7 6; vector-effect:non-scaling-stroke; pointer-events:none; }
+    .track-dot { fill:#071014; stroke:var(--cyan); stroke-width:4; vector-effect:non-scaling-stroke; }
+    .track-dot.active { fill:var(--cyan); }
+    .track-label { fill:#e9fbff; font-size:12px; paint-order:stroke; stroke:#080a0b; stroke-width:4px; stroke-linejoin:round; pointer-events:none; }
+    .monitor-summary { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .metric { border:1px solid var(--line); padding:9px; }
+    .metric strong { display:block; color:var(--cyan); font-size:18px; }
+    .monitor-card { border:1px solid var(--line); padding:8px; display:grid; gap:4px; }
+    .monitor-card.active { border-color:var(--cyan); }
+    .monitor-card .meta { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+    .monitor-warning { color:var(--warn); line-height:1.5; }
     .empty { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; color:#65777f; text-align:center; line-height:1.6; }
     .property { display:grid; gap:12px; }
     .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
@@ -59,6 +72,7 @@
     <input id="siteName" class="site-name" aria-label="Nombre del sitio">
     <span id="status" class="status">CARGANDO</span>
     <span class="spacer"></span>
+    <button id="toggleMonitor">[ MONITOR ]</button>
     <button id="save">[ GUARDAR ]</button>
   </header>
   <main>
@@ -92,23 +106,28 @@
         <g id="transitionLayer"></g>
         <g id="spaceLayer"></g>
         <g id="cameraLayer"></g>
+        <g id="monitorLayer"></g>
         <g id="draftLayer"></g>
       </svg>
       <div id="empty" class="empty">NO HAY ESPACIOS<br>Usa [ + ESPACIO ] y marca al menos tres puntos</div>
     </section>
     <aside class="right">
-      <div class="group-title">Propiedades</div>
-      <div id="properties" class="property"><p class="hint">Nada seleccionado.</p></div>
-      <div class="group" style="margin-top:24px">
-        <div class="group-title">Transiciones</div>
-        <div id="transitionList" class="list"></div>
+      <div id="editorPanel">
+        <div class="group-title">Propiedades</div>
+        <div id="properties" class="property"><p class="hint">Nada seleccionado.</p></div>
+        <div class="group" style="margin-top:24px">
+          <div class="group-title">Transiciones</div>
+          <div id="transitionList" class="list"></div>
+        </div>
       </div>
+      <div id="monitorPanel" style="display:none"></div>
     </aside>
   </main>
 </div>
 <script>
 const NS='http://www.w3.org/2000/svg', W=1200, H=760;
 let model=null, selected=null, mode='select', draft=[], transitionStart=null, drag=null, dirty=false;
+let monitorMode=false, monitorState=null, monitorTimer=null;
 const $=id=>document.getElementById(id), svg=$('map');
 
 function svgEl(name, attrs={}) { const node=document.createElementNS(NS,name); for(const [k,v] of Object.entries(attrs)) node.setAttribute(k,v); return node; }
@@ -132,6 +151,7 @@ function render(){
   for(const camera of model.cameras){ const g=svgEl('g',{class:'camera'+(selected?.type==='camera'&&selected.id===camera.camera_id?' selected':'')}); const p={x:camera.position.x*W,y:camera.position.y*H}; g.append(fovPath(camera)); const dot=svgEl('circle',{cx:p.x,cy:p.y,r:10,class:'camera-dot'}); dot.addEventListener('pointerdown',e=>{ if(mode!=='select')return; e.stopPropagation(); drag=camera.camera_id; svg.setPointerCapture(e.pointerId); select('camera',camera.camera_id); }); dot.addEventListener('click',e=>{e.stopPropagation();select('camera',camera.camera_id)}); const label=svgEl('text',{x:p.x+15,y:p.y-14,class:'camera-label'}); label.textContent=camera.label+(camera.fixed_pose?'':' [MÓVIL]'); g.append(dot,label); $('cameraLayer').append(g); }
   if(draft.length){ const poly=svgEl('polyline',{points:draft.map(p=>`${p.x*W},${p.y*H}`).join(' '),class:'draft'}); $('draftLayer').append(poly); for(const p of draft) $('draftLayer').append(svgEl('circle',{cx:p.x*W,cy:p.y*H,r:5,fill:'#61f59a'})); }
   renderProperties(); renderTransitions();
+  renderMonitor();
 }
 
 function fovPath(camera){ const cx=camera.position.x*W,cy=camera.position.y*H,r=camera.range*Math.min(W,H),angles=[camera.heading_deg-camera.fov_deg/2,camera.heading_deg+camera.fov_deg/2]; const pts=angles.map(a=>{const rad=a*Math.PI/180; return [cx+Math.sin(rad)*r,cy-Math.cos(rad)*r]}); return svgEl('path',{d:`M ${cx} ${cy} L ${pts[0][0]} ${pts[0][1]} A ${r} ${r} 0 0 1 ${pts[1][0]} ${pts[1][1]} Z`,class:'fov'}); }
@@ -139,8 +159,8 @@ function onSpaceClick(event,id){ if(mode==='camera'||mode==='space')return; even
 function select(type,id){ selected={type,id}; render(); }
 function setMode(next){ mode=next; transitionStart=null; $('addSpace').classList.toggle('active',next==='space'); $('addCamera').classList.toggle('active',next==='camera'); $('addTransition').classList.toggle('active',next==='transition'); $('finishSpace').style.display=next==='space'?'block':'none'; $('cancelMode').style.display=next==='select'?'none':'block'; const hints={select:'Selecciona un elemento para editarlo. Arrastra las cámaras para moverlas.',space:'Haz clic en cada esquina y cierra el polígono.',camera:'Haz clic en el mapa para colocar la cámara.',transition:'Selecciona el espacio de origen.'}; $('modeHint').textContent=hints[next]; }
 
-svg.addEventListener('click',event=>{ const p=pointFromEvent(event); if(mode==='space'){ draft.push(p); render(); } else if(mode==='camera'){ const id=$('cameraId').value.trim(); if(!/^[A-Za-z0-9_-]{1,64}$/.test(id)){ alert('Introduce un camera_id válido.'); return; } if(cameraById(id)){ alert('Esa cámara ya está colocada.'); return; } model.cameras.push({camera_id:id,label:id,position:p,space_id:containingSpace(p),heading_deg:0,fov_deg:90,range:.22,fixed_pose:true}); selected={type:'camera',id}; setMode('select'); markDirty(); render(); } else if(mode==='select'){ selected=null; render(); } });
-svg.addEventListener('pointermove',event=>{ if(!drag)return; const camera=cameraById(drag),p=pointFromEvent(event); camera.position=p; camera.space_id=containingSpace(p); markDirty(); render(); });
+svg.addEventListener('click',event=>{ if(monitorMode)return; const p=pointFromEvent(event); if(mode==='space'){ draft.push(p); render(); } else if(mode==='camera'){ const id=$('cameraId').value.trim(); if(!/^[A-Za-z0-9_-]{1,64}$/.test(id)){ alert('Introduce un camera_id válido.'); return; } if(cameraById(id)){ alert('Esa cámara ya está colocada.'); return; } model.cameras.push({camera_id:id,label:id,position:p,space_id:containingSpace(p),heading_deg:0,fov_deg:90,range:.22,fixed_pose:true}); selected={type:'camera',id}; setMode('select'); markDirty(); render(); } else if(mode==='select'){ selected=null; render(); } });
+svg.addEventListener('pointermove',event=>{ if(monitorMode||!drag)return; const camera=cameraById(drag),p=pointFromEvent(event); camera.position=p; camera.space_id=containingSpace(p); markDirty(); render(); });
 svg.addEventListener('pointerup',()=>{drag=null}); svg.addEventListener('pointercancel',()=>{drag=null});
 
 $('addSpace').onclick=()=>{draft=[];setMode('space');render()};
@@ -150,6 +170,7 @@ $('addCamera').onclick=()=>setMode('camera');
 $('addTransition').onclick=()=>setMode('transition');
 $('siteName').addEventListener('input',event=>{model.site.name=event.target.value;markDirty()});
 $('save').onclick=async()=>{ try{ $('status').textContent='GUARDANDO'; const response=await fetch('/api/map',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(model)}); const body=await response.json(); if(!response.ok) throw new Error(body.error||'No se pudo guardar'); setSaved(); }catch(error){$('status').textContent='ERROR';$('status').classList.add('dirty');alert(error.message);} };
+$('toggleMonitor').onclick=()=>setMonitorMode(!monitorMode);
 
 function renderProperties(){ const panel=$('properties'); panel.replaceChildren(); if(!selected){panel.innerHTML='<p class="hint">Nada seleccionado.</p>';return;} const item=selected.type==='space'?spaceById(selected.id):selected.type==='camera'?cameraById(selected.id):transitionById(selected.id); if(!item){selected=null;render();return;} if(selected.type==='space') spaceProperties(panel,item); else if(selected.type==='camera') cameraProperties(panel,item); else transitionProperties(panel,item); }
 function field(label,type,value,onchange,options){ const wrap=document.createElement('label'); wrap.textContent=label; let input; if(type==='select'){input=document.createElement('select'); for(const [v,t] of options){const o=document.createElement('option');o.value=v;o.textContent=t;input.append(o)}} else {input=document.createElement('input');input.type=type; if(type==='number')input.step='any'} input.value=value??''; input.addEventListener('change',()=>{onchange(input);markDirty();render()}); wrap.append(input); return wrap; }
@@ -158,6 +179,105 @@ function spaceProperties(panel,s){ panel.append(field('ID','text',s.id,i=>{if(mo
 function cameraProperties(panel,c){ const spaces=[['','Sin asignar'],...model.spaces.map(s=>[s.id,s.name])]; panel.append(field('Camera ID','text',c.camera_id,i=>{if(model.cameras.some(x=>x!==c&&x.camera_id===i.value))return alert('ID duplicado');selected.id=i.value;c.camera_id=i.value}),field('Etiqueta','text',c.label,i=>c.label=i.value),field('Espacio','select',c.space_id||'',i=>c.space_id=i.value||null,spaces)); const row=document.createElement('div');row.className='row';row.append(field('Orientación °','number',c.heading_deg,i=>c.heading_deg=Math.max(0,Math.min(359.999,+i.value))),field('FOV °','number',c.fov_deg,i=>c.fov_deg=Math.max(1,Math.min(180,+i.value))));panel.append(row,field('Alcance visual','number',c.range,i=>c.range=Math.max(.01,Math.min(1,+i.value)))); const check=document.createElement('label');check.className='check';const input=document.createElement('input');input.type='checkbox';input.checked=c.fixed_pose;input.onchange=()=>{c.fixed_pose=input.checked;markDirty();render()};check.append(input,document.createTextNode('Pose fija utilizable para geometría'));panel.append(check,deleteButton(()=>model.cameras=model.cameras.filter(x=>x!==c))); }
 function transitionProperties(panel,t){ const spaces=model.spaces.map(s=>[s.id,s.name]); panel.append(field('Origen','select',t.from_space_id,i=>t.from_space_id=i.value,spaces),field('Destino','select',t.to_space_id,i=>t.to_space_id=i.value,spaces)); const row=document.createElement('div');row.className='row';row.append(field('Mínimo s','number',t.min_seconds,i=>t.min_seconds=Math.max(0,+i.value)),field('Máximo s','number',t.max_seconds,i=>t.max_seconds=Math.max(0,+i.value)));panel.append(row,field('Solapamiento de fuentes s','number',t.overlap_tolerance_seconds??2,i=>t.overlap_tolerance_seconds=Math.max(0,Math.min(60,+i.value))));const check=document.createElement('label');check.className='check';const input=document.createElement('input');input.type='checkbox';input.checked=t.bidirectional;input.onchange=()=>{t.bidirectional=input.checked;markDirty();render()};check.append(input,document.createTextNode('Bidireccional'));panel.append(check,deleteButton(()=>model.transitions=model.transitions.filter(x=>x!==t))); }
 function renderTransitions(){ const list=$('transitionList');list.replaceChildren(); if(!model.transitions.length){list.innerHTML='<span class="hint">Sin conexiones.</span>';return;} for(const t of model.transitions){const item=document.createElement('div');item.className='list-item';const a=spaceById(t.from_space_id)?.name||t.from_space_id,b=spaceById(t.to_space_id)?.name||t.to_space_id;item.textContent=`${a} ${t.bidirectional?'↔':'→'} ${b} · ${t.min_seconds}-${t.max_seconds}s · solape ${t.overlap_tolerance_seconds??2}s`;item.onclick=()=>select('transition',t.id);list.append(item)} }
+
+function setMonitorMode(enabled){
+  monitorMode=enabled;
+  document.querySelector('.app').classList.toggle('monitor',enabled);
+  $('toggleMonitor').textContent=enabled?'[ EDITAR ]':'[ MONITOR ]';
+  $('toggleMonitor').classList.toggle('active',enabled);
+  $('save').style.display=enabled?'none':'';
+  $('editorPanel').style.display=enabled?'none':'';
+  $('monitorPanel').style.display=enabled?'grid':'none';
+  $('monitorPanel').style.gap='14px';
+  if(enabled){
+    drag=null; draft=[]; setMode('select');
+    fetchMonitor();
+    monitorTimer=setInterval(fetchMonitor,1000);
+  }else{
+    clearInterval(monitorTimer); monitorTimer=null; monitorState=null;
+    if(dirty){$('status').textContent='SIN GUARDAR';$('status').classList.add('dirty');}
+    else setSaved('LISTO');
+  }
+  render();
+}
+
+async function fetchMonitor(){
+  try{
+    const response=await fetch('/api/monitor',{cache:'no-store'});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    monitorState=await response.json();
+    const active=monitorState.tracks.filter(track=>track.status==='active').length;
+    $('status').textContent=`MONITOR · ${active} ACTIVOS · ${monitorState.tracks.length} RECIENTES`;
+    $('status').classList.remove('dirty');
+    renderMonitor();
+  }catch(error){
+    $('status').textContent='MONITOR SIN DATOS';
+    console.error(error);
+  }
+}
+
+function trackPosition(track,index){
+  const camera=cameraById(track.camera_id),space=spaceById(track.space_id);
+  const base=camera?.position||(space?centroid(space.polygon):{x:.5,y:.5});
+  let hash=0; for(const ch of track.track_id)hash=(hash*31+ch.charCodeAt(0))>>>0;
+  const angle=(hash%360)*Math.PI/180,ring=.018+((index%3)*.012);
+  return {x:clamp(base.x+Math.cos(angle)*ring),y:clamp(base.y+Math.sin(angle)*ring)};
+}
+
+function renderMonitor(){
+  const layer=$('monitorLayer'); layer.replaceChildren();
+  if(!monitorMode||!monitorState)return;
+  const positions=new Map(),tracksById=new Map();
+  monitorState.tracks.forEach((track,index)=>{positions.set(track.track_id,trackPosition(track,index));tracksById.set(track.track_id,track)});
+  for(const candidate of monitorState.candidates){
+    const a=positions.get(candidate.origin_track_id),b=positions.get(candidate.destination_track_id);
+    if(!a||!b)continue;
+    const strength=candidate.visual_ranking??candidate.timing_score??0;
+    const line=svgEl('line',{x1:a.x*W,y1:a.y*H,x2:b.x*W,y2:b.y*H,class:'candidate-link',opacity:.2+.8*strength});
+    const title=svgEl('title'); title.textContent=`Candidato ${(strength*100).toFixed(0)}% · no es identidad confirmada`; line.append(title); layer.append(line);
+  }
+  monitorState.tracks.forEach((track,index)=>{
+    const p=positions.get(track.track_id),g=svgEl('g');
+    const dot=svgEl('circle',{cx:p.x*W,cy:p.y*H,r:track.status==='active'?11:8,class:'track-dot'+(track.status==='active'?' active':'')});
+    const title=svgEl('title'); title.textContent=`${track.camera_id} · ${track.status} · ${track.age_seconds}s`; dot.append(title);
+    const label=svgEl('text',{x:p.x*W+14,y:p.y*H-12,class:'track-label'}); label.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
+    g.append(dot,label); layer.append(g);
+  });
+  renderMonitorPanel(tracksById);
+}
+
+function renderMonitorPanel(tracksById){
+  const panel=$('monitorPanel'); panel.replaceChildren();
+  const warning=document.createElement('div'); warning.className='monitor-warning'; warning.textContent='SIN IDENTIDAD GLOBAL · Los enlaces son candidatos, no confirmaciones.'; panel.append(warning);
+  const summary=document.createElement('div'); summary.className='monitor-summary';
+  const active=monitorState.tracks.filter(track=>track.status==='active').length;
+  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); panel.append(summary);
+  panel.append(sectionTitle('Tracks locales'));
+  const trackList=document.createElement('div');trackList.className='list';
+  for(const track of monitorState.tracks.slice(0,30)){
+    const card=document.createElement('div');card.className='monitor-card '+track.status;
+    const name=document.createElement('strong');name.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=`${track.space_id||'sin espacio'} · ${track.status} · hace ${track.age_seconds.toFixed(1)}s`;
+    card.append(name,meta);trackList.append(card);
+  }
+  if(!monitorState.tracks.length)trackList.append(emptyHint('Sin tracks dentro de la ventana.'));
+  panel.append(trackList,sectionTitle('Continuidades candidatas'));
+  const candidateList=document.createElement('div');candidateList.className='list';
+  for(const candidate of monitorState.candidates.slice(0,20)){
+    const card=document.createElement('div');card.className='monitor-card';
+    const from=tracksById.get(candidate.origin_track_id),to=tracksById.get(candidate.destination_track_id);
+    const score=candidate.visual_ranking??candidate.timing_score;
+    const name=document.createElement('strong');name.textContent=`${from?.camera_id||'?'} → ${to?.camera_id||'?'}`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${(score*100).toFixed(0)}% · visual ${candidate.visual_coverage==null?'pendiente':(candidate.visual_coverage*100).toFixed(0)+'%'} · ${candidate.available_modalities.join(', ')||'sin señal visual'}`;
+    card.append(name,meta);candidateList.append(card);
+  }
+  if(!monitorState.candidates.length)candidateList.append(emptyHint('Sin candidatos recientes.'));
+  panel.append(candidateList);
+}
+
+function metric(label,value){const item=document.createElement('div');item.className='metric';const strong=document.createElement('strong');strong.textContent=value;const text=document.createElement('span');text.textContent=label;item.append(strong,text);return item;}
+function sectionTitle(text){const title=document.createElement('div');title.className='group-title';title.textContent=text;return title;}
+function emptyHint(text){const item=document.createElement('span');item.className='hint';item.textContent=text;return item;}
 
 async function init(){ try{ const [mapResponse,cameraResponse]=await Promise.all([fetch('/api/map'),fetch('/api/cameras')]); model=await mapResponse.json(); const cameras=await cameraResponse.json(); $('siteName').value=model.site.name; const data=$('cameraIds'); for(const id of cameras.camera_ids||[]){const option=document.createElement('option');option.value=id;data.append(option)} setSaved('LISTO');render(); }catch(error){$('status').textContent='ERROR DE CARGA';console.error(error);} }
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}}); init();

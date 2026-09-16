@@ -18,6 +18,7 @@ SERVICE_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_ROOT))
 
 from space_mapper import MapError, SpaceMapStore, discover_camera_ids
+from space_mapper.monitor import monitor_snapshot
 
 
 MAX_BODY_BYTES = 1_000_000
@@ -39,6 +40,21 @@ class MapHandler(BaseHTTPRequestHandler):
             )
         elif path == "/api/health":
             self._json(HTTPStatus.OK, {"ok": True})
+        elif path == "/api/monitor":
+            space_map = self.server.store.load()
+            camera_spaces = {
+                camera["camera_id"]: camera["space_id"]
+                for camera in space_map["cameras"]
+            }
+            self._json(
+                HTTPStatus.OK,
+                monitor_snapshot(
+                    self.server.tracking_database,
+                    self.server.evidence_database,
+                    camera_spaces,
+                    recent_seconds=self.server.recent_seconds,
+                ),
+            )
         else:
             self._json(HTTPStatus.NOT_FOUND, {"error": "Ruta no encontrada"})
 
@@ -90,9 +106,15 @@ class MapServer(ThreadingHTTPServer):
         address: tuple[str, int],
         store: SpaceMapStore,
         receiver_database: Path,
+        tracking_database: Path,
+        evidence_database: Path,
+        recent_seconds: float,
     ) -> None:
         self.store = store
         self.receiver_database = receiver_database
+        self.tracking_database = tracking_database
+        self.evidence_database = evidence_database
+        self.recent_seconds = recent_seconds
         super().__init__(address, MapHandler)
 
     def server_bind(self) -> None:
@@ -115,14 +137,32 @@ def main() -> int:
         type=Path,
         default=Path("runtime/track-receiver/receiver.sqlite3"),
     )
+    parser.add_argument(
+        "--tracking-database",
+        type=Path,
+        default=Path("runtime/tracking-engine/tracking.sqlite3"),
+    )
+    parser.add_argument(
+        "--evidence-database",
+        type=Path,
+        default=Path("runtime/visual-reid/evidence.sqlite3"),
+    )
+    parser.add_argument("--recent-seconds", type=float, default=120)
     args = parser.parse_args()
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal.default_int_handler)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("space mapper only listens on localhost")
+    if args.recent_seconds <= 0:
+        parser.error("recent-seconds must be positive")
 
     server = MapServer(
-        (args.host, args.port), SpaceMapStore(args.map_file), args.receiver_database
+        (args.host, args.port),
+        SpaceMapStore(args.map_file),
+        args.receiver_database,
+        args.tracking_database,
+        args.evidence_database,
+        args.recent_seconds,
     )
     try:
         print(f"space_mapper=http://{args.host}:{args.port}", flush=True)
