@@ -119,3 +119,13 @@ quality gate rejected one side-profile capture. The remaining comparisons were:
 This proves that the local extraction path can produce useful separation. It
 is not enough data to establish a production identity threshold; calibration
 must include more people, poses, lighting conditions and cameras.
+
+Inspect recent handoff candidates with each raw evidence channel kept separate:
+
+```powershell
+experiments\visual-reid\.venv\Scripts\python.exe `
+  experiments\visual-reid\score_handoffs.py --limit 10
+```
+
+This command is read-only and ephemeral. `n/a` means that a modality is
+missing or failed its quality gate; score fusion must treat it as neutral.
