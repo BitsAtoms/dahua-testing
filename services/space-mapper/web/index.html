@@ -51,6 +51,7 @@
     .metric strong { display:block; color:var(--cyan); font-size:18px; }
     .monitor-card { border:1px solid var(--line); padding:8px; display:grid; gap:4px; }
     .monitor-card.active { border-color:var(--cyan); }
+    .monitor-card strong { overflow-wrap:anywhere; }
     .monitor-card .meta { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
     .monitor-warning { color:var(--warn); line-height:1.5; }
     .validation { border:1px solid var(--cyan); padding:10px; display:grid; gap:8px; }
@@ -294,7 +295,7 @@ function renderMonitorPanel(tracksById){
     const card=document.createElement('div');card.className='monitor-card';
     const from=tracksById.get(candidate.origin_track_id),to=tracksById.get(candidate.destination_track_id);
     const score=candidate.visual_ranking??candidate.timing_score;
-    const name=document.createElement('strong');name.textContent=`${from?.camera_id||'?'} → ${to?.camera_id||'?'}`;
+    const name=document.createElement('strong');name.textContent=`${from?.camera_id||'?'}:${from?.local_track_id||'?'} → ${to?.camera_id||'?'}:${to?.local_track_id||'?'}`;
     const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${score.toFixed(3)} · cobertura visual ${candidate.visual_coverage==null?'pendiente':(candidate.visual_coverage*100).toFixed(0)+'%'} · ${candidate.available_modalities.join(', ')||'sin señal visual'}`;
     card.append(name,meta);candidateList.append(card);
   }
@@ -369,7 +370,7 @@ function renderValidationReport(box,session){
   for(const candidate of report.candidates){
     const row=document.createElement('div');row.className='monitor-card';
     const origin=byId.get(candidate.origin_track_id),destination=byId.get(candidate.destination_track_id);
-    const name=document.createElement('strong');name.textContent=`${origin?.camera_id||'?'} → ${destination?.camera_id||'?'}`;
+    const name=document.createElement('strong');name.textContent=`${origin?.camera_id||'?'}:${origin?.local_track_id||'?'} → ${destination?.camera_id||'?'}:${destination?.local_track_id||'?'}`;
     const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
     const select=document.createElement('select');
     for(const [value,label] of [['','Sin evaluar'],['same_person','Misma persona'],['different_person','Persona diferente'],['uncertain','Dudoso']])select.append(new Option(label,value));
