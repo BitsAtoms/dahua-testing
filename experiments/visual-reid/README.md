@@ -149,3 +149,5 @@ The provisional ranking weights are timing 35%, face 40%, body 20% and weak
 color 5%. Missing modalities contribute no support and reduce
 `visual_coverage`; they are not interpreted as a mismatch. The ranking is for
 candidate ordering only and is explicitly not an identity probability.
+Use `--verbose` only for diagnostics when one output line per evaluated
+candidate is needed; normal continuous operation prints one summary per batch.

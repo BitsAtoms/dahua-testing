@@ -12,3 +12,4 @@ runtime/
 experiments/visual-reid/.venv/
 experiments/visual-reid/models/
 experiments/visual-reid/output/
+services/local-supervisor/local-stack.json

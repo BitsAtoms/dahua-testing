@@ -1,0 +1,17 @@
+{
+  "schema_version": "local_stack.v1",
+  "services": {
+    "track_receiver": true,
+    "space_mapper": true,
+    "tracking_engine": true,
+    "dahua_dashboard": true,
+    "frigate_adapter": true,
+    "visual_reid": true
+  },
+  "env_file": ".env",
+  "log_root": "runtime/local-supervisor/logs",
+  "visual_device": "CPU",
+  "status_seconds": 10,
+  "startup_delay_seconds": 0.4
+}
+

@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--batch-size", type=int, default=20)
     parser.add_argument("--poll-seconds", type=float, default=1.0)
     parser.add_argument("--since-hours", type=float, default=24.0)
@@ -46,6 +47,8 @@ def main() -> int:
         raise ValueError("batch-size, poll-seconds and since-hours must be positive")
     stop = threading.Event()
     signal.signal(signal.SIGINT, lambda *_args: stop.set())
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, lambda *_args: stop.set())
     signal.signal(signal.SIGTERM, lambda *_args: stop.set())
     evaluator = VisualEvaluator(args.receiver_database, ROOT, args.device)
     with EvidenceStore(args.database) as store:
@@ -70,15 +73,17 @@ def main() -> int:
             for candidate in pending:
                 evidence = evaluator.evaluate(candidate)
                 store.save(evidence)
-                print(
-                    f"visual_evidence candidate={candidate['candidate_id']} "
-                    f"ranking={evidence['ranking_score']:.3f} "
-                    f"coverage={evidence['visual_coverage']:.3f} "
-                    f"modalities={','.join(evidence['available_modalities']) or '-'}"
-                )
+                if args.verbose:
+                    print(
+                        f"visual_evidence candidate={candidate['candidate_id']} "
+                        f"ranking={evidence['ranking_score']:.3f} "
+                        f"coverage={evidence['visual_coverage']:.3f} "
+                        f"modalities={','.join(evidence['available_modalities']) or '-'}"
+                    )
             removed = store.cleanup()
             print(
                 f"visual_reid_status candidates={len(candidates)} "
+                f"processed={len(pending)} "
                 f"pending={len(eligible) - len(pending)} "
                 f"stored={store.count()} cleanup={removed}"
             )

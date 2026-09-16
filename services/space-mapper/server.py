@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import signal
 import socket
 import sys
 from typing import Any
@@ -115,6 +116,8 @@ def main() -> int:
         default=Path("runtime/track-receiver/receiver.sqlite3"),
     )
     args = parser.parse_args()
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, signal.default_int_handler)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("space mapper only listens on localhost")
 

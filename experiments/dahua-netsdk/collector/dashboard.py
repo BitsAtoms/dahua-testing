@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import queue
 import re
+import signal
 import socket
 import threading
 import time
@@ -695,6 +696,8 @@ def main() -> int:
     parser.add_argument("--retention-days", type=float, default=7)
     parser.add_argument("--retention-interval-seconds", type=float, default=3600)
     args = parser.parse_args()
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, signal.default_int_handler)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("la consola de configuración solo puede escuchar en localhost")
 
