@@ -70,6 +70,22 @@ class TrackingRunnerTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             runner.poll()
 
+    def test_projection_callback_runs_only_for_newly_applied_messages(self) -> None:
+        calls: list[str] = []
+        self.receiver.ingest(update("new", 1), NOW)
+        runner = TrackingRunner(
+            self.receiver_path,
+            self.store,
+            validate_track_update,
+            on_projected=lambda message, _result: calls.append(message["message_id"])
+            or 0,
+        )
+
+        runner.poll()
+        runner.poll()
+
+        self.assertEqual(calls, ["message-new-1"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,10 +10,11 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Callable
 
-from .store import TrackingStore
+from .store import ProjectionResult, TrackingStore
 
 
 Validator = Callable[[Any], None]
+ProjectionCallback = Callable[[dict[str, Any], ProjectionResult], int]
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class TrackingRunner:
         validator: Validator,
         *,
         batch_size: int = 250,
+        on_projected: ProjectionCallback | None = None,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
@@ -41,6 +43,7 @@ class TrackingRunner:
         self.store = store
         self.validator = validator
         self.batch_size = batch_size
+        self.on_projected = on_projected
         self.source_id = str(self.receiver_database).casefold()
 
     def poll(self) -> BatchResult:
@@ -56,6 +59,8 @@ class TrackingRunner:
             result = self.store.project(update, received_at=received_at)
             if result.applied:
                 applied += 1
+                if self.on_projected is not None:
+                    self.on_projected(update, result)
             else:
                 duplicates += 1
             last_rowid = int(row["receiver_rowid"])

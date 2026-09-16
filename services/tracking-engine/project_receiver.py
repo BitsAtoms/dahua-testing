@@ -14,7 +14,7 @@ sys.path.insert(0, str(TRACKING_ROOT))
 sys.path.insert(0, str(RECEIVER_ROOT))
 
 from track_receiver import validate_track_update
-from tracking_engine import TrackingRunner, TrackingStore
+from tracking_engine import HandoffEngine, TrackingRunner, TrackingStore
 
 
 def main() -> int:
@@ -29,10 +29,16 @@ def main() -> int:
         type=Path,
         default=Path("runtime/tracking-engine/tracking.sqlite3"),
     )
+    parser.add_argument(
+        "--space-map",
+        type=Path,
+        default=Path("runtime/space-mapper/space-map.json"),
+    )
     args = parser.parse_args()
 
     applied = duplicates = 0
     with TrackingStore(args.database) as target:
+        projection_reset = target.ensure_projection_version()
         runner = TrackingRunner(
             args.receiver_database, target, validate_track_update
         )
@@ -43,10 +49,14 @@ def main() -> int:
             if batch.scanned < runner.batch_size:
                 break
         expired = target.expire_stale()
+        handoffs = HandoffEngine(args.space_map, target)
+        topology = handoffs.sync_topology()
         removed = target.cleanup()
         print(
             f"projected={applied} duplicates={duplicates} "
-            f"tracks={target.count()} expired={expired} cleanup={removed}"
+            f"tracks={target.count()} expired={expired} "
+            f"handoffs={topology.candidates} cleanup={removed} "
+            f"projection_reset={projection_reset}"
         )
     return 0
 

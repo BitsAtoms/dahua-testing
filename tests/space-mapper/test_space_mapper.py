@@ -60,6 +60,11 @@ class SpaceMapperTests(unittest.TestCase):
         with self.assertRaisesRegex(MapError, "must not exceed"):
             validate_map(document)
 
+        document["transitions"][0]["min_seconds"] = 1
+        document["transitions"][0]["overlap_tolerance_seconds"] = 61
+        with self.assertRaisesRegex(MapError, "between 0 and 60"):
+            validate_map(document)
+
     def test_discovers_distinct_camera_ids_without_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "receiver.sqlite3"

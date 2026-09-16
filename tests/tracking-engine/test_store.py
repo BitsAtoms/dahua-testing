@@ -87,12 +87,14 @@ class TrackingStoreTests(unittest.TestCase):
     def test_finalized_only_snapshot_creates_ended_dahua_track(self) -> None:
         message = update("snapshot", 1, source="dahua", lifecycle="finalized_only")
         message["track_id"] = "dahua:cam-a:144"
+        message["published_at"] = (NOW + timedelta(seconds=20)).isoformat()
         result = self.store.project(message, NOW)
 
         self.assertEqual(result.status, "ended")
         track = self.store.get_track(result.track_id)
         self.assertEqual(track["source_type"], "dahua")
         self.assertEqual(track["end_reason"], "source_finalized")
+        self.assertEqual(track["ended_at"], message["published_at"])
 
     def test_cleanup_uses_seven_day_policy_for_all_derived_data(self) -> None:
         self.store.project(update("end", 1), NOW - timedelta(days=8))
@@ -100,6 +102,13 @@ class TrackingStoreTests(unittest.TestCase):
 
         self.assertEqual(removed, 2)
         self.assertEqual(self.store.count(), 0)
+
+    def test_projection_version_resets_only_rebuildable_state_once(self) -> None:
+        self.store.project(update("new", 1), NOW)
+
+        self.assertTrue(self.store.ensure_projection_version())
+        self.assertEqual(self.store.count(), 0)
+        self.assertFalse(self.store.ensure_projection_version())
 
 
 def update(

@@ -12,12 +12,15 @@ from typing import Any
 
 RETENTION_DAYS = 7
 STALE_TRACK_SECONDS = 120
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
+LOCAL_TRACK_PROJECTION_VERSION = "2"
+LOCAL_TRACK_PROJECTION_KEY = "local_track_projection.version"
 
 
 @dataclass(frozen=True)
 class ProjectionResult:
     applied: bool
+    created: bool
     message_id: str
     track_id: str
     status: str
@@ -63,12 +66,14 @@ class TrackingStore:
                 self._connection.commit()
                 return ProjectionResult(
                     applied=False,
+                    created=False,
                     message_id=message_id,
                     track_id=track_id,
                     status=str(row["status"]) if row else "unknown",
                 )
 
             current = self._track_row(track_id)
+            created = current is None
             projected = _project_state(current, update, received_text, received_us)
             self._connection.execute(
                 """
@@ -116,6 +121,7 @@ class TrackingStore:
 
         return ProjectionResult(
             applied=True,
+            created=created,
             message_id=message_id,
             track_id=track_id,
             status=projected["status"],
@@ -158,6 +164,9 @@ class TrackingStore:
             days=retention_days
         )
         cutoff_us = round(cutoff.timestamp() * 1_000_000)
+        candidates = self._connection.execute(
+            "DELETE FROM handoff_candidates WHERE observed_us < ?", (cutoff_us,)
+        )
         tracks = self._connection.execute(
             "DELETE FROM local_tracks WHERE last_received_us < ?", (cutoff_us,)
         )
@@ -165,7 +174,103 @@ class TrackingStore:
             "DELETE FROM processed_updates WHERE processed_us < ?", (cutoff_us,)
         )
         self._connection.commit()
-        return tracks.rowcount + updates.rowcount
+        return candidates.rowcount + tracks.rowcount + updates.rowcount
+
+    def clear_handoff_candidates(self) -> int:
+        cursor = self._connection.execute("DELETE FROM handoff_candidates")
+        self._connection.commit()
+        return cursor.rowcount
+
+    def save_handoff_candidate(self, candidate: dict[str, Any]) -> bool:
+        return self.save_handoff_candidates([candidate]) == 1
+
+    def save_handoff_candidates(self, candidates: list[dict[str, Any]]) -> int:
+        if not candidates:
+            return 0
+        before = self.handoff_candidate_count()
+        self._connection.executemany(
+            """
+            INSERT INTO handoff_candidates (
+                candidate_id, origin_track_id, destination_track_id,
+                transition_id, origin_space_id, destination_space_id,
+                gap_seconds, score, observed_at, observed_us,
+                created_at, evidence_json
+            ) VALUES (
+                :candidate_id, :origin_track_id, :destination_track_id,
+                :transition_id, :origin_space_id, :destination_space_id,
+                :gap_seconds, :score, :observed_at, :observed_us,
+                :created_at, :evidence_json
+            )
+            ON CONFLICT(candidate_id) DO UPDATE SET
+                gap_seconds=excluded.gap_seconds,
+                score=excluded.score,
+                observed_at=excluded.observed_at,
+                observed_us=excluded.observed_us,
+                evidence_json=excluded.evidence_json
+            """,
+            candidates,
+        )
+        self._connection.commit()
+        return self.handoff_candidate_count() - before
+
+    def list_handoff_candidates(self) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM handoff_candidates
+            ORDER BY observed_us DESC, candidate_id
+            """
+        )
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            candidate = dict(row)
+            candidate["evidence"] = json.loads(candidate.pop("evidence_json"))
+            result.append(candidate)
+        return result
+
+    def handoff_candidate_count(self) -> int:
+        return int(
+            self._connection.execute(
+                "SELECT COUNT(*) FROM handoff_candidates"
+            ).fetchone()[0]
+        )
+
+    def get_metadata(self, key: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT value FROM engine_metadata WHERE key = ?", (key,)
+        ).fetchone()
+        return str(row["value"]) if row else None
+
+    def set_metadata(self, key: str, value: str) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO engine_metadata(key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            (key, value),
+        )
+        self._connection.commit()
+
+    def ensure_projection_version(
+        self, version: str = LOCAL_TRACK_PROJECTION_VERSION
+    ) -> bool:
+        """Reset only rebuildable state when projection semantics change."""
+        if self.get_metadata(LOCAL_TRACK_PROJECTION_KEY) == version:
+            return False
+        try:
+            self._connection.execute("DELETE FROM handoff_candidates")
+            self._connection.execute("DELETE FROM projection_cursors")
+            self._connection.execute("DELETE FROM processed_updates")
+            self._connection.execute("DELETE FROM local_tracks")
+            self._connection.execute("DELETE FROM engine_metadata")
+            self._connection.execute(
+                "INSERT INTO engine_metadata(key, value) VALUES (?, ?)",
+                (LOCAL_TRACK_PROJECTION_KEY, version),
+            )
+            self._connection.commit()
+        except Exception:
+            self._connection.rollback()
+            raise
+        return True
 
     def expire_stale(
         self,
@@ -315,6 +420,49 @@ class TrackingStore:
                 """
             )
             self._connection.commit()
+            version = 3
+        if version == 3:
+            self._connection.executescript(
+                """
+                CREATE TABLE handoff_candidates (
+                    candidate_id TEXT PRIMARY KEY,
+                    origin_track_id TEXT NOT NULL,
+                    destination_track_id TEXT NOT NULL,
+                    transition_id TEXT NOT NULL,
+                    origin_space_id TEXT NOT NULL,
+                    destination_space_id TEXT NOT NULL,
+                    gap_seconds REAL NOT NULL,
+                    score REAL NOT NULL,
+                    observed_at TEXT NOT NULL,
+                    observed_us INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    UNIQUE(origin_track_id, destination_track_id, transition_id),
+                    FOREIGN KEY(origin_track_id) REFERENCES local_tracks(track_id)
+                        ON DELETE CASCADE,
+                    FOREIGN KEY(destination_track_id) REFERENCES local_tracks(track_id)
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX handoff_candidates_observed
+                    ON handoff_candidates(observed_us);
+                CREATE INDEX handoff_candidates_destination
+                    ON handoff_candidates(destination_track_id);
+                PRAGMA user_version=4;
+                """
+            )
+            self._connection.commit()
+            version = 4
+        if version == 4:
+            self._connection.executescript(
+                """
+                CREATE TABLE engine_metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                PRAGMA user_version=5;
+                """
+            )
+            self._connection.commit()
 
 
 def _project_state(
@@ -358,7 +506,11 @@ def _project_state(
     if phase in {"new", "update"} and current_end_reason == "timeout":
         ended_at = None
     elif ends_track and ended_at is None:
-        ended_at = observed_at
+        ended_at = (
+            update["published_at"]
+            if phase == "snapshot" and lifecycle == "finalized_only"
+            else observed_at
+        )
 
     geometry = update["geometry"]
     if current and (geometry is None or not is_latest_observation):

@@ -18,7 +18,7 @@ sys.path.insert(0, str(TRACKING_ROOT))
 sys.path.insert(0, str(RECEIVER_ROOT))
 
 from track_receiver import validate_track_update
-from tracking_engine import TrackingRunner, TrackingStore
+from tracking_engine import HandoffEngine, TrackingRunner, TrackingStore
 
 
 def main() -> int:
@@ -36,6 +36,11 @@ def main() -> int:
     parser.add_argument("--poll-ms", type=int, default=200)
     parser.add_argument("--batch-size", type=int, default=250)
     parser.add_argument("--status-seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--space-map",
+        type=Path,
+        default=Path("runtime/space-mapper/space-map.json"),
+    )
     args = parser.parse_args()
     if args.poll_ms <= 0:
         raise ValueError("poll-ms must be positive")
@@ -52,16 +57,29 @@ def main() -> int:
         signal.signal(signal.SIGTERM, request_stop)
 
     with TrackingStore(args.database) as store:
+        projection_reset = store.ensure_projection_version()
+        handoffs = HandoffEngine(args.space_map, store)
+        topology = None if projection_reset else handoffs.sync_topology()
         runner = TrackingRunner(
             args.receiver_database,
             store,
             validate_track_update,
             batch_size=args.batch_size,
+            on_projected=None if projection_reset else handoffs.on_projected,
         )
         print(
             f"tracking_engine_started receiver={args.receiver_database} "
-            f"database={args.database} poll_ms={args.poll_ms}"
+            f"database={args.database} poll_ms={args.poll_ms} "
+            f"projection_reset={projection_reset}"
         )
+        if topology is None:
+            print(f"handoff_topology deferred=true map={args.space_map}")
+        else:
+            print(
+                f"handoff_topology enabled={topology.enabled} "
+                f"candidates={topology.candidates} map={args.space_map}"
+            )
+        rebuild_pending = projection_reset
         next_maintenance = time.monotonic()
         next_status = time.monotonic()
         try:
@@ -74,8 +92,27 @@ def main() -> int:
                         f"applied={batch.applied} duplicates={batch.duplicates} "
                         f"cursor={batch.last_rowid}"
                     )
-                if now >= next_maintenance:
+                if rebuild_pending and batch.scanned < args.batch_size:
+                    pending = runner.pending_count()
+                    if pending == 0:
+                        expired = store.expire_stale()
+                        topology = handoffs.sync_topology(force=True)
+                        runner.on_projected = handoffs.on_projected
+                        rebuild_pending = False
+                        print(
+                            f"tracking_rebuild_complete tracks={store.count()} "
+                            f"expired={expired} handoffs={topology.candidates}"
+                        )
+                if not rebuild_pending and now >= next_maintenance:
+                    topology = handoffs.sync_topology()
+                    if topology.changed:
+                        print(
+                            f"handoff_topology_reloaded enabled={topology.enabled} "
+                            f"candidates={topology.candidates}"
+                        )
                     expired = store.expire_stale()
+                    if expired:
+                        handoffs.rebuild()
                     removed = store.cleanup()
                     if expired or removed:
                         print(
@@ -87,6 +124,7 @@ def main() -> int:
                     print(
                         f"tracking_status active={counts.get('active', 0)} "
                         f"ended={counts.get('ended', 0)} "
+                        f"handoffs={store.handoff_candidate_count()} "
                         f"pending={runner.pending_count()} "
                         f"at={datetime.now(timezone.utc).isoformat()}"
                     )

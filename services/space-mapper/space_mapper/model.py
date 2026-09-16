@@ -87,7 +87,7 @@ def validate_map(document: Any) -> None:
     transition_ids: set[str] = set()
     for index, value in enumerate(transitions):
         name = f"transitions[{index}]"
-        transition = _exact_object(
+        transition = _object_with_optional(
             value,
             name,
             {
@@ -98,6 +98,7 @@ def validate_map(document: Any) -> None:
                 "min_seconds",
                 "max_seconds",
             },
+            {"overlap_tolerance_seconds"},
         )
         transition_id = _identifier(transition["id"], f"{name}.id")
         if transition_id in transition_ids:
@@ -115,6 +116,12 @@ def validate_map(document: Any) -> None:
         maximum = _number(transition["max_seconds"], f"{name}.max_seconds", 0, 3600)
         if minimum > maximum:
             raise MapError(f"{name}.min_seconds must not exceed max_seconds")
+        _number(
+            transition.get("overlap_tolerance_seconds", 2),
+            f"{name}.overlap_tolerance_seconds",
+            0,
+            60,
+        )
 
 
 def _exact_object(value: Any, name: str, fields: set[str]) -> dict[str, Any]:
@@ -122,6 +129,21 @@ def _exact_object(value: Any, name: str, fields: set[str]) -> dict[str, Any]:
         raise MapError(f"{name} must be an object")
     if set(value) != fields:
         raise MapError(f"{name} must contain exactly: {', '.join(sorted(fields))}")
+    return value
+
+
+def _object_with_optional(
+    value: Any, name: str, required: set[str], optional: set[str]
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise MapError(f"{name} must be an object")
+    missing = required - set(value)
+    unknown = set(value) - required - optional
+    if missing or unknown:
+        expected = required | optional
+        raise MapError(
+            f"{name} must contain only: {', '.join(sorted(expected))}"
+        )
     return value
 
 
