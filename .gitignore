@@ -9,3 +9,6 @@ experiments/frigate-adapter/output/
 tests/dahua-events/output/
 runtime/
 .playwright-cli/
+experiments/visual-reid/.venv/
+experiments/visual-reid/models/
+experiments/visual-reid/output/

@@ -1,0 +1,60 @@
+{
+  "source": "https://github.com/openvinotoolkit/open_model_zoo",
+  "license": "Apache-2.0",
+  "models": [
+    {
+      "name": "person-reidentification-retail-0287",
+      "purpose": "body_embedding",
+      "files": [
+        {
+          "path": "person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.xml",
+          "bytes": 614946,
+          "sha384": "922cc5560fa298a9f02cac5bad5cbeeaee2a913ec435ae6f446d0c783936598b333c017ce1a702b605c2fd7fa33a6ee7"
+        },
+        {
+          "path": "person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.bin",
+          "bytes": 1181124,
+          "sha384": "ad86ea0b8661e43b01482fef63b2fe423ec9df8e55f6283f28c01094223f7731e4d60de5700036e6a2df7ebae0f5012d"
+        }
+      ]
+    },
+    {
+      "name": "face-reidentification-retail-0095",
+      "purpose": "face_embedding",
+      "files": [
+        {
+          "path": "face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml",
+          "bytes": 350427,
+          "sha384": "689fb39e94bbd0d22cfeeb9292d0b91ac753424a7ee2c0555070e4038a00bfcaad473b47303012b9a393027dbad0dbce"
+        },
+        {
+          "path": "face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.bin",
+          "bytes": 2213628,
+          "sha384": "6d51703e854509dafdab9dfc6b932136d301d95be6d52c9c23b5a4f5de1ffec80e8d38b87e0e9556ad36f0dded1588ed"
+        }
+      ]
+    },
+    {
+      "name": "landmarks-regression-retail-0009",
+      "purpose": "face_alignment",
+      "files": [
+        {
+          "path": "landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml",
+          "bytes": 66508,
+          "sha384": "393eda465df2a886f7edd932e2f1cd6930ae91f85708f91b4cd60e411acfb86e9de9e083907901208e9e8af639846572"
+        },
+        {
+          "path": "landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.bin",
+          "bytes": 381232,
+          "sha384": "0e6e830387f56783de313e0f7022b7808fd2e9e0b28b411a65608e2c1df0bcf939c65fb699fc51868df30232d6308515"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+openvino>=2025.0,<2026
+opencv-python-headless>=4.10,<5
