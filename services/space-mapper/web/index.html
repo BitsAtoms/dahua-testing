@@ -234,7 +234,7 @@ function renderMonitor(){
     if(!a||!b)continue;
     const strength=candidate.visual_ranking??candidate.timing_score??0;
     const line=svgEl('line',{x1:a.x*W,y1:a.y*H,x2:b.x*W,y2:b.y*H,class:'candidate-link',opacity:.2+.8*strength});
-    const title=svgEl('title'); title.textContent=`Candidato ${(strength*100).toFixed(0)}% · no es identidad confirmada`; line.append(title); layer.append(line);
+    const title=svgEl('title'); title.textContent=`Candidato · ranking ${strength.toFixed(3)} · no es identidad confirmada`; line.append(title); layer.append(line);
   }
   monitorState.tracks.forEach((track,index)=>{
     const p=positions.get(track.track_id),g=svgEl('g');
@@ -268,7 +268,7 @@ function renderMonitorPanel(tracksById){
     const from=tracksById.get(candidate.origin_track_id),to=tracksById.get(candidate.destination_track_id);
     const score=candidate.visual_ranking??candidate.timing_score;
     const name=document.createElement('strong');name.textContent=`${from?.camera_id||'?'} → ${to?.camera_id||'?'}`;
-    const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${(score*100).toFixed(0)}% · visual ${candidate.visual_coverage==null?'pendiente':(candidate.visual_coverage*100).toFixed(0)+'%'} · ${candidate.available_modalities.join(', ')||'sin señal visual'}`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${score.toFixed(3)} · cobertura visual ${candidate.visual_coverage==null?'pendiente':(candidate.visual_coverage*100).toFixed(0)+'%'} · ${candidate.available_modalities.join(', ')||'sin señal visual'}`;
     card.append(name,meta);candidateList.append(card);
   }
   if(!monitorState.candidates.length)candidateList.append(emptyHint('Sin candidatos recientes.'));
