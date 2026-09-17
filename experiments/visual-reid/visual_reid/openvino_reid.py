@@ -98,55 +98,143 @@ class FaceEmbedder:
         image = cv2.imread(str(visual.path), cv2.IMREAD_COLOR)
         if image is None:
             raise ValueError(f"cannot decode image: {visual.path}")
-        height, width = image.shape[:2]
-        crop_size = (width, height)
-        if min(width, height) < 80:
-            return EmbeddingResult("too_small", None, crop_size)
-        landmark_input = cv2.resize(image, (48, 48)).transpose(2, 0, 1)[None]
-        landmark_input = landmark_input.astype(np.float32)
-        points = self._landmarks([landmark_input])[self._landmark_output]
-        points = points.reshape(5, 2).astype(np.float32)
-        if not np.isfinite(points).all() or (points < -0.05).any() or (points > 1.05).any():
-            return EmbeddingResult("invalid_landmarks", None, crop_size)
-        eye_distance = float(np.linalg.norm(points[0] - points[1]))
-        if eye_distance < 0.16:
-            return EmbeddingResult("profile_or_occluded", None, crop_size)
-        nose = points[2]
-        eye_left_span = abs(float(nose[0] - points[0][0]))
-        eye_right_span = abs(float(points[1][0] - nose[0]))
-        mouth_left_span = abs(float(nose[0] - points[3][0]))
-        mouth_right_span = abs(float(points[4][0] - nose[0]))
-        eye_balance = _balance(eye_left_span, eye_right_span)
-        mouth_balance = _balance(mouth_left_span, mouth_right_span)
-        eye_tilt = abs(float(points[0][1] - points[1][1])) / eye_distance
-        details = {
-            "eye_balance": round(eye_balance, 4),
-            "mouth_balance": round(mouth_balance, 4),
-            "eye_tilt": round(eye_tilt, 4),
-        }
-        # Eye geometry is stable enough for a conservative profile gate. Mouth
-        # landmarks become unreliable with beard, expression or partial light,
-        # so retain that metric for diagnostics without rejecting on it.
-        if eye_balance < 0.35 or eye_tilt > 0.35:
-            return EmbeddingResult(
-                "profile_or_occluded", None, crop_size, details
-            )
-        source = points * np.array([width, height], dtype=np.float32)
-        target = np.array(self.REFERENCE_LANDMARKS, dtype=np.float32) * 128.0
-        transform, _inliers = cv2.estimateAffinePartial2D(
-            source, target, method=cv2.LMEDS
+        quality, aligned, crop_size, details = _align_face(
+            image,
+            self._landmarks,
+            self._landmark_output,
+            self.REFERENCE_LANDMARKS,
+            minimum_size=80,
+            output_size=128,
+            cv2=cv2,
+            np=np,
         )
-        if transform is None:
-            return EmbeddingResult("alignment_failed", None, crop_size, details)
-        aligned = cv2.warpAffine(
-            image, transform, (128, 128), flags=cv2.INTER_LINEAR
-        )
+        if aligned is None:
+            return EmbeddingResult(quality, None, crop_size, details)
         tensor = aligned.transpose(2, 0, 1)[None].astype(np.float32)
         vector = self._face([tensor])[self._face_output].reshape(-1).astype(np.float32)
         norm = float(np.linalg.norm(vector))
         if norm == 0:
             return EmbeddingResult("zero_embedding", None, crop_size, details)
         return EmbeddingResult("usable", vector / norm, crop_size, details)
+
+
+class FaceNetEmbedder:
+    """Anonymous FaceNet embeddings, including low-resolution Frigate crops."""
+
+    REFERENCE_LANDMARKS = FaceEmbedder.REFERENCE_LANDMARKS
+
+    def __init__(
+        self, face_model: Path, landmark_model: Path, device: str = "CPU"
+    ) -> None:
+        try:
+            import cv2
+            import numpy as np
+            import openvino as ov
+        except ModuleNotFoundError as error:
+            raise RuntimeError(
+                "install experiments/visual-reid/requirements.txt in its venv"
+            ) from error
+        self._cv2 = cv2
+        self._np = np
+        core = ov.Core()
+        landmarks = core.compile_model(core.read_model(landmark_model), device)
+        face = core.compile_model(core.read_model(face_model), device)
+        self._landmarks = landmarks
+        self._landmark_output = landmarks.output(0)
+        self._face = face
+        self._face_output = face.output(0)
+
+    def embed(self, visual: TrackVisual) -> EmbeddingResult:
+        cv2 = self._cv2
+        np = self._np
+        image = cv2.imread(str(visual.path), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"cannot decode image: {visual.path}")
+        quality, aligned, crop_size, details = _align_face(
+            image,
+            self._landmarks,
+            self._landmark_output,
+            self.REFERENCE_LANDMARKS,
+            minimum_size=24,
+            output_size=160,
+            reject_profile=False,
+            cv2=cv2,
+            np=np,
+        )
+        if aligned is None:
+            return EmbeddingResult(quality, None, crop_size, details)
+        tensor = facenet_tensor(aligned, cv2, np)
+        vector = self._face([tensor])[self._face_output].reshape(-1).astype(np.float32)
+        norm = float(np.linalg.norm(vector))
+        if norm == 0:
+            return EmbeddingResult("zero_embedding", None, crop_size, details)
+        quality = "usable" if min(crop_size) >= 80 else "usable_low_resolution"
+        return EmbeddingResult(quality, vector / norm, crop_size, details)
+
+
+def facenet_tensor(aligned_bgr, cv2, np):
+    """Convert an aligned BGR crop to FaceNet's NHWC RGB input."""
+    rgb = cv2.cvtColor(aligned_bgr, cv2.COLOR_BGR2RGB)
+    return ((rgb.astype(np.float32) / 127.5) - 1.0)[None]
+
+
+def _align_face(
+    image,
+    landmarks,
+    landmark_output,
+    reference_landmarks,
+    *,
+    minimum_size: int,
+    output_size: int,
+    reject_profile: bool = True,
+    cv2,
+    np,
+):
+    height, width = image.shape[:2]
+    crop_size = (width, height)
+    if min(width, height) < minimum_size:
+        return "too_small", None, crop_size, None
+    landmark_input = cv2.resize(image, (48, 48)).transpose(2, 0, 1)[None]
+    landmark_input = landmark_input.astype(np.float32)
+    points = landmarks([landmark_input])[landmark_output]
+    points = points.reshape(5, 2).astype(np.float32)
+    if not np.isfinite(points).all() or (points < -0.05).any() or (points > 1.05).any():
+        return "invalid_landmarks", None, crop_size, None
+    eye_distance = float(np.linalg.norm(points[0] - points[1]))
+    if eye_distance < 0.16:
+        return "profile_or_occluded", None, crop_size, None
+    nose = points[2]
+    eye_left_span = abs(float(nose[0] - points[0][0]))
+    eye_right_span = abs(float(points[1][0] - nose[0]))
+    mouth_left_span = abs(float(nose[0] - points[3][0]))
+    mouth_right_span = abs(float(points[4][0] - nose[0]))
+    eye_balance = _balance(eye_left_span, eye_right_span)
+    mouth_balance = _balance(mouth_left_span, mouth_right_span)
+    eye_tilt = abs(float(points[0][1] - points[1][1])) / eye_distance
+    details = {
+        "eye_balance": round(eye_balance, 4),
+        "mouth_balance": round(mouth_balance, 4),
+        "eye_tilt": round(eye_tilt, 4),
+    }
+    # Eye geometry is stable enough for a conservative profile gate. Mouth
+    # landmarks become unreliable with beard, expression or partial light,
+    # so retain that metric for diagnostics without rejecting on it.
+    geometry_warning = eye_balance < 0.35 or eye_tilt > 0.35
+    if geometry_warning and reject_profile:
+        return "profile_or_occluded", None, crop_size, details
+    if geometry_warning:
+        details["geometry_warning"] = 1.0
+    source = points * np.array([width, height], dtype=np.float32)
+    target = np.array(reference_landmarks, dtype=np.float32) * output_size
+    transform, _inliers = cv2.estimateAffinePartial2D(
+        source, target, method=cv2.LMEDS
+    )
+    if transform is None:
+        return "alignment_failed", None, crop_size, details
+    aligned = cv2.warpAffine(
+        image, transform, (output_size, output_size), flags=cv2.INTER_LINEAR
+    )
+    return "usable", aligned, crop_size, details
 
 
 def cosine_similarity(left, right) -> float:

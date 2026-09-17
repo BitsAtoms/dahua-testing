@@ -143,6 +143,7 @@ class FrigateEventAdapter:
         lifecycle_update: dict[str, Any],
         snapshot_path: Path,
         snapshot_timestamp: float,
+        face_paths: list[Path] | None = None,
         published_at: str | None = None,
     ) -> dict[str, Any]:
         """Return a correlated snapshot message for an existing track."""
@@ -154,19 +155,28 @@ class FrigateEventAdapter:
         update = deepcopy(lifecycle_update)
         sequence = round(snapshot_timestamp * 1_000_000)
         event_id = _required_string(update["source_ref"], "event_id")
+        media = [
+            {
+                "role": "snapshot",
+                "content_type": "image/jpeg",
+                "path": str(snapshot_path.resolve()),
+            }
+        ]
+        media.extend(
+            {
+                "role": "face",
+                "content_type": "image/webp",
+                "path": str(path.resolve()),
+            }
+            for path in (face_paths or [])
+        )
         update.update(
             phase="snapshot",
             sequence=sequence,
             observed_at=_timestamp_to_iso(snapshot_timestamp),
             published_at=published_at or datetime.now(timezone.utc).isoformat(),
             message_id=f"track-update:{update['track_id']}:snapshot:{sequence}",
-            media=[
-                {
-                    "role": "snapshot",
-                    "content_type": "image/jpeg",
-                    "path": str(snapshot_path.resolve()),
-                }
-            ],
+            media=media,
             source_ref={
                 "event_id": event_id,
                 "message_id": f"{event_id}:snapshot:{sequence}",

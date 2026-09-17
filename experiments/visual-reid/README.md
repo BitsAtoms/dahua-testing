@@ -38,7 +38,10 @@ Current source capabilities:
 - Dahua supplies semantic `face`, `body` and panoramic roles. Its native face
   crop is the preferred facial input.
 - Frigate currently supplies a full `snapshot`. A local detector must find and
-  quality-check a face and body crop before embeddings are extracted.
+  quality-check a face and body crop before embeddings are extracted. When
+  Frigate's own face processor retained an event-correlated crop, the adapter
+  now publishes that crop as the preferred `face` role and avoids duplicate
+  detection.
 - The tested Reception view is overhead; its latest snapshot shows useful body
   appearance but not a reliable frontal face. Body re-identification is
   therefore required as a fallback for that transition.
@@ -58,16 +61,24 @@ checksums. Downloaded weights stay outside Git:
 python experiments/visual-reid/download_models.py
 ```
 
-Candidate baselines include Intel Open Model Zoo's Apache-2.0
-`face-reidentification-retail-0095` and person re-identification models. The
-face model requires a tightly aligned frontal crop and produces a 256-value
-embedding. OpenCV Zoo is another possible backend, but each model's weight and
-training-data terms must be verified independently before product use.
+Candidate baselines include Intel Open Model Zoo's Apache-2.0 person
+re-identification model and the FaceNet TFLite model used by Frigate's `small`
+face-recognition backend. FaceNet produces a 512-value anonymous embedding and
+accepts the small event-correlated crops that Frigate already retained. This
+project downloads and verifies its own pinned copy; it does not read Frigate's
+runtime cache. The previous Open Model Zoo face model remains in the manifest
+as a reproducible baseline, but it is not the live evaluator because its
+80-pixel quality gate rejected the tested Frigate crops.
+
+The repository license covers redistribution of the model artifact, but model
+training-data provenance and the deployment's biometric/privacy obligations
+still require a separate product/legal review before production use.
 
 Official references:
 
 - https://github.com/openvinotoolkit/open_model_zoo
 - https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/face-reidentification-retail-0095
+- https://github.com/NickM-27/facenet-onnx
 - https://github.com/opencv/opencv_zoo
 
 ## Next validation
@@ -103,8 +114,10 @@ experiments\visual-reid\.venv\Scripts\python.exe `
   experiments\visual-reid\compare_faces.py TRACK_A TRACK_B
 ```
 
-This path uses the official five-landmark regressor before creating the face
-embedding. A controlled same-person/different-person dataset is still required
+This path uses the official five-landmark regressor to align the crop and then
+the pinned FaceNet model to create the embedding. Crops from 24 to 79 pixels
+are retained as `usable_low_resolution` instead of being presented as normal
+quality. A controlled same-person/different-person dataset is still required
 before any threshold is selected.
 
 ### Initial controlled face baseline
@@ -119,6 +132,25 @@ quality gate rejected one side-profile capture. The remaining comparisons were:
 This proves that the local extraction path can produce useful separation. It
 is not enough data to establish a production identity threshold; calibration
 must include more people, poses, lighting conditions and cameras.
+
+### Preliminary FaceNet cross-camera probe
+
+After the Frigate adapter began publishing event-correlated face crops, an
+ephemeral probe compared one subject across Dahua, Reception and Meetings. The
+same-person cosine similarities were `0.6114`, `0.4918` and `0.4972`; two
+available different-person comparisons were `0.3112` and `0.2039`. Inputs
+ranged from a native Dahua `928x928` crop down to a Frigate `25x31` crop.
+
+This small probe justifies evaluating FaceNet in the worker, but it does not
+define an identity threshold or prove general accuracy. The next controlled
+test must include both people through all three cameras and retain labels only
+inside the validation session.
+
+The first end-to-end adapter validation then compared event-correlated
+Reception (`45x64`) and Meetings (`48x56`) crops from one traversal. Both were
+reported as `usable_low_resolution` and scored `0.636317`. The Dahua event in
+that traversal contained body and panoramic media but no face, so no facial
+score was fabricated for the first handoff.
 
 Inspect recent handoff candidates with each raw evidence channel kept separate:
 

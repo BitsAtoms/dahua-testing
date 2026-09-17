@@ -1,6 +1,14 @@
 {
-  "source": "https://github.com/openvinotoolkit/open_model_zoo",
-  "license": "Apache-2.0",
+  "sources": [
+    {
+      "url": "https://github.com/openvinotoolkit/open_model_zoo",
+      "license": "Apache-2.0"
+    },
+    {
+      "url": "https://github.com/NickM-27/facenet-onnx",
+      "license": "Apache-2.0"
+    }
+  ],
   "models": [
     {
       "name": "person-reidentification-retail-0287",
@@ -53,6 +61,20 @@
           "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.bin",
           "bytes": 381232,
           "sha384": "0e6e830387f56783de313e0f7022b7808fd2e9e0b28b411a65608e2c1df0bcf939c65fb699fc51868df30232d6308515"
+        }
+      ]
+    },
+    {
+      "name": "facenet-small-v1",
+      "purpose": "anonymous_face_embedding",
+      "source": "https://github.com/NickM-27/facenet-onnx",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "facenet-small-v1/facenet.tflite",
+          "url": "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facenet.tflite",
+          "bytes": 93941044,
+          "sha384": "139098cd69748290bdbbd1d6fd2d3650ef14104df61bca850bca3acb085e85cb12e182294c92c836c7e9667e16e2cd82"
         }
       ]
     }

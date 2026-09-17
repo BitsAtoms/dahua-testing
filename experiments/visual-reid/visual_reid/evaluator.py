@@ -19,7 +19,7 @@ from .fusion import (
 from .openvino_reid import (
     BodyEmbedder,
     EmbeddingResult,
-    FaceEmbedder,
+    FaceNetEmbedder,
     cosine_similarity,
 )
 from .track_visuals import load_track_visuals
@@ -35,7 +35,7 @@ class VisualEvaluator:
         self.receiver_database = receiver_database
         self.root = experiment_root
         version_input = {
-            "evaluator": "visual-evaluator.v1",
+            "evaluator": "visual-evaluator.v2-facenet",
             "fusion": FUSION_VERSION,
             "weights": [TIMING_WEIGHT, FACE_WEIGHT, BODY_WEIGHT, COLOR_WEIGHT],
             "model_manifest_sha256": hashlib.sha256(
@@ -51,10 +51,9 @@ class VisualEvaluator:
             / "person-reidentification-retail-0287.xml",
             device,
         )
-        self._face = FaceEmbedder(
+        self._face = FaceNetEmbedder(
             self.root
-            / "models/face-reidentification-retail-0095/FP16"
-            / "face-reidentification-retail-0095.xml",
+            / "models/facenet-small-v1/facenet.tflite",
             self.root
             / "models/landmarks-regression-retail-0009/FP16"
             / "landmarks-regression-retail-0009.xml",

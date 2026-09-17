@@ -54,10 +54,12 @@ final snapshots and visual scores appear, and then use
 `[ FINALIZAR Y CAPTURAR ]`.
 
 The completed report references the existing retained snapshots instead of
-copying image bytes. It lets the operator assign each local track to an alias
-and label each candidate pair as `Misma persona`, `Persona diferente` or
-`Dudoso`. These labels are explicit test ground truth; they are not biometric
-identity decisions made by the application.
+copying image bytes. It lets the operator assign each real-person track to an
+alias, mark detector errors as `Falso positivo`, and label eligible candidate
+pairs as `Misma persona`, `Persona diferente` or `Dudoso`. Candidate pairs
+that contain a false-positive track are excluded from identity evaluation.
+These labels are explicit test ground truth; they are not biometric identity
+decisions made by the application.
 
 Session reports and annotations are stored in the ignored local database
 `runtime/space-mapper/validation.sqlite3` and removed after seven days. The

@@ -166,7 +166,7 @@ def build_specs(config: StackConfig, repository_root: Path) -> list[ServiceSpec]
                 repository_root
                 / "experiments/visual-reid/models/person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.xml",
                 repository_root
-                / "experiments/visual-reid/models/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml",
+                / "experiments/visual-reid/models/facenet-small-v1/facenet.tflite",
                 repository_root
                 / "experiments/visual-reid/models/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml",
             ),

@@ -251,9 +251,18 @@ def main() -> int:
                         "snapshot_update "
                         f"camera={result.camera_id} "
                         f"track={result.local_track_id} "
-                        f"bytes={result.byte_count}",
+                        f"bytes={result.byte_count} "
+                        f"faces={result.face_count}",
                         flush=True,
                     )
+                    if result.face_error:
+                        print(
+                            "face_crop_failed "
+                            f"camera={result.camera_id} "
+                            f"track={result.local_track_id} "
+                            f"error={result.face_error}",
+                            flush=True,
+                        )
 
             while (
                 not stop.is_set()

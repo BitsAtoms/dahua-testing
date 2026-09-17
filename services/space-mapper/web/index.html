@@ -348,7 +348,7 @@ async function validationRequest(url,method,document){
 
 function renderValidationReport(box,session){
   const report=session.report||{tracks:[],candidates:[]},annotations=session.annotations||{};
-  annotations.track_subjects??={};annotations.candidate_verdicts??={};annotations.notes??='';session.annotations=annotations;
+  annotations.track_subjects??={};annotations.track_classifications??={};annotations.candidate_verdicts??={};annotations.notes??='';session.annotations=annotations;
   const title=document.createElement('strong');title.textContent=`ÚLTIMA: ${session.name}`;
   const route=document.createElement('span');route.className='meta';route.textContent=`${session.expected_route.join(' → ')} · ${report.tracks.length} tracks · ${report.candidates.length} candidatos`;
   box.append(title,route,sectionTitle('Evidencia por track'));
@@ -359,10 +359,21 @@ function renderValidationReport(box,session){
     else row.append(emptyHint('Sin imagen'));
     const detail=document.createElement('div');detail.className='property';
     const name=document.createElement('strong');name.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
-    const select=document.createElement('select');select.append(new Option('Sin asignar',''));
-    for(const alias of session.subjects)select.append(new Option(`Persona ${alias}`,alias));
-    select.value=annotations.track_subjects[track.track_id]||'';
-    select.onchange=()=>{if(select.value)annotations.track_subjects[track.track_id]=select.value;else delete annotations.track_subjects[track.track_id];saveAnnotations(session);};
+    const select=document.createElement('select');select.append(new Option('Sin evaluar',''));
+    for(const alias of session.subjects)select.append(new Option(`Persona ${alias}`,`person:${alias}`));
+    select.append(new Option('Falso positivo','false_positive'),new Option('Dudoso / no clasificable','uncertain'));
+    const classification=annotations.track_classifications[track.track_id];
+    select.value=classification==='person'&&annotations.track_subjects[track.track_id]?`person:${annotations.track_subjects[track.track_id]}`:(classification||'');
+    select.onchange=()=>{
+      delete annotations.track_subjects[track.track_id];
+      if(select.value.startsWith('person:')){annotations.track_classifications[track.track_id]='person';annotations.track_subjects[track.track_id]=select.value.slice(7);}
+      else if(select.value)annotations.track_classifications[track.track_id]=select.value;
+      else delete annotations.track_classifications[track.track_id];
+      if(select.value==='false_positive'){
+        for(const candidate of report.candidates){if(candidate.origin_track_id===track.track_id||candidate.destination_track_id===track.track_id)delete annotations.candidate_verdicts[candidate.candidate_id];}
+      }
+      saveAnnotations(session);
+    };
     detail.append(name,select);row.append(detail);box.append(row);
   }
   box.append(sectionTitle('¿Misma persona entre tracks?'));
@@ -370,11 +381,13 @@ function renderValidationReport(box,session){
   for(const candidate of report.candidates){
     const row=document.createElement('div');row.className='monitor-card';
     const origin=byId.get(candidate.origin_track_id),destination=byId.get(candidate.destination_track_id);
+    const excluded=[candidate.origin_track_id,candidate.destination_track_id].some(trackId=>annotations.track_classifications[trackId]==='false_positive');
     const name=document.createElement('strong');name.textContent=`${origin?.camera_id||'?'}:${origin?.local_track_id||'?'} → ${destination?.camera_id||'?'}:${destination?.local_track_id||'?'}`;
-    const meta=document.createElement('span');meta.className='meta';meta.textContent=`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=excluded?'EXCLUIDO · incluye falso positivo':`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
     const select=document.createElement('select');
     for(const [value,label] of [['','Sin evaluar'],['same_person','Misma persona'],['different_person','Persona diferente'],['uncertain','Dudoso']])select.append(new Option(label,value));
     select.value=annotations.candidate_verdicts[candidate.candidate_id]||'';
+    select.disabled=excluded;
     select.onchange=()=>{if(select.value)annotations.candidate_verdicts[candidate.candidate_id]=select.value;else delete annotations.candidate_verdicts[candidate.candidate_id];saveAnnotations(session);};
     row.append(name,meta,select);box.append(row);
   }
@@ -386,6 +399,7 @@ async function saveAnnotations(session){
     const response=await fetch(`/api/validation/${session.session_id}/annotations`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(session.annotations)});
     const body=await response.json();if(!response.ok)throw new Error(body.error||`HTTP ${response.status}`);
     const index=validationState.recent.findIndex(item=>item.session_id===body.session_id);if(index>=0)validationState.recent[index]=body;
+    validationNeedsRender=true;renderMonitor();
   }catch(error){alert(error.message);}
 }
 

@@ -13,7 +13,7 @@ from visual_reid.appearance import AppearanceResult, color_descriptor
 from visual_reid.openvino_reid import (
     BodyEmbedder,
     EmbeddingResult,
-    FaceEmbedder,
+    FaceNetEmbedder,
     cosine_similarity,
 )
 
@@ -73,10 +73,9 @@ def main() -> int:
         / "person-reidentification-retail-0287.xml",
         args.device,
     )
-    face_embedder = FaceEmbedder(
+    face_embedder = FaceNetEmbedder(
         ROOT
-        / "models/face-reidentification-retail-0095/FP16"
-        / "face-reidentification-retail-0095.xml",
+        / "models/facenet-small-v1/facenet.tflite",
         ROOT
         / "models/landmarks-regression-retail-0009/FP16"
         / "landmarks-regression-retail-0009.xml",

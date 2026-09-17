@@ -38,6 +38,7 @@ class ValidationStoreTests(unittest.TestCase):
                 session["session_id"],
                 {
                     "track_subjects": {"track-a": "A"},
+                    "track_classifications": {"track-a": "person"},
                     "candidate_verdicts": {"candidate-a": "same_person"},
                     "notes": "recorrido controlado",
                 },
@@ -45,8 +46,38 @@ class ValidationStoreTests(unittest.TestCase):
 
             self.assertEqual(completed["status"], "complete")
             self.assertEqual(annotated["annotations"]["track_subjects"], {"track-a": "A"})
+            self.assertEqual(
+                annotated["annotations"]["track_classifications"],
+                {"track-a": "person"},
+            )
             self.assertEqual(store.cleanup(started + timedelta(days=8)), 1)
             self.assertIsNone(store.get(session["session_id"]))
+
+    def test_reads_legacy_subject_annotations_as_person_tracks(self) -> None:
+        now = datetime(2026, 9, 16, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            store = ValidationStore(Path(directory) / "validation.sqlite3")
+            session = store.start("test", ["cam-a"], ["A"], now)
+            store.complete(
+                session["session_id"],
+                {"tracks": [{"track_id": "track-a"}], "candidates": []},
+                now,
+            )
+            connection = store._connect()
+            try:
+                connection.execute(
+                    "UPDATE validation_sessions SET annotations_json=? WHERE session_id=?",
+                    ('{"track_subjects":{"track-a":"A"}}', session["session_id"]),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            loaded = store.get(session["session_id"])
+            self.assertEqual(
+                loaded["annotations"]["track_classifications"],
+                {"track-a": "person"},
+            )
 
     def test_rejects_unknown_annotation_targets_and_aliases(self) -> None:
         now = datetime(2026, 9, 16, tzinfo=timezone.utc)
@@ -63,6 +94,7 @@ class ValidationStoreTests(unittest.TestCase):
                     session["session_id"],
                     {
                         "track_subjects": {"track-a": "B"},
+                        "track_classifications": {"track-a": "person"},
                         "candidate_verdicts": {},
                     },
                 )
@@ -71,7 +103,54 @@ class ValidationStoreTests(unittest.TestCase):
                     session["session_id"],
                     {
                         "track_subjects": {"other": "A"},
+                        "track_classifications": {"other": "person"},
                         "candidate_verdicts": {},
+                    },
+                )
+
+    def test_false_positive_excludes_identity_verdicts(self) -> None:
+        now = datetime(2026, 9, 16, tzinfo=timezone.utc)
+        report = {
+            "tracks": [{"track_id": "person"}, {"track_id": "robot"}],
+            "candidates": [
+                {
+                    "candidate_id": "candidate-a",
+                    "origin_track_id": "person",
+                    "destination_track_id": "robot",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = ValidationStore(Path(directory) / "validation.sqlite3")
+            session = store.start("test", ["cam-a", "cam-b"], ["A"], now)
+            store.complete(session["session_id"], report, now)
+            annotated = store.annotate(
+                session["session_id"],
+                {
+                    "track_subjects": {"person": "A"},
+                    "track_classifications": {
+                        "person": "person",
+                        "robot": "false_positive",
+                    },
+                    "candidate_verdicts": {},
+                },
+            )
+            self.assertEqual(
+                annotated["annotations"]["track_classifications"]["robot"],
+                "false_positive",
+            )
+            with self.assertRaisesRegex(ValidationError, "false-positive"):
+                store.annotate(
+                    session["session_id"],
+                    {
+                        "track_subjects": {"person": "A"},
+                        "track_classifications": {
+                            "person": "person",
+                            "robot": "false_positive",
+                        },
+                        "candidate_verdicts": {
+                            "candidate-a": "different_person"
+                        },
                     },
                 )
 

@@ -8,7 +8,7 @@ from itertools import combinations
 from pathlib import Path
 
 from visual_reid import load_track_visuals
-from visual_reid.openvino_reid import FaceEmbedder, cosine_similarity
+from visual_reid.openvino_reid import FaceNetEmbedder, cosine_similarity
 
 
 ROOT = Path(__file__).resolve().parent
@@ -27,10 +27,9 @@ def main() -> int:
     visuals = load_track_visuals(
         args.receiver_database, args.track_ids, preferred_roles=("face",)
     )
-    embedder = FaceEmbedder(
+    embedder = FaceNetEmbedder(
         ROOT
-        / "models/face-reidentification-retail-0095/FP16"
-        / "face-reidentification-retail-0095.xml",
+        / "models/facenet-small-v1/facenet.tflite",
         ROOT
         / "models/landmarks-regression-retail-0009/FP16"
         / "landmarks-regression-retail-0009.xml",

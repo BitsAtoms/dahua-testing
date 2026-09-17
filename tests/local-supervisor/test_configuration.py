@@ -45,6 +45,17 @@ class ConfigurationTests(unittest.TestCase):
         self.assertNotIn("frigate_adapter", [spec.name for spec in specs])
         self.assertEqual(len(specs), len(SERVICE_NAMES) - 1)
 
+    def test_visual_worker_requires_pinned_facenet_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = load_config(root / "local-stack.json", root)
+            specs = build_specs(config, REPOSITORY_ROOT)
+
+        visual = next(spec for spec in specs if spec.name == "visual_reid")
+        required_names = {path.name for path in visual.required_paths}
+        self.assertIn("facenet.tflite", required_names)
+        self.assertNotIn("face-reidentification-retail-0095.xml", required_names)
+
     def test_unknown_service_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

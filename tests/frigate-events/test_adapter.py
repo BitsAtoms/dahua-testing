@@ -17,6 +17,7 @@ from frigate_adapter import FrigateEventAdapter  # noqa: E402
 from frigate_adapter.retention import remove_expired_files  # noqa: E402
 from frigate_adapter.snapshots import (  # noqa: E402
     SnapshotFetchError,
+    fetch_best_face_crop,
     fetch_snapshot,
     validate_api_url,
 )
@@ -159,11 +160,13 @@ class FrigateEventAdapterTests(unittest.TestCase):
         lifecycle = self.adapter.adapt(self.payloads[-1])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "snapshot.jpg"
+            face = Path(directory) / "face.webp"
             update = self.adapter.snapshot_update(
                 lifecycle,
                 path,
                 1789394401.5,
-                "2026-09-14T14:00:02+00:00",
+                face_paths=[face],
+                published_at="2026-09-14T14:00:02+00:00",
             )
 
         self.assertEqual(update["phase"], "snapshot")
@@ -171,6 +174,8 @@ class FrigateEventAdapterTests(unittest.TestCase):
         self.assertEqual(update["source_ref"]["event_id"], "fixture-person-001")
         self.assertEqual(update["media"][0]["role"], "snapshot")
         self.assertEqual(update["media"][0]["content_type"], "image/jpeg")
+        self.assertEqual(update["media"][1]["role"], "face")
+        self.assertEqual(update["media"][1]["content_type"], "image/webp")
         self.assertNotEqual(update["message_id"], lifecycle["message_id"])
 
     def test_fetches_and_validates_jpeg_snapshot(self) -> None:
@@ -184,6 +189,47 @@ class FrigateEventAdapterTests(unittest.TestCase):
 
             self.assertEqual(byte_count, 12)
             self.assertEqual(destination.read_bytes(), b"\xff\xd8\xffpayload\xff\xd9")
+
+    def test_fetches_best_correlated_frigate_face_crop(self) -> None:
+        face_index = json.dumps(
+            {
+                "train": [
+                    "fixture-person-001-1789394401.1-unknown-0.42.webp",
+                    "fixture-person-001-1789394401.2-alias-0.95.webp",
+                    "another-event-1789394401.3-alias-0.99.webp",
+                ]
+            }
+        ).encode()
+        webp = b"RIFF\x04\x00\x00\x00WEBPpayload"
+        responses = [
+            FakeResponse(face_index, "application/json"),
+            FakeResponse(webp, "application/octet-stream"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "face.webp"
+            with patch(
+                "frigate_adapter.snapshots.urlopen", side_effect=responses
+            ) as mocked:
+                byte_count = fetch_best_face_crop(
+                    "http://127.0.0.1:5000",
+                    "fixture-person-001",
+                    destination,
+                )
+
+            self.assertEqual(byte_count, len(webp))
+            self.assertEqual(destination.read_bytes(), webp)
+            self.assertIn("0.95.webp", mocked.call_args_list[1].args[0].full_url)
+
+    def test_face_crop_is_optional_when_frigate_has_no_attempt(self) -> None:
+        response = FakeResponse(b'{"train":[]}', "application/json")
+        with patch("frigate_adapter.snapshots.urlopen", return_value=response):
+            self.assertIsNone(
+                fetch_best_face_crop(
+                    "http://127.0.0.1:5000",
+                    "fixture-person-001",
+                    Path("unused.webp"),
+                )
+            )
 
     def test_rejects_credentials_and_invalid_snapshot(self) -> None:
         with self.assertRaises(ValueError):

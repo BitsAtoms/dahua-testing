@@ -14,6 +14,7 @@ from typing import Any
 RETENTION_DAYS = 7
 ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 VERDICTS = {"same_person", "different_person", "uncertain"}
+TRACK_CLASSIFICATIONS = {"person", "false_positive", "uncertain"}
 
 
 class ValidationError(ValueError):
@@ -139,25 +140,58 @@ class ValidationStore:
             item["candidate_id"] for item in report.get("candidates", [])
         }
         track_subjects = document.get("track_subjects", {})
+        track_classifications = document.get("track_classifications", {})
         candidate_verdicts = document.get("candidate_verdicts", {})
         notes = str(document.get("notes", "")).strip()
-        if not isinstance(track_subjects, dict) or not isinstance(
-            candidate_verdicts, dict
+        if (
+            not isinstance(track_subjects, dict)
+            or not isinstance(track_classifications, dict)
+            or not isinstance(candidate_verdicts, dict)
         ):
             raise ValidationError("annotations must be objects")
         if set(track_subjects) - valid_tracks:
             raise ValidationError("track annotation references an unknown track")
+        if set(track_classifications) - valid_tracks:
+            raise ValidationError("track classification references an unknown track")
         if set(candidate_verdicts) - valid_candidates:
             raise ValidationError("candidate annotation references an unknown candidate")
         aliases = set(session["subjects"])
         if any(value not in aliases for value in track_subjects.values()):
             raise ValidationError("track annotation uses an unknown subject alias")
+        if any(
+            value not in TRACK_CLASSIFICATIONS
+            for value in track_classifications.values()
+        ):
+            raise ValidationError("track classification is invalid")
+        if any(
+            track_classifications.get(track_id) != "person"
+            for track_id in track_subjects
+        ):
+            raise ValidationError("a subject alias requires a person classification")
         if any(value not in VERDICTS for value in candidate_verdicts.values()):
             raise ValidationError("candidate verdict is invalid")
+        false_positives = {
+            track_id
+            for track_id, classification in track_classifications.items()
+            if classification == "false_positive"
+        }
+        candidates_by_id = {
+            item["candidate_id"]: item for item in report.get("candidates", [])
+        }
+        if any(
+            candidates_by_id[candidate_id].get("origin_track_id") in false_positives
+            or candidates_by_id[candidate_id].get("destination_track_id")
+            in false_positives
+            for candidate_id in candidate_verdicts
+        ):
+            raise ValidationError(
+                "identity verdict cannot reference a false-positive track"
+            )
         if len(notes) > 2000:
             raise ValidationError("notes must be at most 2000 characters")
         annotations = {
             "track_subjects": track_subjects,
+            "track_classifications": track_classifications,
             "candidate_verdicts": candidate_verdicts,
             "notes": notes,
         }
@@ -235,6 +269,11 @@ class ValidationStore:
 
 
 def _row(row: sqlite3.Row) -> dict[str, Any]:
+    annotations = json.loads(row["annotations_json"])
+    track_subjects = annotations.get("track_subjects", {})
+    classifications = annotations.setdefault("track_classifications", {})
+    for track_id in track_subjects:
+        classifications.setdefault(track_id, "person")
     return {
         "session_id": row["session_id"],
         "name": row["name"],
@@ -246,7 +285,7 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
         "ended_at": row["ended_at"],
         "ended_us": row["ended_us"],
         "report": json.loads(row["report_json"]) if row["report_json"] else None,
-        "annotations": json.loads(row["annotations_json"]),
+        "annotations": annotations,
     }
 
 

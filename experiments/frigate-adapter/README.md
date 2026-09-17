@@ -122,6 +122,13 @@ snapshots:
     default: 7
 ```
 
+When Frigate face recognition is enabled, the adapter also queries the public
+face-attempt index after an event ends. If Frigate retained one or more crops
+correlated by event ID, the highest-scoring attempt is copied under an
+anonymous local filename and emitted as media role `face`. The original
+Frigate label is not propagated. Missing face crops are normal and leave the
+full snapshot available for body evidence or later local face detection.
+
 ### Live validation
 
 Validated against Frigate 0.17.2 on 2026-09-15. One person track produced the

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import queue
 import re
@@ -18,6 +19,8 @@ from .adapter import FrigateEventAdapter
 
 
 MAX_SNAPSHOT_BYTES = 15 * 1024 * 1024
+MAX_FACE_BYTES = 5 * 1024 * 1024
+MAX_FACE_INDEX_BYTES = 2 * 1024 * 1024
 
 
 class SnapshotFetchError(RuntimeError):
@@ -30,6 +33,8 @@ class SnapshotResult:
     local_track_id: str
     update: dict[str, Any] | None
     byte_count: int = 0
+    face_count: int = 0
+    face_error: str | None = None
     error: str | None = None
 
 
@@ -60,6 +65,7 @@ def fetch_snapshot(
     url = (
         f"{validate_api_url(api_url)}/api/events/"
         f"{quote(event_id, safe='')}/snapshot.jpg"
+        "?bbox=0&crop=0&quality=90"
     )
     last_error = "snapshot unavailable"
     for attempt in range(attempts):
@@ -92,6 +98,65 @@ def fetch_snapshot(
             if attempt + 1 < attempts:
                 time.sleep(retry_delay_seconds * (2**attempt))
     raise SnapshotFetchError(last_error)
+
+
+def fetch_best_face_crop(
+    api_url: str,
+    event_id: str,
+    destination: Path,
+    *,
+    timeout_seconds: float = 5.0,
+) -> int | None:
+    """Fetch Frigate's best retained face attempt for one event, if present."""
+    base = validate_api_url(api_url)
+    index_request = Request(
+        f"{base}/api/faces", headers={"Accept": "application/json"}
+    )
+    try:
+        with urlopen(index_request, timeout=timeout_seconds) as response:
+            data = response.read(MAX_FACE_INDEX_BYTES + 1)
+        if len(data) > MAX_FACE_INDEX_BYTES:
+            raise SnapshotFetchError("face index exceeds size limit")
+        payload = json.loads(data)
+    except (HTTPError, URLError, OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise SnapshotFetchError(_safe_error(error)) from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("train", []), list):
+        raise SnapshotFetchError("invalid Frigate face index")
+
+    attempts = []
+    for value in payload.get("train", []):
+        parsed = _parse_face_attempt(value, event_id)
+        if parsed is not None:
+            attempts.append(parsed)
+    if not attempts:
+        return None
+    _score, _timestamp, filename = max(attempts)
+    request = Request(
+        f"{base}/clips/faces/train/{quote(filename, safe='')}",
+        headers={"Accept": "image/webp"},
+    )
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            content_type = response.headers.get_content_type()
+            if content_type not in {"image/webp", "application/octet-stream"}:
+                raise SnapshotFetchError(
+                    f"unexpected face content type: {content_type}"
+                )
+            data = response.read(MAX_FACE_BYTES + 1)
+        if len(data) > MAX_FACE_BYTES:
+            raise SnapshotFetchError("face crop exceeds size limit")
+        if len(data) < 12 or not data.startswith(b"RIFF") or data[8:12] != b"WEBP":
+            raise SnapshotFetchError("invalid WebP face crop")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_suffix(destination.suffix + ".part")
+        try:
+            temporary.write_bytes(data)
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return len(data)
+    except (HTTPError, URLError, OSError, SnapshotFetchError) as error:
+        raise SnapshotFetchError(_safe_error(error)) from error
 
 
 class SnapshotEnricher:
@@ -170,11 +235,35 @@ class SnapshotEnricher:
                 lifecycle_update["source_ref"]["event_id"],
                 destination,
             )
+            face_paths: list[Path] = []
+            face_error = None
+            face_destination = self._media_root / (
+                f"{_safe_component(camera_id)}_"
+                f"{_safe_component(local_track_id)}_face.webp"
+            )
+            try:
+                face_bytes = fetch_best_face_crop(
+                    self._api_url,
+                    lifecycle_update["source_ref"]["event_id"],
+                    face_destination,
+                )
+                if face_bytes is not None:
+                    face_paths.append(face_destination)
+            except SnapshotFetchError as error:
+                face_error = _safe_error(error)
             update = self._adapter.snapshot_update(
-                lifecycle_update, destination, snapshot_timestamp
+                lifecycle_update,
+                destination,
+                snapshot_timestamp,
+                face_paths=face_paths,
             )
             return SnapshotResult(
-                camera_id, local_track_id, update, byte_count=byte_count
+                camera_id,
+                local_track_id,
+                update,
+                byte_count=byte_count,
+                face_count=len(face_paths),
+                face_error=face_error,
             )
         except (OSError, SnapshotFetchError, ValueError) as error:
             return SnapshotResult(
@@ -193,6 +282,25 @@ class SnapshotEnricher:
 
 def _safe_component(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", str(value))[:160]
+
+
+def _parse_face_attempt(value: Any, event_id: str) -> tuple[float, float, str] | None:
+    if not isinstance(value, str) or not value.endswith(".webp"):
+        return None
+    prefix = f"{event_id}-"
+    if not value.startswith(prefix) or "/" in value or "\\" in value:
+        return None
+    fields = value[len(prefix) : -5].rsplit("-", 2)
+    if len(fields) != 3:
+        return None
+    try:
+        timestamp = float(fields[0])
+        score = float(fields[2])
+    except ValueError:
+        return None
+    if timestamp <= 0 or not 0 <= score <= 1:
+        return None
+    return score, timestamp, value
 
 
 def _safe_error(error: Exception) -> str:
