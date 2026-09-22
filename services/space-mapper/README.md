@@ -31,6 +31,8 @@ Use `[ MONITOR ]` in the header to switch from editing to the operational 2D
 view. It refreshes once per second and displays:
 
 - active and recently received camera-local tracks;
+- the source-neutral eligibility state and reason for each track, with
+  provisional tracks in amber and excluded/contaminated tracks in red;
 - the logical space assigned through each camera;
 - spatial/temporal handoff candidates;
 - the current fused visual ranking and available modalities, when evaluated.
@@ -54,10 +56,13 @@ final snapshots and visual scores appear, and then use
 `[ FINALIZAR Y CAPTURAR ]`.
 
 The completed report references the existing retained snapshots instead of
-copying image bytes. It lets the operator assign each real-person track to an
-alias, mark detector errors as `Falso positivo`, and label eligible candidate
-pairs as `Misma persona`, `Persona diferente` or `Dudoso`. Candidate pairs
-that contain a false-positive track are excluded from identity evaluation.
+copying image bytes. It lets the operator assign each in-scope real-person
+track to an alias, classify a real but unrelated person as
+`Persona fuera de prueba`, mark detector errors as `Falso positivo`, and label
+eligible candidate pairs as `Misma persona`, `Persona diferente` or `Dudoso`.
+Candidate pairs containing an out-of-scope person or a false-positive track
+are excluded from identity evaluation while their tracks remain visible for
+occupancy and operational review.
 These labels are explicit test ground truth; they are not biometric identity
 decisions made by the application.
 

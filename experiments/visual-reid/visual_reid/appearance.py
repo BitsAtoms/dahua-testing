@@ -12,6 +12,7 @@ from .track_visuals import TrackVisual
 class AppearanceResult:
     quality: str
     vector: object | None
+    details: dict[str, float] | None = None
 
 
 def color_descriptor(visual: TrackVisual) -> AppearanceResult:

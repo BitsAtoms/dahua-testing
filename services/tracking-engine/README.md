@@ -16,6 +16,18 @@ It only proves these deterministic lifecycle rules:
 - an active track with no messages for two minutes is closed with
   `end_reason=timeout`; later source activity can reopen that provisional end.
 
+Source adapters may also attach a source-neutral `track_eligibility` attribute.
+`provisional` tracks remain visible and may produce explicitly provisional
+candidates, while `excluded` and `contaminated` tracks cannot create handoff
+candidates. If a late enrichment changes an existing track to either ineligible
+state, every derived candidate touching it is removed. Raw receiver updates and
+the local track remain available for audit; exclusion never deletes evidence.
+
+Classification messages are metadata enrichments rather than lifecycle
+observations. Applying one after `end` therefore preserves the source end,
+geometry, zones, timestamps and prior quality instead of reopening or extending
+the track.
+
 Project the current receiver log from the repository root:
 
 ```powershell

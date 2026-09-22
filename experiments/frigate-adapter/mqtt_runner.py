@@ -71,6 +71,23 @@ def parse_frame_sizes(value: str) -> dict[str, tuple[int, int]]:
     return sizes
 
 
+def parse_classification_policy(value: str) -> dict[str, dict[str, str]]:
+    """Parse a model -> label -> eligibility JSON policy."""
+    if not value.strip():
+        return {}
+    try:
+        policy = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "FRIGATE_TRACK_CLASSIFICATION_POLICY must be valid JSON"
+        ) from error
+    if not isinstance(policy, dict):
+        raise ValueError(
+            "FRIGATE_TRACK_CLASSIFICATION_POLICY must be a JSON object"
+        )
+    return policy
+
+
 def merged_config(env_file: Path) -> dict[str, str]:
     """Merge dotenv values with process environment taking precedence."""
     return {**read_env(env_file), **os.environ}
@@ -109,10 +126,18 @@ def main() -> int:
     host = require(config, "FRIGATE_MQTT_HOST")
     port = int(config.get("FRIGATE_MQTT_PORT", "1883"))
     topic_prefix = config.get("FRIGATE_MQTT_TOPIC_PREFIX", "frigate")
-    topic = f"{topic_prefix}/events"
+    event_topic = f"{topic_prefix}/events"
+    tracked_object_topic = f"{topic_prefix}/tracked_object_update"
     instance_id = config.get("FRIGATE_INSTANCE_ID", "local-frigate")
     frame_sizes = parse_frame_sizes(require(config, "FRIGATE_CAMERA_FRAME_SIZES"))
-    adapter = FrigateEventAdapter(frame_sizes, instance_id=instance_id)
+    classification_policy = parse_classification_policy(
+        config.get("FRIGATE_TRACK_CLASSIFICATION_POLICY", "")
+    )
+    adapter = FrigateEventAdapter(
+        frame_sizes,
+        instance_id=instance_id,
+        classification_policy=classification_policy,
+    )
     snapshot_api_url = config.get("FRIGATE_API_URL", "")
     track_host = config.get("TRACK_MQTT_HOST") or host
     track_port = int(config.get("TRACK_MQTT_PORT", str(port)))
@@ -176,8 +201,13 @@ def main() -> int:
         if reason_code != 0:
             print(f"mqtt_connection_failed reason={reason_code}", flush=True)
             return
-        connected_client.subscribe(topic, qos=0)
-        print(f"mqtt_connected topic={topic}", flush=True)
+        connected_client.subscribe(event_topic, qos=0)
+        connected_client.subscribe(tracked_object_topic, qos=0)
+        print(
+            "mqtt_connected "
+            f"topics={event_topic},{tracked_object_topic}",
+            flush=True,
+        )
 
     def on_disconnect(
         _client: Any,
@@ -301,7 +331,10 @@ def main() -> int:
                 raw_persisted_ns = time.perf_counter_ns()
                 normalize_started_ns = raw_persisted_ns
                 try:
-                    update = adapter.adapt(payload)
+                    if received_topic == tracked_object_topic:
+                        update = adapter.adapt_classification(payload)
+                    else:
+                        update = adapter.adapt(payload)
                 except ValueError as error:
                     print(f"invalid_frigate_event error={error}", flush=True)
                     continue
@@ -337,6 +370,8 @@ def main() -> int:
                     f"mqtt_to_output={durations['mqtt_callback_to_output']:.1f}ms",
                     flush=True,
                 )
+                if received_topic != event_topic:
+                    continue
                 after = payload.get("after", {})
                 snapshot = after.get("snapshot") or {}
                 snapshot_timestamp = snapshot.get("frame_time")
@@ -346,7 +381,11 @@ def main() -> int:
                     and after.get("has_snapshot") is True
                     and isinstance(snapshot_timestamp, (int, float))
                 ):
-                    if not snapshot_enricher.submit(update, float(snapshot_timestamp)):
+                    if not snapshot_enricher.submit(
+                        update,
+                        float(snapshot_timestamp),
+                        snapshot_box=snapshot.get("box"),
+                    ):
                         print(
                             "snapshot_queue_full "
                             f"camera={update['camera_id']} "

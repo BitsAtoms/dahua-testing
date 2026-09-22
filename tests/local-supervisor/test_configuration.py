@@ -56,6 +56,16 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("facenet.tflite", required_names)
         self.assertNotIn("face-reidentification-retail-0095.xml", required_names)
 
+    def test_consensus_worker_requires_pinned_yolox_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = load_config(root / "local-stack.json", root)
+            specs = build_specs(config, REPOSITORY_ROOT)
+
+        consensus = next(spec for spec in specs if spec.name == "detector_consensus")
+        self.assertIn("yolox_tiny.onnx", {path.name for path in consensus.required_paths})
+        self.assertIn("openvino", consensus.required_imports)
+
     def test_unknown_service_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

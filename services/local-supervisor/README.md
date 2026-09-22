@@ -11,8 +11,15 @@ track receiver
  -> tracking engine
  -> Dahua dashboard
  -> Frigate adapter
+ -> detector-consensus shadow validator
  -> visual evidence worker
 ```
+
+The detector-consensus worker is deliberately shadow-only. It validates source
+person boxes against the pinned YOLOX-Tiny model and persists proposed
+eligibility decisions under `runtime/visual-reid/detector-consensus.sqlite3`,
+but it does not publish them or suppress tracks. Restart the supervisor after
+updating to start this worker.
 
 Copy the example only when a service needs to be disabled or a setting changed:
 

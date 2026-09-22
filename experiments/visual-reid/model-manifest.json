@@ -11,6 +11,24 @@
   ],
   "models": [
     {
+      "name": "face-detection-retail-0004",
+      "purpose": "adaptive_face_detection",
+      "files": [
+        {
+          "path": "face-detection-retail-0004/FP16/face-detection-retail-0004.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-detection-retail-0004/FP16/face-detection-retail-0004.xml",
+          "bytes": 143827,
+          "sha384": "a7f8d1d41998503c4f3cdd8c12275f04f1736e5142127edcb4c76c3e17188499390574095a5b2a9dd78d3d0f77d02034"
+        },
+        {
+          "path": "face-detection-retail-0004/FP16/face-detection-retail-0004.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-detection-retail-0004/FP16/face-detection-retail-0004.bin",
+          "bytes": 1176544,
+          "sha384": "394185d3e42c34d7f9d43229ec8f5755c07e19fd6469d23883e71707fdd8eb66d90cbd62248db90ff3ba1c94adac599b"
+        }
+      ]
+    },
+    {
       "name": "person-reidentification-retail-0287",
       "purpose": "body_embedding",
       "files": [

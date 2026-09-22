@@ -6,6 +6,7 @@
     "tracking_engine": true,
     "dahua_dashboard": true,
     "frigate_adapter": true,
+    "detector_consensus": true,
     "visual_reid": true
   },
   "env_file": ".env",
@@ -14,4 +15,3 @@
   "status_seconds": 10,
   "startup_delay_seconds": 0.4
 }
-

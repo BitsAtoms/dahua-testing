@@ -15,6 +15,7 @@ SERVICE_NAMES = (
     "tracking_engine",
     "dahua_dashboard",
     "frigate_adapter",
+    "detector_consensus",
     "visual_reid",
 )
 
@@ -151,6 +152,24 @@ def build_specs(config: StackConfig, repository_root: Path) -> list[ServiceSpec]
             ),
             (config.env_file,),
             ("paho.mqtt.client",),
+        ),
+        "detector_consensus": ServiceSpec(
+            "detector_consensus",
+            (
+                str(visual_python.resolve()),
+                "-u",
+                script("experiments/visual-reid/detector_consensus_service.py"),
+                "--device",
+                config.visual_device,
+            ),
+            (
+                visual_python,
+                repository_root
+                / "experiments/visual-reid/models/detectors/yolox_tiny.onnx",
+                repository_root / "experiments/visual-reid/adaptive-capture.local.json",
+                config.env_file,
+            ),
+            ("cv2", "openvino"),
         ),
         "visual_reid": ServiceSpec(
             "visual_reid",

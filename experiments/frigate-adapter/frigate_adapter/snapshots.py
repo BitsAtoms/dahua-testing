@@ -193,6 +193,7 @@ class SnapshotEnricher:
         self,
         lifecycle_update: dict[str, Any],
         snapshot_timestamp: float,
+        snapshot_box: Any = None,
     ) -> bool:
         """Schedule one download, returning false when the media queue is full."""
         with self._lock:
@@ -200,7 +201,10 @@ class SnapshotEnricher:
                 return False
             self._pending += 1
         future = self._executor.submit(
-            self._fetch_and_build, lifecycle_update, snapshot_timestamp
+            self._fetch_and_build,
+            lifecycle_update,
+            snapshot_timestamp,
+            snapshot_box,
         )
         future.add_done_callback(self._completed)
         return True
@@ -221,6 +225,7 @@ class SnapshotEnricher:
         self,
         lifecycle_update: dict[str, Any],
         snapshot_timestamp: float,
+        snapshot_box: Any = None,
     ) -> SnapshotResult:
         camera_id = lifecycle_update["camera_id"]
         local_track_id = lifecycle_update["subject"]["local_track_id"]
@@ -256,6 +261,7 @@ class SnapshotEnricher:
                 destination,
                 snapshot_timestamp,
                 face_paths=face_paths,
+                snapshot_box=snapshot_box,
             )
             return SnapshotResult(
                 camera_id,

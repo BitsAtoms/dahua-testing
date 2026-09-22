@@ -22,8 +22,7 @@ SERVICE_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_ROOT))
 
 from space_mapper import MapError, SpaceMapStore, discover_camera_ids
-from space_mapper.monitor import monitor_snapshot
-from space_mapper.monitor import validation_snapshot
+from space_mapper.monitor import load_adaptive_media, monitor_snapshot, validation_snapshot
 from space_mapper.validation import ValidationError, ValidationStore
 
 
@@ -204,6 +203,7 @@ class MapServer(ThreadingHTTPServer):
         receiver_database: Path,
         tracking_database: Path,
         evidence_database: Path,
+        adaptive_media_database: Path,
         validation_database: Path,
         recent_seconds: float,
     ) -> None:
@@ -211,6 +211,7 @@ class MapServer(ThreadingHTTPServer):
         self.receiver_database = receiver_database
         self.tracking_database = tracking_database
         self.evidence_database = evidence_database
+        self.adaptive_media_database = adaptive_media_database
         self.validation_store = ValidationStore(validation_database)
         self.recent_seconds = recent_seconds
         self.media: dict[str, Path] = {}
@@ -225,11 +226,39 @@ class MapServer(ThreadingHTTPServer):
     def with_media_urls(self, document: Any) -> Any:
         result = json.loads(json.dumps(document, ensure_ascii=False))
         repository_root = SERVICE_ROOT.parents[1].resolve()
+        track_ids: set[str] = set()
+
+        def collect(value: Any) -> None:
+            if isinstance(value, dict):
+                track_id = value.get("track_id")
+                if isinstance(track_id, str):
+                    track_ids.add(track_id)
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(result)
+        adaptive_media = load_adaptive_media(
+            self.adaptive_media_database, track_ids
+        )
 
         def visit(value: Any) -> None:
             if isinstance(value, dict):
                 media = value.get("media")
                 if isinstance(media, list):
+                    existing_paths = {
+                        str(item.get("path"))
+                        for item in media
+                        if isinstance(item, dict) and item.get("path")
+                    }
+                    for item in adaptive_media.get(str(value.get("track_id")), []):
+                        if str(item["path"]) not in existing_paths:
+                            # The same track can occur in multiple retained session
+                            # reports. Each projection removes its private ``path``
+                            # below, so never append the shared catalog dictionary.
+                            media.append(dict(item))
                     for item in media:
                         if not isinstance(item, dict) or "path" not in item:
                             continue
@@ -291,6 +320,11 @@ def main() -> int:
         type=Path,
         default=Path("runtime/space-mapper/validation.sqlite3"),
     )
+    parser.add_argument(
+        "--adaptive-media-database",
+        type=Path,
+        default=Path("runtime/visual-reid/adaptive-media.sqlite3"),
+    )
     parser.add_argument("--recent-seconds", type=float, default=120)
     args = parser.parse_args()
     if hasattr(signal, "SIGBREAK"):
@@ -306,6 +340,7 @@ def main() -> int:
         args.receiver_database,
         args.tracking_database,
         args.evidence_database,
+        args.adaptive_media_database,
         args.validation_database,
         args.recent_seconds,
     )

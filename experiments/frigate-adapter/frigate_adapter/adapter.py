@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 from typing import Any
 
 
 FrameSize = tuple[int, int]
 _PHASES = {"new", "update", "end"}
+_ELIGIBILITY_STATES = {"eligible", "excluded", "contaminated"}
 
 
 class FrigateEventAdapter:
@@ -27,12 +29,16 @@ class FrigateEventAdapter:
         camera_frame_sizes: Mapping[str, FrameSize],
         instance_id: str = "frigate",
         labels: frozenset[str] = frozenset({"person"}),
+        classification_policy: Mapping[str, Mapping[str, str]] | None = None,
     ) -> None:
         if not instance_id:
             raise ValueError("instance_id is required")
         self._frame_sizes = dict(camera_frame_sizes)
         self._instance_id = instance_id
         self._labels = labels
+        self._classification_policy = _validate_classification_policy(
+            classification_policy or {}
+        )
 
     def adapt(
         self,
@@ -83,6 +89,18 @@ class FrigateEventAdapter:
             },
             "attributes": {
                 "stationary": bool(after.get("stationary")),
+                "track_eligibility": {
+                    "state": (
+                        "provisional"
+                        if self._classification_policy
+                        else "eligible"
+                    ),
+                    "reason": (
+                        "awaiting_source_classification"
+                        if self._classification_policy
+                        else "no_source_classification_policy"
+                    ),
+                },
             },
             "media": [],
             "quality": {
@@ -93,6 +111,95 @@ class FrigateEventAdapter:
             "source_ref": {
                 "event_id": event_id,
                 "message_id": source_message_id,
+            },
+        }
+
+    def adapt_classification(
+        self,
+        payload: dict[str, Any],
+        published_at: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Project a configured Frigate classification onto an existing track."""
+        if payload.get("type") != "classification":
+            return None
+        event_id = _required_string(payload, "id")
+        camera_id = _required_string(payload, "camera")
+        model = _required_string(payload, "model")
+        policy = self._classification_policy.get(model)
+        if policy is None:
+            return None
+
+        timestamp = payload.get("timestamp")
+        if (
+            not isinstance(timestamp, (int, float))
+            or isinstance(timestamp, bool)
+            or timestamp <= 0
+        ):
+            raise ValueError("Frigate classification timestamp is required")
+        score = payload.get("score")
+        if (
+            not isinstance(score, (int, float))
+            or isinstance(score, bool)
+            or not 0 <= float(score) <= 1
+        ):
+            raise ValueError("Frigate classification score must be between 0 and 1")
+        labels = [
+            value
+            for value in (payload.get("attribute"), payload.get("sub_label"))
+            if isinstance(value, str) and value
+        ]
+        if len(labels) != 1:
+            raise ValueError(
+                "Frigate classification requires one attribute or sub_label"
+            )
+        label = labels[0]
+        eligibility = policy.get(label, "provisional")
+        sequence = round(float(timestamp) * 1_000_000)
+        track_id = f"frigate:{self._instance_id}:{camera_id}:{event_id}"
+        fingerprint = hashlib.sha256(
+            f"{event_id}\0{model}\0{label}\0{sequence}".encode("utf-8")
+        ).hexdigest()
+        return {
+            "schema_version": "track_update.v1",
+            "message_id": f"track-update:{track_id}:classification:{fingerprint}",
+            "track_id": track_id,
+            "source": {"type": "frigate", "instance_id": self._instance_id},
+            "camera_id": camera_id,
+            "phase": "update",
+            "sequence": sequence,
+            "observed_at": _timestamp_to_iso(float(timestamp)),
+            "published_at": published_at or datetime.now(timezone.utc).isoformat(),
+            "subject": {
+                "type": "person",
+                "local_track_id": event_id,
+                "confidence": None,
+            },
+            "geometry": None,
+            "zones": {"current": [], "entered": []},
+            "attributes": {
+                "source_classification": {
+                    "provider": "frigate",
+                    "model": model,
+                    "label": label,
+                    "score": round(float(score), 6),
+                },
+                "track_eligibility": {
+                    "state": eligibility,
+                    "reason": "source_object_classification",
+                    "model": model,
+                    "label": label,
+                    "score": round(float(score), 6),
+                },
+            },
+            "media": [],
+            "quality": {
+                "status": "partial",
+                "source_lifecycle": "live",
+                "issues": ["classification_enrichment_only"],
+            },
+            "source_ref": {
+                "event_id": event_id,
+                "message_id": f"{event_id}:classification:{fingerprint}",
             },
         }
 
@@ -145,6 +252,7 @@ class FrigateEventAdapter:
         snapshot_timestamp: float,
         face_paths: list[Path] | None = None,
         published_at: str | None = None,
+        snapshot_box: Any = None,
     ) -> dict[str, Any]:
         """Return a correlated snapshot message for an existing track."""
         if lifecycle_update.get("source", {}).get("type") != "frigate":
@@ -155,6 +263,18 @@ class FrigateEventAdapter:
         update = deepcopy(lifecycle_update)
         sequence = round(snapshot_timestamp * 1_000_000)
         event_id = _required_string(update["source_ref"], "event_id")
+        update["attributes"].pop("track_eligibility", None)
+        update["attributes"].pop("source_classification", None)
+        if snapshot_box is not None:
+            geometry, geometry_issue = self._geometry(
+                str(update["camera_id"]), snapshot_box
+            )
+            update["geometry"] = geometry
+            update["quality"] = {
+                "status": "complete" if geometry_issue is None else "partial",
+                "source_lifecycle": "live",
+                "issues": [] if geometry_issue is None else [geometry_issue],
+            }
         media = [
             {
                 "role": "snapshot",
@@ -221,3 +341,25 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return deepcopy([item for item in value if isinstance(item, str)])
+
+
+def _validate_classification_policy(
+    policy: Mapping[str, Mapping[str, str]],
+) -> dict[str, dict[str, str]]:
+    validated: dict[str, dict[str, str]] = {}
+    for model, labels in policy.items():
+        if not isinstance(model, str) or not model:
+            raise ValueError("classification policy model names must be non-empty")
+        if not isinstance(labels, Mapping) or not labels:
+            raise ValueError("classification policy models require label mappings")
+        validated_labels: dict[str, str] = {}
+        for label, state in labels.items():
+            if not isinstance(label, str) or not label:
+                raise ValueError("classification policy labels must be non-empty")
+            if state not in _ELIGIBILITY_STATES:
+                raise ValueError(
+                    "classification policy state must be eligible, excluded, or contaminated"
+                )
+            validated_labels[label] = state
+        validated[model] = validated_labels
+    return validated

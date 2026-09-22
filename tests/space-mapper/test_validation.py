@@ -108,7 +108,7 @@ class ValidationStoreTests(unittest.TestCase):
                     },
                 )
 
-    def test_false_positive_excludes_identity_verdicts(self) -> None:
+    def test_identity_excluded_tracks_reject_identity_verdicts(self) -> None:
         now = datetime(2026, 9, 16, tzinfo=timezone.utc)
         report = {
             "tracks": [{"track_id": "person"}, {"track_id": "robot"}],
@@ -139,7 +139,7 @@ class ValidationStoreTests(unittest.TestCase):
                 annotated["annotations"]["track_classifications"]["robot"],
                 "false_positive",
             )
-            with self.assertRaisesRegex(ValidationError, "false-positive"):
+            with self.assertRaisesRegex(ValidationError, "identity-excluded"):
                 store.annotate(
                     session["session_id"],
                     {
@@ -154,6 +154,69 @@ class ValidationStoreTests(unittest.TestCase):
                     },
                 )
 
+            annotated = store.annotate(
+                session["session_id"],
+                {
+                    "track_subjects": {"person": "A"},
+                    "track_classifications": {
+                        "person": "person",
+                        "robot": "out_of_scope_person",
+                    },
+                    "candidate_verdicts": {},
+                },
+            )
+            self.assertEqual(
+                annotated["annotations"]["track_classifications"]["robot"],
+                "out_of_scope_person",
+            )
+            with self.assertRaisesRegex(ValidationError, "identity-excluded"):
+                store.annotate(
+                    session["session_id"],
+                    {
+                        "track_subjects": {"person": "A"},
+                        "track_classifications": {
+                            "person": "person",
+                            "robot": "out_of_scope_person",
+                        },
+                        "candidate_verdicts": {
+                            "candidate-a": "different_person"
+                        },
+                    },
+                )
+
+    def test_rejects_verdict_that_conflicts_with_subject_aliases(self) -> None:
+        now = datetime(2026, 9, 17, tzinfo=timezone.utc)
+        report = {
+            "tracks": [{"track_id": "track-a"}, {"track_id": "track-b"}],
+            "candidates": [
+                {
+                    "candidate_id": "candidate-a",
+                    "origin_track_id": "track-a",
+                    "destination_track_id": "track-b",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = ValidationStore(Path(directory) / "validation.sqlite3")
+            session = store.start("test", ["cam-a", "cam-b"], ["A"], now)
+            store.complete(session["session_id"], report, now)
+            with self.assertRaisesRegex(ValidationError, "conflicts"):
+                store.annotate(
+                    session["session_id"],
+                    {
+                        "track_subjects": {
+                            "track-a": "A",
+                            "track-b": "A",
+                        },
+                        "track_classifications": {
+                            "track-a": "person",
+                            "track-b": "person",
+                        },
+                        "candidate_verdicts": {
+                            "candidate-a": "different_person"
+                        },
+                    },
+                )
 
 if __name__ == "__main__":
     unittest.main()

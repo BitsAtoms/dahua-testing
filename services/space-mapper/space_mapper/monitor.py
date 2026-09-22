@@ -9,6 +9,42 @@ import sqlite3
 from typing import Any
 
 
+def load_adaptive_media(
+    path: Path, track_ids: set[str]
+) -> dict[str, list[dict[str, Any]]]:
+    """Load selected crops for display without exposing RTSP configuration."""
+    if not track_ids or not path.is_file():
+        return {}
+    placeholders = ",".join("?" for _ in track_ids)
+    connection = sqlite3.connect(f"file:{path.resolve().as_posix()}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            f"""
+            SELECT track_id, modality, observed_us, quality_score, path
+            FROM adaptive_media
+            WHERE track_id IN ({placeholders})
+            ORDER BY track_id, modality, quality_score DESC, observed_us DESC
+            """,
+            tuple(sorted(track_ids)),
+        )
+        result: dict[str, list[dict[str, Any]]] = {}
+        for track_id, modality, observed_us, quality_score, raw_path in rows:
+            result.setdefault(str(track_id), []).append(
+                {
+                    "content_type": "image/jpeg",
+                    "path": str(raw_path),
+                    "role": f"adaptive_{modality}",
+                    "observed_us": int(observed_us),
+                    "quality_score": round(float(quality_score), 6),
+                }
+            )
+        return result
+    except sqlite3.Error:
+        return {}
+    finally:
+        connection.close()
+
+
 def monitor_snapshot(
     tracking_database: Path,
     evidence_database: Path,
@@ -159,11 +195,18 @@ def _load_tracks(
     if not track_ids:
         return []
     placeholders = ",".join("?" for _ in track_ids)
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(local_tracks)")
+    }
+    attributes_projection = (
+        "attributes_json" if "attributes_json" in columns else "'{}' AS attributes_json"
+    )
     rows = connection.execute(
         f"""
         SELECT track_id, source_type, camera_id, local_track_id, subject_type,
                status, first_observed_at, last_observed_at, ended_at,
-               last_received_at, last_received_us, last_phase, media_json
+               last_received_at, last_received_us, last_phase, media_json,
+               {attributes_projection}
         FROM local_tracks
         WHERE track_id IN ({placeholders})
         ORDER BY last_received_us DESC, track_id
@@ -177,9 +220,14 @@ def _load_tracks(
             int(item["last_received_us"]) / 1_000_000, tz=timezone.utc
         )
         media = json.loads(item.pop("media_json"))
+        attributes = json.loads(item.pop("attributes_json"))
         item["space_id"] = camera_spaces.get(str(item["camera_id"]))
         item["age_seconds"] = round(max(0, (now - received).total_seconds()), 3)
         item["media"] = media
+        item["track_eligibility"] = attributes.get(
+            "track_eligibility",
+            {"state": "eligible", "reason": "legacy_or_unclassified_track"},
+        )
         result.append(item)
     return result
 

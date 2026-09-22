@@ -356,6 +356,39 @@ Do not expose camera credentials, raw authentication headers, cookies, or sessio
 - Add a README to each experiment describing setup and run commands.
 - Do not refactor unrelated project code while proving the NetSDK path.
 
+## Roadmap and Git workflow
+
+Use the nearest experiment or service roadmap as the durable source of truth
+for ongoing work. At the start of a resumed task, read that roadmap together
+with this file and Git status. Keep it updated when implementation evidence
+changes a phase, checkpoint, risk or next step.
+
+When completing a meaningful checkpoint, tell the user:
+
+1. which phase/checkpoint was completed;
+2. what evidence satisfied its exit criterion;
+3. the current phase and immediate next step;
+4. whether the branch is ready for review or merge.
+
+Prefer branches per coherent, reviewable functionality rather than one branch
+per entire roadmap phase. A phase may contain multiple feature branches. Use
+the `codex/` prefix and a descriptive name such as
+`codex/visual-reid-adaptive-face`. Keep the current branch while its working
+tree contains one coherent unfinished checkpoint; do not create artificial
+branches only to mirror roadmap headings.
+
+Recommend merging to `main` only at a solid checkpoint where:
+
+- the feature's automated tests and relevant integration checks pass;
+- its controlled live validation exit criterion has passed;
+- generated media, credentials and local configuration remain ignored;
+- documentation and the roadmap reflect the observed behavior and limits;
+- the diff is reviewable and no known correctness issue requires an immediate
+  follow-up in the same change.
+
+Do not merge automatically. Present the checkpoint and recommendation to the
+user, and wait for explicit authorization before merging to `main`.
+
 ---
 
 ## Definition of done for the current milestone

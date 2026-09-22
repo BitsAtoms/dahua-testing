@@ -14,7 +14,16 @@ from typing import Any
 RETENTION_DAYS = 7
 ALIAS_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 VERDICTS = {"same_person", "different_person", "uncertain"}
-TRACK_CLASSIFICATIONS = {"person", "false_positive", "uncertain"}
+TRACK_CLASSIFICATIONS = {
+    "person",
+    "out_of_scope_person",
+    "false_positive",
+    "uncertain",
+}
+IDENTITY_EXCLUDED_TRACK_CLASSIFICATIONS = {
+    "out_of_scope_person",
+    "false_positive",
+}
 
 
 class ValidationError(ValueError):
@@ -170,22 +179,42 @@ class ValidationStore:
             raise ValidationError("a subject alias requires a person classification")
         if any(value not in VERDICTS for value in candidate_verdicts.values()):
             raise ValidationError("candidate verdict is invalid")
-        false_positives = {
+        identity_excluded_tracks = {
             track_id
             for track_id, classification in track_classifications.items()
-            if classification == "false_positive"
+            if classification in IDENTITY_EXCLUDED_TRACK_CLASSIFICATIONS
         }
         candidates_by_id = {
             item["candidate_id"]: item for item in report.get("candidates", [])
         }
+        for candidate_id, verdict in candidate_verdicts.items():
+            if verdict == "uncertain":
+                continue
+            candidate = candidates_by_id[candidate_id]
+            origin_alias = track_subjects.get(candidate.get("origin_track_id"))
+            destination_alias = track_subjects.get(
+                candidate.get("destination_track_id")
+            )
+            if origin_alias is None or destination_alias is None:
+                continue
+            expected = (
+                "same_person"
+                if origin_alias == destination_alias
+                else "different_person"
+            )
+            if verdict != expected:
+                raise ValidationError(
+                    "candidate verdict conflicts with assigned subject aliases"
+                )
         if any(
-            candidates_by_id[candidate_id].get("origin_track_id") in false_positives
+            candidates_by_id[candidate_id].get("origin_track_id")
+            in identity_excluded_tracks
             or candidates_by_id[candidate_id].get("destination_track_id")
-            in false_positives
+            in identity_excluded_tracks
             for candidate_id in candidate_verdicts
         ):
             raise ValidationError(
-                "identity verdict cannot reference a false-positive track"
+                "identity verdict cannot reference an identity-excluded track"
             )
         if len(notes) > 2000:
             raise ValidationError("notes must be at most 2000 characters")

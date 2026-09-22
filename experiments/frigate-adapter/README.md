@@ -58,6 +58,25 @@ FRIGATE_API_URL=http://127.0.0.1:5000
 TRACK_MQTT_TOPIC=tracking/track-updates
 ```
 
+The adapter also listens to `frigate/tracked_object_update`. A deployment may
+map the labels of one or more Frigate object classifiers onto the generic track
+eligibility states `eligible`, `excluded`, or `contaminated`:
+
+```dotenv
+FRIGATE_TRACK_CLASSIFICATION_POLICY={"person_validity":{"valid_person":"eligible","not_person":"excluded"}}
+```
+
+Model and label names are deployment configuration, not product semantics. A
+site may train with its own hard negatives, but downstream services see only a
+source-neutral eligibility decision plus the original model, label, score and
+reason. When a policy is configured, lifecycle events start as `provisional`
+until Frigate reaches classification consensus. Unknown labels remain
+provisional; they are never silently treated as a valid person.
+
+Do not configure this variable until the referenced Frigate model exists and
+has been evaluated on held-out local sessions. Without a policy, existing
+behavior remains compatible and tracks are marked eligible by source policy.
+
 Install the small client dependency and start the runner:
 
 ```powershell
@@ -104,8 +123,10 @@ uses a separate broker. `TRACK_OUTBOX_DATABASE` can override the outbox path.
 Snapshot retrieval runs in a bounded worker pool outside the MQTT event path.
 An `end` update is persisted immediately; when Frigate's JPEG becomes
 available, the adapter emits a second `phase=snapshot` update with the same
-`track_id` and an absolute media path. Bind Frigate's unauthenticated internal
-API to Windows loopback only, never to the LAN:
+`track_id`, an absolute media path, and the bounding box stored beside the
+snapshot's own `frame_time`. It does not reuse the later end-of-track box for
+that earlier image. Bind Frigate's unauthenticated internal API to Windows
+loopback only, never to the LAN:
 
 ```yaml
 ports:

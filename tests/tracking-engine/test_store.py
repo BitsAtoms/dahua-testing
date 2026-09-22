@@ -67,6 +67,51 @@ class TrackingStoreTests(unittest.TestCase):
             track["first_observed_at"], (NOW + timedelta(seconds=2)).isoformat()
         )
 
+    def test_classification_enrichment_preserves_lifecycle_and_geometry(self) -> None:
+        self.store.project(update("new", 1, x=0.1), NOW)
+        self.store.project(update("end", 3, x=0.3), NOW + timedelta(seconds=2))
+        enrichment = update("update", 4, x=0.9)
+        enrichment["geometry"] = None
+        enrichment["zones"] = {"current": [], "entered": []}
+        enrichment["subject"]["confidence"] = None
+        enrichment["attributes"] = {
+            "track_eligibility": {
+                "state": "excluded",
+                "reason": "source_object_classification",
+            }
+        }
+        enrichment["quality"] = {
+            "status": "partial",
+            "source_lifecycle": "live",
+            "issues": ["classification_enrichment_only"],
+        }
+
+        result = self.store.project(enrichment, NOW + timedelta(seconds=4))
+        track = self.store.get_track(result.track_id)
+
+        self.assertEqual(track["status"], "ended")
+        self.assertEqual(track["last_phase"], "end")
+        self.assertEqual(track["quality_status"], "complete")
+        self.assertEqual(track["geometry"]["center"]["x"], 0.4)
+        self.assertEqual(
+            track["last_observed_at"], (NOW + timedelta(seconds=3)).isoformat()
+        )
+        self.assertEqual(
+            track["attributes"]["track_eligibility"]["state"], "excluded"
+        )
+
+        later_end = update("end", 5, x=0.5)
+        later_end["message_id"] = "message-end-after-classification"
+        later_end["attributes"]["track_eligibility"] = {
+            "state": "provisional",
+            "reason": "awaiting_source_classification",
+        }
+        self.store.project(later_end, NOW + timedelta(seconds=5))
+        track = self.store.get_track(result.track_id)
+        self.assertEqual(
+            track["attributes"]["track_eligibility"]["state"], "excluded"
+        )
+
     def test_stale_track_expires_and_new_activity_reopens_it(self) -> None:
         self.store.project(update("new", 1), NOW)
         expired = self.store.expire_stale(NOW + timedelta(seconds=121))

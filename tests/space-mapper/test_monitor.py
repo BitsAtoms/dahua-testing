@@ -13,10 +13,42 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SERVICE_ROOT = REPOSITORY_ROOT / "services" / "space-mapper"
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from space_mapper.monitor import monitor_snapshot, validation_snapshot  # noqa: E402
+from space_mapper.monitor import (  # noqa: E402
+    load_adaptive_media,
+    monitor_snapshot,
+    validation_snapshot,
+)
 
 
 class MonitorTests(unittest.TestCase):
+    def test_loads_selected_adaptive_media_for_track_display(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "adaptive.sqlite3"
+            image = root / "crop.jpg"
+            image.write_bytes(b"jpeg")
+            connection = sqlite3.connect(database)
+            connection.execute(
+                """
+                CREATE TABLE adaptive_media (
+                    track_id TEXT, modality TEXT, observed_us INTEGER,
+                    quality_score REAL, path TEXT
+                )
+                """
+            )
+            connection.execute(
+                "INSERT INTO adaptive_media VALUES (?,?,?,?,?)",
+                ("track-a", "body", 123, 0.91, str(image)),
+            )
+            connection.commit()
+            connection.close()
+
+            media = load_adaptive_media(database, {"track-a", "track-b"})
+
+        self.assertEqual(media["track-a"][0]["role"], "adaptive_body")
+        self.assertEqual(media["track-a"][0]["quality_score"], 0.91)
+        self.assertNotIn("track-b", media)
+
     def test_snapshot_joins_recent_tracks_with_visual_candidate_evidence(self) -> None:
         now = datetime(2026, 9, 16, 12, tzinfo=timezone.utc)
         observed_us = round(now.timestamp() * 1_000_000)
@@ -46,6 +78,7 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(len(snapshot["tracks"]), 2)
         tracks = {item["track_id"]: item for item in snapshot["tracks"]}
         self.assertEqual(tracks["track-b"]["space_id"], "room_b")
+        self.assertEqual(tracks["track-b"]["track_eligibility"]["state"], "eligible")
         candidate = snapshot["candidates"][0]
         self.assertEqual(candidate["visual_ranking"], 0.72)
         self.assertEqual(candidate["available_modalities"], ["face"])

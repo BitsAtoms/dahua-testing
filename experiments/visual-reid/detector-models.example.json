@@ -1,0 +1,28 @@
+{
+  "schema_version": "detector_models.v1",
+  "models": [
+    {
+      "name": "frigate_cpu_ssd",
+      "backend": "tflite_ssd",
+      "path": "models/detectors/frigate-cpu_model.tflite",
+      "sha256": "90bb33a634e041914cc1819aa5df99818e6c396c4d2db952c0fd7a9cffc4724f",
+      "thresholds": [0.3, 0.5, 0.7]
+    },
+    {
+      "name": "yolox_tiny",
+      "backend": "openvino_yolox",
+      "path": "models/detectors/yolox_tiny.onnx",
+      "sha256": "427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7",
+      "thresholds": [0.25, 0.4, 0.5, 0.55, 0.6]
+    },
+    {
+      "name": "person_detection_retail_0013",
+      "backend": "openvino_ssd",
+      "path": "models/detectors/person-detection-retail-0013.xml",
+      "sha256": "19556695d2b18255fe5593d388ae69ba7f9a2f5c3f986bde8356741d0db26e89",
+      "companion_path": "models/detectors/person-detection-retail-0013.bin",
+      "companion_sha256": "cf4a1f2f252d229966001e15454c5ba02a7ace047b181b235e3a2c4aebcf3ba7",
+      "thresholds": [0.3, 0.5, 0.7]
+    }
+  ]
+}

@@ -45,6 +45,8 @@
     .candidate-link { stroke:var(--cyan); stroke-width:4; stroke-dasharray:7 6; vector-effect:non-scaling-stroke; pointer-events:none; }
     .track-dot { fill:#071014; stroke:var(--cyan); stroke-width:4; vector-effect:non-scaling-stroke; }
     .track-dot.active { fill:var(--cyan); }
+    .track-dot.excluded,.track-dot.contaminated { fill:#2b1010; stroke:#ff6b6b; }
+    .track-dot.provisional { fill:#2b250d; stroke:var(--warn); }
     .track-label { fill:#e9fbff; font-size:12px; paint-order:stroke; stroke:#080a0b; stroke-width:4px; stroke-linejoin:round; pointer-events:none; }
     .monitor-summary { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .metric { border:1px solid var(--line); padding:9px; }
@@ -257,8 +259,9 @@ function renderMonitor(){
   }
   monitorState.tracks.forEach((track,index)=>{
     const p=positions.get(track.track_id),g=svgEl('g');
-    const dot=svgEl('circle',{cx:p.x*W,cy:p.y*H,r:track.status==='active'?11:8,class:'track-dot'+(track.status==='active'?' active':'')});
-    const title=svgEl('title'); title.textContent=`${track.camera_id} · ${track.status} · ${track.age_seconds}s`; dot.append(title);
+    const eligibility=track.track_eligibility?.state||'eligible';
+    const dot=svgEl('circle',{cx:p.x*W,cy:p.y*H,r:track.status==='active'?11:8,class:`track-dot${track.status==='active'?' active':''} ${eligibility}`});
+    const title=svgEl('title'); title.textContent=`${track.camera_id} · ${track.status} · validez ${eligibility} · ${track.age_seconds}s`; dot.append(title);
     const label=svgEl('text',{x:p.x*W+14,y:p.y*H-12,class:'track-label'}); label.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
     g.append(dot,label); layer.append(g);
   });
@@ -279,13 +282,15 @@ function renderMonitorPanel(tracksById){
   live.replaceChildren();
   const summary=document.createElement('div'); summary.className='monitor-summary';
   const active=monitorState.tracks.filter(track=>track.status==='active').length;
-  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); live.append(summary);
+  const rejected=monitorState.tracks.filter(track=>['excluded','contaminated'].includes(track.track_eligibility?.state)).length;
+  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('NO VÁLIDOS',rejected),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); live.append(summary);
   live.append(sectionTitle('Tracks locales'));
   const trackList=document.createElement('div');trackList.className='list';
   for(const track of monitorState.tracks.slice(0,30)){
     const card=document.createElement('div');card.className='monitor-card '+track.status;
     const name=document.createElement('strong');name.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
-    const meta=document.createElement('span');meta.className='meta';meta.textContent=`${track.space_id||'sin espacio'} · ${track.status} · hace ${track.age_seconds.toFixed(1)}s`;
+    const eligibility=track.track_eligibility||{state:'eligible',reason:'legacy_or_unclassified_track'};
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=`${track.space_id||'sin espacio'} · ${track.status} · validez ${eligibility.state} (${eligibility.reason||'sin motivo'}) · hace ${track.age_seconds.toFixed(1)}s`;
     card.append(name,meta);trackList.append(card);
   }
   if(!monitorState.tracks.length)trackList.append(emptyHint('Sin tracks dentro de la ventana.'));
@@ -361,17 +366,19 @@ function renderValidationReport(box,session){
     const name=document.createElement('strong');name.textContent=`${track.camera_id}:${track.local_track_id??'?'}`;
     const select=document.createElement('select');select.append(new Option('Sin evaluar',''));
     for(const alias of session.subjects)select.append(new Option(`Persona ${alias}`,`person:${alias}`));
-    select.append(new Option('Falso positivo','false_positive'),new Option('Dudoso / no clasificable','uncertain'));
+    select.append(
+      new Option('Persona fuera de prueba','out_of_scope_person'),
+      new Option('Falso positivo','false_positive'),
+      new Option('Dudoso / no clasificable','uncertain')
+    );
     const classification=annotations.track_classifications[track.track_id];
     select.value=classification==='person'&&annotations.track_subjects[track.track_id]?`person:${annotations.track_subjects[track.track_id]}`:(classification||'');
     select.onchange=()=>{
+      for(const candidate of report.candidates){if(candidate.origin_track_id===track.track_id||candidate.destination_track_id===track.track_id)delete annotations.candidate_verdicts[candidate.candidate_id];}
       delete annotations.track_subjects[track.track_id];
       if(select.value.startsWith('person:')){annotations.track_classifications[track.track_id]='person';annotations.track_subjects[track.track_id]=select.value.slice(7);}
       else if(select.value)annotations.track_classifications[track.track_id]=select.value;
       else delete annotations.track_classifications[track.track_id];
-      if(select.value==='false_positive'){
-        for(const candidate of report.candidates){if(candidate.origin_track_id===track.track_id||candidate.destination_track_id===track.track_id)delete annotations.candidate_verdicts[candidate.candidate_id];}
-      }
       saveAnnotations(session);
     };
     detail.append(name,select);row.append(detail);box.append(row);
@@ -381,9 +388,9 @@ function renderValidationReport(box,session){
   for(const candidate of report.candidates){
     const row=document.createElement('div');row.className='monitor-card';
     const origin=byId.get(candidate.origin_track_id),destination=byId.get(candidate.destination_track_id);
-    const excluded=[candidate.origin_track_id,candidate.destination_track_id].some(trackId=>annotations.track_classifications[trackId]==='false_positive');
+    const excluded=[candidate.origin_track_id,candidate.destination_track_id].some(trackId=>['out_of_scope_person','false_positive'].includes(annotations.track_classifications[trackId]));
     const name=document.createElement('strong');name.textContent=`${origin?.camera_id||'?'}:${origin?.local_track_id||'?'} → ${destination?.camera_id||'?'}:${destination?.local_track_id||'?'}`;
-    const meta=document.createElement('span');meta.className='meta';meta.textContent=excluded?'EXCLUIDO · incluye falso positivo':`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
+    const meta=document.createElement('span');meta.className='meta';meta.textContent=excluded?'EXCLUIDO DE REID A/B':`ranking ${candidate.visual_ranking==null?'pendiente':candidate.visual_ranking.toFixed(3)} · gap ${candidate.gap_seconds.toFixed(2)}s`;
     const select=document.createElement('select');
     for(const [value,label] of [['','Sin evaluar'],['same_person','Misma persona'],['different_person','Persona diferente'],['uncertain','Dudoso']])select.append(new Option(label,value));
     select.value=annotations.candidate_verdicts[candidate.candidate_id]||'';

@@ -181,6 +181,18 @@ class TrackingStore:
         self._connection.commit()
         return cursor.rowcount
 
+    def remove_handoff_candidates_for_track(self, track_id: str) -> int:
+        """Remove derived candidates touching a newly ineligible track."""
+        cursor = self._connection.execute(
+            """
+            DELETE FROM handoff_candidates
+            WHERE origin_track_id = ? OR destination_track_id = ?
+            """,
+            (track_id, track_id),
+        )
+        self._connection.commit()
+        return cursor.rowcount
+
     def save_handoff_candidate(self, candidate: dict[str, Any]) -> bool:
         return self.save_handoff_candidates([candidate]) == 1
 
@@ -473,6 +485,8 @@ def _project_state(
 ) -> dict[str, Any]:
     phase = update["phase"]
     lifecycle = update["quality"]["source_lifecycle"]
+    issues = update["quality"].get("issues", [])
+    enrichment_only = "classification_enrichment_only" in issues
     observed_at = update["observed_at"] or update["published_at"]
     current_status = str(current["status"]) if current else None
     current_end_reason = (
@@ -495,13 +509,16 @@ def _project_state(
 
     current_first = str(current["first_observed_at"]) if current else None
     current_last = str(current["last_observed_at"]) if current else None
-    first_observed_at = _earliest_timestamp(current_first, observed_at)
-    last_observed_at = _latest_timestamp(
-        current_last, observed_at
-    )
-    is_latest_observation = current_last is None or datetime.fromisoformat(
-        observed_at
-    ) >= datetime.fromisoformat(current_last)
+    if current and enrichment_only:
+        first_observed_at = current_first
+        last_observed_at = current_last
+        is_latest_observation = False
+    else:
+        first_observed_at = _earliest_timestamp(current_first, observed_at)
+        last_observed_at = _latest_timestamp(current_last, observed_at)
+        is_latest_observation = current_last is None or datetime.fromisoformat(
+            observed_at
+        ) >= datetime.fromisoformat(current_last)
     ended_at = str(current["ended_at"]) if current and current["ended_at"] else None
     if phase in {"new", "update"} and current_end_reason == "timeout":
         ended_at = None
@@ -520,6 +537,19 @@ def _project_state(
 
     old_attributes = json.loads(current["attributes_json"]) if current else {}
     attributes = {**old_attributes, **update["attributes"]}
+    old_eligibility = old_attributes.get("track_eligibility")
+    incoming_eligibility = update["attributes"].get("track_eligibility")
+    if (
+        isinstance(old_eligibility, dict)
+        and isinstance(incoming_eligibility, dict)
+        and incoming_eligibility.get("state") == "provisional"
+        and old_eligibility.get("state") in {
+            "eligible",
+            "excluded",
+            "contaminated",
+        }
+    ):
+        attributes["track_eligibility"] = old_eligibility
     old_media = json.loads(current["media_json"]) if current else []
     media = _merge_media(old_media, update["media"])
     confidence = update["subject"]["confidence"]
@@ -549,7 +579,11 @@ def _project_state(
         ),
         "last_received_at": received_text,
         "last_received_us": received_us,
-        "last_phase": phase,
+        "last_phase": (
+            str(current["last_phase"])
+            if current and enrichment_only
+            else phase
+        ),
         "max_sequence": max(
             int(current["max_sequence"]) if current else 0, int(update["sequence"])
         ),
@@ -558,7 +592,11 @@ def _project_state(
         "zones_json": zones_json,
         "attributes_json": _json(attributes),
         "media_json": _json(media),
-        "quality_status": update["quality"]["status"],
+        "quality_status": (
+            str(current["quality_status"])
+            if current and enrichment_only
+            else update["quality"]["status"]
+        ),
     }
 
 

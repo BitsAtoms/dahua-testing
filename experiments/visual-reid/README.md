@@ -1,191 +1,180 @@
-# Visual re-identification experiment
+# Visual tracking experiment
 
-This isolated experiment will add visual evidence to spatial-temporal handoff
-candidates. It does not name people, search a watchlist or turn a camera-local
-track ID into a persistent identity by itself.
+This experiment builds anonymous person continuity from source-specific camera
+data. It does not name people, create a watchlist or treat a camera-local ID as
+a persistent identity.
 
-The first data path is:
+The active plan and acceptance gates live in [ROADMAP.md](ROADMAP.md). Concise
+evidence from completed experiments lives in
+[VALIDATION_HISTORY.md](VALIDATION_HISTORY.md); it is not required reading for
+normal implementation work.
+
+## Architecture
 
 ```text
-track_update.v1 media
- -> source-neutral media catalog
- -> face/body quality gate
- -> local embedding extractor
- -> similarity evidence
- -> fusion with topology and time
- -> provisional global track
+Dahua collector ── native events, metadata and crops ──┐
+                                                       ├─ normalized evidence
+Frigate adapter ─ MQTT lifecycle events and snapshots ─┘          │
+                                                                  │
+RTSP frame source -> detector -> local tracker provider -----------┤
+                                                                  v
+                                                     local tracklets
+                                                                  │
+                                             ReID + time + topology
+                                                                  v
+                                              provisional sequences
 ```
 
-All processing stays on the local computer. Images and derived embeddings must
-follow the same seven-day retention policy. Model weights are versioned
-dependencies, not generated event data. Do not commit captured images,
-embeddings, credentials or a named face gallery.
+The collectors and the future video tracker have different responsibilities:
 
-## Audit retained media
+- Dahua and Frigate preserve source events, identifiers and native media.
+- The video tracker maintains stable anonymous IDs inside each camera.
+- The tracking engine relates local tracklets across cameras and may return
+  `pending` or `unknown`; it must not force an identity decision.
+- Source events enrich and audit video tracks. They are too sparse to replace
+  regular frame-level detections required by a local tracker.
 
-From the repository root:
+## Current state
+
+- Dahua and Frigate events are normalized without discarding source IDs.
+- Native and adaptive body/face media can be correlated to a local track.
+- RTSP buffers are bounded and can raise capture rate while evidence is weak.
+- Face and body templates are built from quality-ranked observations.
+- Detector consensus runs in shadow mode and never suppresses a live track.
+- Norfair and Open Model Zoo were evaluated only as isolated tracker
+  baselines. Neither meets the two-person acceptance gate.
+- BoT-SORT-ReID is the next local-tracker candidate. It is not installed or
+  connected to the live stack yet.
+
+The local supervisor remains the supported way to run the current services.
+See [the supervisor README](../../services/local-supervisor/README.md).
+
+## Data and privacy boundary
+
+All processing is local. Do not commit captures, embeddings, credentials,
+camera URLs or named biometric galleries. Runtime media follows seven-day
+retention. Embeddings are transient unless an explicit product and privacy
+decision changes that contract.
+
+Generated data and local configuration belong under ignored paths:
+
+```text
+experiments/visual-reid/models/
+experiments/visual-reid/output/
+experiments/visual-reid/adaptive-capture.local.json
+runtime/
+```
+
+## Environment and models
+
+Create an isolated environment and download the pinned model files:
 
 ```powershell
-python experiments/visual-reid/audit_media.py
+python -m venv experiments/visual-reid/.venv
+experiments/visual-reid/.venv/Scripts/python.exe -m pip install `
+  -r experiments/visual-reid/requirements.txt
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/download_models.py
 ```
 
-The audit reads the receiver database in read-only mode. It reports whether
-each normalized media reference still exists and obtains JPEG dimensions
-without decoding or copying the image.
+`model-manifest.json` records model source, license, size and checksum. Model
+weights stay outside Git. The active providers use OpenVINO on CPU; hardware
+acceleration must remain behind a provider boundary.
 
-Current source capabilities:
+The previous Norfair/Open Model Zoo comparison uses the separate
+`.venv-norfair` environment and `requirements-norfair.txt`. These dependencies
+are temporary benchmark tooling and must not enter the supervisor environment.
 
-- Dahua supplies semantic `face`, `body` and panoramic roles. Its native face
-  crop is the preferred facial input.
-- Frigate currently supplies a full `snapshot`. A local detector must find and
-  quality-check a face and body crop before embeddings are extracted. When
-  Frigate's own face processor retained an event-correlated crop, the adapter
-  now publishes that crop as the preferred `face` role and avoids duplicate
-  detection.
-- The tested Reception view is overhead; its latest snapshot shows useful body
-  appearance but not a reliable frontal face. Body re-identification is
-  therefore required as a fallback for that transition.
+## Adaptive capture
 
-## Model boundary
-
-Keep inference behind a provider-neutral interface so the prototype can run on
-CPU and a later deployment can benchmark its second GPU. The first model
-evaluation will compare explicitly licensed face and person re-identification
-models; weights are not downloaded until their exact license and provenance
-are recorded.
-
-The pinned manifest records exact official URLs, byte lengths and SHA-384
-checksums. Downloaded weights stay outside Git:
+Copy `adaptive-capture.example.json` to the ignored
+`adaptive-capture.local.json`, define its URL environment variables in `.env`,
+and run:
 
 ```powershell
-python experiments/visual-reid/download_models.py
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/adaptive_capture_service.py --verbose
 ```
 
-Candidate baselines include Intel Open Model Zoo's Apache-2.0 person
-re-identification model and the FaceNet TFLite model used by Frigate's `small`
-face-recognition backend. FaceNet produces a 512-value anonymous embedding and
-accepts the small event-correlated crops that Frigate already retained. This
-project downloads and verifies its own pinned copy; it does not read Frigate's
-runtime cache. The previous Open Model Zoo face model remains in the manifest
-as a reproducible baseline, but it is not the live evaluator because its
-80-pixel quality gate rejected the tested Frigate crops.
+The service maintains bounded per-camera JPEG buffers, correlates live event
+boxes to nearby frames and keeps only the best temporally diverse body/face
+crops. It creates RTSP crops only from live `new` or `update` observations;
+terminal and finalized events must use source-correlated native media.
 
-The repository license covers redistribution of the model artifact, but model
-training-data provenance and the deployment's biometric/privacy obligations
-still require a separate product/legal review before production use.
+The current frame buffers are the intended starting point for a shared frame
+source. The BoT-SORT integration must reuse or replace them deliberately so the
+application does not create multiple independent RTSP decoders per camera.
 
-Official references:
+## Evidence and sequence tools
 
-- https://github.com/openvinotoolkit/open_model_zoo
-- https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/face-reidentification-retail-0095
-- https://github.com/NickM-27/facenet-onnx
-- https://github.com/opencv/opencv_zoo
-
-## Next validation
-
-1. Confirm the media catalog is complete for Dahua and all Frigate cameras.
-2. Add face detection, alignment and an explicit quality result (`usable`,
-   `missing`, `too_small`, `blurred`, `profile`, or `occluded`).
-3. Add a body-crop extractor for overhead/non-frontal views.
-4. Generate ephemeral embeddings for the controlled
-   `Dahua -> Reception -> Dahua` tracks.
-5. Compare true pairs against known different-person pairs before choosing
-   thresholds.
-6. Feed calibrated visual scores into candidate fusion; never treat a raw
-   similarity threshold as proof of identity.
-
-For controlled, ephemeral body comparisons, use the experiment venv and pass
-two or more complete normalized track IDs:
+Audit retained media:
 
 ```powershell
-experiments\visual-reid\.venv\Scripts\python.exe `
-  experiments\visual-reid\compare_tracks.py TRACK_A TRACK_B
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/audit_media.py
 ```
 
-The command prints pairwise cosine similarities but does not persist vectors.
-It refuses to score crops that are too small or have an overhead/horizontal
-shape unsupported by the selected upright-person model; unavailable evidence
-must remain neutral during later score fusion.
-
-Native Dahua face crops can be aligned and compared with:
+Compare anonymous body or face evidence without persisting embeddings:
 
 ```powershell
-experiments\visual-reid\.venv\Scripts\python.exe `
-  experiments\visual-reid\compare_faces.py TRACK_A TRACK_B
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/compare_tracks.py TRACK_A TRACK_B
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/compare_faces.py TRACK_A TRACK_B
 ```
 
-This path uses the official five-landmark regressor to align the crop and then
-the pinned FaceNet model to create the embedding. Crops from 24 to 79 pixels
-are retained as `usable_low_resolution` instead of being presented as normal
-quality. A controlled same-person/different-person dataset is still required
-before any threshold is selected.
-
-### Initial controlled face baseline
-
-On 2026-09-16, four new Dahua face captures covered two physical people. The
-quality gate rejected one side-profile capture. The remaining comparisons were:
-
-- same person, frontal/frontal: cosine similarity `0.639941`;
-- different people: `0.083520` and `0.198536`;
-- side profile: `unavailable`, rather than a false negative.
-
-This proves that the local extraction path can produce useful separation. It
-is not enough data to establish a production identity threshold; calibration
-must include more people, poses, lighting conditions and cameras.
-
-### Preliminary FaceNet cross-camera probe
-
-After the Frigate adapter began publishing event-correlated face crops, an
-ephemeral probe compared one subject across Dahua, Reception and Meetings. The
-same-person cosine similarities were `0.6114`, `0.4918` and `0.4972`; two
-available different-person comparisons were `0.3112` and `0.2039`. Inputs
-ranged from a native Dahua `928x928` crop down to a Frigate `25x31` crop.
-
-This small probe justifies evaluating FaceNet in the worker, but it does not
-define an identity threshold or prove general accuracy. The next controlled
-test must include both people through all three cameras and retain labels only
-inside the validation session.
-
-The first end-to-end adapter validation then compared event-correlated
-Reception (`45x64`) and Meetings (`48x56`) crops from one traversal. Both were
-reported as `usable_low_resolution` and scored `0.636317`. The Dahua event in
-that traversal contained body and panoramic media but no face, so no facial
-score was fabricated for the first handoff.
-
-Inspect recent handoff candidates with each raw evidence channel kept separate:
+Resolve a labelled validation session:
 
 ```powershell
-experiments\visual-reid\.venv\Scripts\python.exe `
-  experiments\visual-reid\score_handoffs.py --limit 10
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/resolve_sequences.py SESSION_ID
 ```
 
-This command is read-only and ephemeral. `n/a` means that a modality is
-missing or failed its quality gate; score fusion must treat it as neutral.
+These scores are evidence channels, not calibrated probabilities. Missing or
+low-quality evidence remains neutral.
 
-## Continuous evidence worker
+## Detector and tracker benchmarks
 
-Run the asynchronous worker with the experiment environment:
+`capture_detector_benchmark.py` records bounded clips from URLs supplied by
+environment variable. It never writes the URL into the capture manifest.
 
 ```powershell
-experiments\visual-reid\.venv\Scripts\python.exe `
-  experiments\visual-reid\live_service.py
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/capture_detector_benchmark.py `
+  --camera reuniones_terminator=VISUAL_REID_RTSP_REUNIONES_TERMINATOR `
+  --scenario two_person_crossing --expected-person mixed --duration 90
 ```
 
-It polls new handoff candidates, caches embeddings only in process memory and
-persists `visual_handoff_evidence.v1` under
-`runtime/visual-reid/evidence.sqlite3`. Stored evidence contains scores,
-quality, model version and an explicit `identity_decision: null`; no embedding
-vector is written. Evidence follows seven-day retention.
+Existing detector, Norfair and Open Model Zoo scripts remain only to reproduce
+the baseline summarized in `VALIDATION_HISTORY.md`. The BoT-SORT experiment
+must consume regular per-frame detections from its intended detector. It must
+not be judged only from the sparse high-confidence consensus export, because
+that removes weak detections used to bridge occlusions.
 
-The provisional ranking weights are timing 35%, face 40%, body 20% and weak
-color 5%. Missing modalities contribute no support and reduce
-`visual_coverage`; they are not interpreted as a mismatch. The ranking is for
-candidate ordering only and is explicitly not an identity probability.
-Use `--verbose` only for diagnostics when one output line per evaluated
-candidate is needed; normal continuous operation prints one summary per batch.
+## Validation discipline
 
-Track media can arrive after the source's `end` update, especially for Frigate
-snapshots. The worker fingerprints both tracks' latest receiver revisions and
-invalidates its in-memory embedding cache when either revision changes. A
-candidate first evaluated without media is therefore evaluated again after
-late snapshot enrichment instead of remaining permanently `n/a`.
+Every tracker candidate is tested first on immutable recordings. A live
+integration starts in shadow mode and cannot affect occupancy or handoffs.
+
+Minimum local-tracker cases:
+
+1. empty scene and persistent non-person interference;
+2. one moving and one seated person;
+3. two people sequentially;
+4. two people crossing and partially occluding;
+5. detector gaps and reappearance;
+6. RTSP interruption and restart.
+
+The two-person gate requires exactly two identity-pure tracks and no observed
+ID switch. Final deployment still needs a short site acceptance test because
+camera height, lighting and occlusion patterns change detector coverage.
+
+## Implementation rules
+
+- Keep source adapters separate from normalized tracking logic.
+- Preserve raw source payloads and local IDs for audit.
+- Define a provider-neutral local tracker contract before live integration.
+- Decode each RTSP stream once inside our application boundary.
+- Never count a source event and its correlated video track as two occupants.
+- Version model and policy changes in retained evidence.
+- Prefer `pending` over a weak or contradictory identity assignment.

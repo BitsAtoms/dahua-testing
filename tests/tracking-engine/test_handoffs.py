@@ -156,6 +156,53 @@ class HandoffEngineTests(unittest.TestCase):
         self.assertEqual(changed.candidates, 0)
         self.assertEqual(self.store.handoff_candidate_count(), 0)
 
+    def test_excluded_track_is_removed_from_existing_handoffs(self) -> None:
+        self.store.project(message("track-a", "cam-a", "end", NOW), NOW)
+        self.store.project(
+            message("track-b", "cam-b", "new", NOW + timedelta(seconds=4)),
+            NOW + timedelta(seconds=4),
+        )
+        engine = HandoffEngine(self.map_path, self.store)
+        self.assertEqual(engine.sync_topology().candidates, 1)
+        excluded = message(
+            "track-b", "cam-b", "update", NOW + timedelta(seconds=5)
+        )
+        excluded["attributes"] = {
+            "track_eligibility": {
+                "state": "excluded",
+                "reason": "source_object_classification",
+            }
+        }
+
+        result = self.store.project(excluded, NOW + timedelta(seconds=5))
+        engine.on_projected(excluded, result)
+
+        self.assertEqual(self.store.handoff_candidate_count(), 0)
+        self.assertEqual(engine.rebuild(), 0)
+
+    def test_provisional_tracks_remain_candidates_but_are_explicit(self) -> None:
+        origin = message("track-a", "cam-a", "end", NOW)
+        origin["attributes"] = {
+            "track_eligibility": {
+                "state": "provisional",
+                "reason": "awaiting_source_classification",
+            }
+        }
+        self.store.project(origin, NOW)
+        self.store.project(
+            message("track-b", "cam-b", "new", NOW + timedelta(seconds=4)),
+            NOW + timedelta(seconds=4),
+        )
+
+        sync = HandoffEngine(self.map_path, self.store).sync_topology()
+
+        self.assertEqual(sync.candidates, 1)
+        evidence = self.store.list_handoff_candidates()[0]["evidence"]
+        self.assertEqual(
+            evidence["track_eligibility"],
+            {"origin": "provisional", "destination": "eligible"},
+        )
+
     def test_restart_reuses_persisted_projection_for_unchanged_map(self) -> None:
         self.store.project(message("track-a", "cam-a", "end", NOW), NOW)
         self.store.project(

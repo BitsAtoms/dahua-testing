@@ -15,6 +15,7 @@ from .topology import SpaceTopology
 
 
 TOPOLOGY_FINGERPRINT_KEY = "handoff_projection.v3.topology_fingerprint"
+IDENTITY_INELIGIBLE_STATES = {"excluded", "contaminated"}
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,10 @@ class HandoffEngine:
         self, update: dict[str, Any], result: ProjectionResult
     ) -> int:
         if not result.applied or self.topology is None:
+            return 0
+        track = self.store.get_track(result.track_id)
+        if track and _eligibility_state(track) in IDENTITY_INELIGIBLE_STATES:
+            self.store.remove_handoff_candidates_for_track(result.track_id)
             return 0
         created = self.evaluate_destination(result.track_id)
         if result.status == "ended":
@@ -147,6 +152,13 @@ class HandoffEngine:
         destination_space: str,
     ) -> list[dict[str, Any]]:
         assert self.topology is not None
+        origin_eligibility = _eligibility_state(origin)
+        destination_eligibility = _eligibility_state(destination)
+        if (
+            origin_eligibility in IDENTITY_INELIGIBLE_STATES
+            or destination_eligibility in IDENTITY_INELIGIBLE_STATES
+        ):
+            return []
         if origin["track_id"] == destination["track_id"]:
             return []
         if origin["subject_type"] != destination["subject_type"]:
@@ -182,6 +194,10 @@ class HandoffEngine:
             evidence = {
                 "kind": "spatial_temporal_only",
                 "ranking_not_identity_probability": True,
+                "track_eligibility": {
+                    "origin": origin_eligibility,
+                    "destination": destination_eligibility,
+                },
                 "topology": {
                     "transition_id": transition.transition_id,
                     "origin_space_id": origin_space,
@@ -222,3 +238,9 @@ class HandoffEngine:
 def _candidate_id(origin: str, destination: str, transition: str) -> str:
     wire = f"{origin}\0{destination}\0{transition}".encode("utf-8")
     return "handoff:" + hashlib.sha256(wire).hexdigest()
+
+
+def _eligibility_state(track: dict[str, Any]) -> str:
+    eligibility = track.get("attributes", {}).get("track_eligibility", {})
+    state = eligibility.get("state") if isinstance(eligibility, dict) else None
+    return state if isinstance(state, str) else "eligible"

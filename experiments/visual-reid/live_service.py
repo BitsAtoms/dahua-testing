@@ -14,6 +14,7 @@ from typing import Any
 
 from visual_reid.evaluator import VisualEvaluator, candidate_fingerprint
 from visual_reid.evidence_store import EvidenceStore
+from visual_reid.adaptive_media import adaptive_media_revisions
 
 
 ROOT = Path(__file__).resolve().parent
@@ -42,6 +43,11 @@ def main() -> int:
         type=Path,
         default=Path("runtime/visual-reid/evidence.sqlite3"),
     )
+    parser.add_argument(
+        "--adaptive-media-database",
+        type=Path,
+        default=Path("runtime/visual-reid/adaptive-media.sqlite3"),
+    )
     args = parser.parse_args()
     if args.batch_size <= 0 or args.poll_seconds <= 0 or args.since_hours <= 0:
         raise ValueError("batch-size, poll-seconds and since-hours must be positive")
@@ -50,7 +56,12 @@ def main() -> int:
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, lambda *_args: stop.set())
     signal.signal(signal.SIGTERM, lambda *_args: stop.set())
-    evaluator = VisualEvaluator(args.receiver_database, ROOT, args.device)
+    evaluator = VisualEvaluator(
+        args.receiver_database,
+        ROOT,
+        args.device,
+        args.adaptive_media_database,
+    )
     with EvidenceStore(args.database) as store:
         print(
             f"visual_reid_started model={evaluator.model_version} "
@@ -62,6 +73,34 @@ def main() -> int:
                 args.tracking_database,
                 round(cutoff.timestamp() * 1_000_000),
             )
+            track_ids = list(
+                dict.fromkeys(
+                    track_id
+                    for item in candidates
+                    for track_id in (
+                        item["origin_track_id"],
+                        item["destination_track_id"],
+                    )
+                )
+            )
+            adaptive_revisions = adaptive_media_revisions(
+                args.adaptive_media_database, track_ids
+            )
+            for item in candidates:
+                item["origin_adaptive_revision_us"] = adaptive_revisions.get(
+                    item["origin_track_id"], 0
+                )
+                item["destination_adaptive_revision_us"] = adaptive_revisions.get(
+                    item["destination_track_id"], 0
+                )
+                item["origin_revision_us"] = max(
+                    int(item["origin_revision_us"]),
+                    int(item["origin_adaptive_revision_us"]),
+                )
+                item["destination_revision_us"] = max(
+                    int(item["destination_revision_us"]),
+                    int(item["destination_adaptive_revision_us"]),
+                )
             current = store.current_fingerprints(evaluator.model_version)
             eligible = [
                 item
