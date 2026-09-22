@@ -45,10 +45,13 @@ The collectors and the future video tracker have different responsibilities:
   baselines. Neither meets the two-person acceptance gate.
 - Roboflow BoT-SORT and Deep SORT Realtime/OpenVINO are implemented behind the
   neutral provider contract, but both failed the Meetings fragmentation gate.
-- BoxMOT is technically current but blocked by its AGPL-3.0 license pending an
-  explicit product decision.
-- DeepStream 9.1 is the next candidate. Docker can expose this host's RTX 3050
-  to Linux/CUDA containers; no candidate is connected to the live stack yet.
+- BoxMOT 25.0.0 is available behind the same neutral contract for this
+  internal, non-commercial demo. Its four tested ReID trackers did not pass
+  the Meetings gate: BoT-SORT fragmented one person, while OccluBoost made an
+  unsafe person-to-interference merge.
+- DeepStream 9.1 is the parallel integrated-pipeline benchmark. Docker can
+  expose this host's RTX 3050 to Linux/CUDA containers; no candidate is
+  connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).
@@ -94,6 +97,16 @@ recorded in `local-tracker-sources.json`. The Python baselines use the separate
 `.venv-trackers` environment and `requirements-local-tracker.txt` because
 their NumPy requirement is intentionally isolated from the evidence stack.
 
+BoxMOT evaluation uses another isolated environment. Its AGPL-3.0 dependency
+is authorized only for the internal demo described above; reconsider the
+license before distribution, hosted access or commercial use.
+
+```powershell
+python -m venv experiments/visual-reid/.venv-boxmot
+experiments/visual-reid/.venv-boxmot/Scripts/python.exe -m pip install `
+  -r experiments/visual-reid/requirements-boxmot.txt
+```
+
 ## Adaptive capture
 
 Copy `adaptive-capture.example.json` to the ignored
@@ -111,8 +124,9 @@ crops. It creates RTSP crops only from live `new` or `update` observations;
 terminal and finalized events must use source-correlated native media.
 
 The current frame buffers are the intended starting point for a shared frame
-source. The BoT-SORT integration must reuse or replace them deliberately so the
-application does not create multiple independent RTSP decoders per camera.
+source. Any accepted tracker integration must reuse or replace them
+deliberately so the application does not create multiple independent RTSP
+decoders per camera.
 
 ## Evidence and sequence tools
 
@@ -155,10 +169,10 @@ experiments/visual-reid/.venv/Scripts/python.exe `
 ```
 
 Existing detector, Norfair and Open Model Zoo scripts remain only to reproduce
-the baseline summarized in `VALIDATION_HISTORY.md`. The BoT-SORT experiment
-must consume regular per-frame detections from its intended detector. It must
-not be judged only from the sparse high-confidence consensus export, because
-that removes weak detections used to bridge occlusions.
+the baseline summarized in `VALIDATION_HISTORY.md`. Local-tracker experiments
+must consume regular per-frame detections from their intended detector. They
+must not be judged only from the sparse high-confidence consensus export,
+because that removes weak detections used to bridge occlusions.
 
 ## Validation discipline
 

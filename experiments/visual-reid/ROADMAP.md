@@ -20,10 +20,12 @@ Current branch: `codex/botsort-local-tracker`.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
-Meetings gate. BoxMOT is blocked by AGPL-3.0. The next benchmark is the
-maintained DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT pipeline; this host's
-Docker GPU path has been validated. Dahua and Frigate events remain source
-evidence and audit inputs.
+Meetings gate. BoxMOT is authorized for this internal demo, but all four tested
+ReID trackers also failed: its BoT-SORT is the least unsafe result and still
+fragments one person, while OccluBoost merges people with persistent false
+positives. DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT is the parallel
+integrated-pipeline benchmark; this host's Docker GPU path has been validated.
+Dahua and Frigate events remain source evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -65,12 +67,15 @@ directly into BoT-SORT before the complete detector/tracker pipeline is tested.
   `LocalTrackerProvider` contracts.
 - [x] Run full-frame detector + Roboflow BoT-SORT and Deep SORT Realtime/0287
   over the immutable Meetings recording at 10 FPS.
+- [x] Implement and benchmark BoxMOT 25.0.0 BoT-SORT, Deep OC-SORT,
+  StrongSORT and OccluBoost behind the same provider contract.
 - [~] Measure track count, fragmentation, false tracks and latency. GPU/memory
   and full ID-switch metrics remain for DeepStream.
 - [ ] Pass the Meetings two-person gate: exactly two identity-pure tracks with
   no observed switch.
 - [ ] Pass empty, interference, seated, one-person and stream-loss cases.
-- [x] Reject the tested BoT-SORT and Deep SORT providers for live integration.
+- [x] Reject the tested Roboflow, Deep SORT and BoxMOT configurations for live
+  integration while retaining them as reproducible benchmarks.
 - [ ] Extend the contract with explicit supersession only if a provider uses
   delayed tracklet merging; never silently rewrite an emitted ID.
 - [ ] Benchmark DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT in its official
@@ -147,7 +152,10 @@ degrades to observable uncertainty rather than a silent wrong identity.
 4. [x] Create `codex/botsort-local-tracker` from that checkpoint.
 5. [x] Audit and pin maintained/permissive tracker candidates; record license
    blockers separately.
-6. [x] Define the provider contract and benchmark two complete local pipelines
-   on the existing Meetings recording.
-7. [ ] Complete the DeepStream image, run PeopleNet + NvDCF/NvDeepSORT on the
-   immutable test matrix and decide whether to proceed to live shadow mode.
+6. [x] Define the provider contract and benchmark the complete Python local
+   pipelines on the existing Meetings recording.
+7. [x] Evaluate BoxMOT's four ReID trackers under the demo's explicit AGPL
+   allowance; retain BoT-SORT only as the least unsafe BoxMOT reference.
+8. [ ] Complete the DeepStream image, run PeopleNet + NvDCF/NvDeepSORT on the
+   immutable test matrix and decide whether any candidate merits live shadow
+   mode.

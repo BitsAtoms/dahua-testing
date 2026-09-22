@@ -79,22 +79,34 @@ the same Meetings capture:
 | Roboflow BoT-SORT 2.6.0 | 12 tracks | 0.44 ms | Reject as motion-only solution |
 | Deep SORT Realtime + OpenVINO 0287, strict | 17 tracks | 0.17 ms | Reject |
 | Deep SORT Realtime + OpenVINO 0287, relaxed | 10 tracks | 0.16 ms | Reject |
+| BoxMOT BoT-SORT 25.0.0 + OSNet | 7 tracks | 41.50 ms | Best BoxMOT result, but reject for fragmentation |
+| BoxMOT Deep OC-SORT 25.0.0 + OSNet | 12 tracks | 38.62 ms | Reject |
+| BoxMOT StrongSORT 25.0.0 + OSNet | 23 tracks | 44.42 ms | Reject |
+| BoxMOT OccluBoost 25.0.0 + OSNet, upstream association | 4 tracks | 44.93 ms | Reject: unsafe identity merge |
+| BoxMOT OccluBoost 25.0.0 + OSNet, conservative appearance | 5 tracks | 47.11 ms | Reject: unsafe identity merge persists |
 
 The relaxed Deep SORT run kept the two principal human IDs distinct in the
 reviewed crossing, but partial/full-body duplicate detections and intermittent
 false detections still created extra IDs. Relaxing association further would
 trade fragmentation for unsafe identity merges.
 
-BoxMOT was technically suitable and current but is AGPL-3.0, so it is blocked
-pending an explicit product licensing decision. Docker Desktop successfully
-exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13 container. This makes an
-isolated DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT benchmark feasible; the
-10.7 GB official image was only partially downloaded during this checkpoint.
+The project owner authorized BoxMOT's AGPL-3.0 code for this internal,
+non-commercial showroom demo. It was integrated behind the neutral provider
+contract and tested on CPU with `osnet_x0_25_msmt17.pt`. The smaller
+OccluBoost counts were misleading: visual and temporal review showed a track
+starting on a person and ending on the persistent extreme-right false
+positive. Its conservative appearance thresholds did not prevent the merge.
+
+Docker Desktop successfully exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13
+container. This makes an isolated DeepStream 9.1 PeopleNet +
+NvDCF/NvDeepSORT benchmark feasible; the 10.7 GB official image was only
+partially downloaded during this checkpoint.
 
 ## Current decision
 
 Keep the neutral provider contract and the collectors as independent evidence
-inputs. Do not promote Roboflow BoT-SORT or Deep SORT Realtime. Benchmark the
+inputs. Do not promote any tested Python tracker to live use. BoxMOT BoT-SORT
+is the least unsafe BoxMOT reference, not a passing provider. Benchmark the
 integrated DeepStream detector/tracker pipeline next. Open Model Zoo remains
 the best Apache-2.0 offline reference, but its delayed merges require an
 explicit track-supersession contract before live use.

@@ -21,6 +21,7 @@ from .deep_sort_realtime_provider import (
     DeepSortRealtimeConfig,
     DeepSortRealtimeProvider,
 )
+from .boxmot_provider import BoxMotConfig, BoxMotProvider
 from .adaptive_media import AdaptiveMediaStore, adaptive_media_revisions
 from .quality import QualityAssessment, assess_image_quality
 from .rtsp_buffer import BufferedFrame, RollingJpegBuffer, RtspBufferWorker
@@ -53,6 +54,8 @@ __all__ = [
     "PixelBox",
     "DeepSortRealtimeConfig",
     "DeepSortRealtimeProvider",
+    "BoxMotConfig",
+    "BoxMotProvider",
     "QualityAssessment",
     "RollingJpegBuffer",
     "SequenceResolution",

@@ -16,6 +16,7 @@ from visual_reid.deep_sort_realtime_provider import (
     DeepSortRealtimeConfig,
     DeepSortRealtimeProvider,
 )
+from visual_reid.boxmot_provider import BoxMotConfig, BoxMotProvider
 from visual_reid.local_tracking import (
     DetectionFrame,
     FrameDetection,
@@ -36,7 +37,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-id", default="offline_camera")
     parser.add_argument(
         "--provider",
-        choices=("roboflow-botsort", "deepsort-openvino"),
+        choices=(
+            "roboflow-botsort",
+            "deepsort-openvino",
+            "boxmot-botsort",
+            "boxmot-deepocsort",
+            "boxmot-strongsort",
+            "boxmot-occluboost",
+        ),
         default="roboflow-botsort",
     )
     parser.add_argument("--sample-fps", type=float, default=10.0)
@@ -54,6 +62,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-cosine-distance", type=float, default=0.3)
     parser.add_argument("--max-iou-distance", type=float, default=0.7)
+    parser.add_argument("--boxmot-reid", default="osnet_x0_25_msmt17.pt")
+    parser.add_argument("--boxmot-device", default="cpu")
+    parser.add_argument("--boxmot-proximity-threshold", type=float, default=0.5)
+    parser.add_argument("--boxmot-appearance-threshold", type=float, default=0.25)
+    parser.add_argument(
+        "--occluboost-recovery-appearance-threshold", type=float, default=0.4
+    )
+    parser.add_argument(
+        "--occluboost-gta-appearance-threshold", type=float, default=0.35
+    )
     parser.add_argument(
         "--full-state-gating",
         action="store_true",
@@ -158,6 +176,16 @@ def main() -> int:
             "max_cosine_distance": args.max_cosine_distance,
             "max_iou_distance": args.max_iou_distance,
             "position_only_gating": not args.full_state_gating,
+            "boxmot_reid": args.boxmot_reid,
+            "boxmot_device": args.boxmot_device,
+            "boxmot_proximity_threshold": args.boxmot_proximity_threshold,
+            "boxmot_appearance_threshold": args.boxmot_appearance_threshold,
+            "occluboost_recovery_appearance_threshold": (
+                args.occluboost_recovery_appearance_threshold
+            ),
+            "occluboost_gta_appearance_threshold": (
+                args.occluboost_gta_appearance_threshold
+            ),
         },
         "sampled_frames": sampled_index,
         "detection_distribution": dict(sorted(detection_distribution.items())),
@@ -200,6 +228,25 @@ def _video_writer(path: Path | None, fps: float, width: int, height: int):
 
 
 def _provider(args):
+    if args.provider.startswith("boxmot-"):
+        return BoxMotProvider(
+            BoxMotConfig(
+                tracker=args.provider.removeprefix("boxmot-"),
+                reid_weights=args.boxmot_reid,
+                device=args.boxmot_device,
+                frame_rate=args.sample_fps,
+                max_age=args.lost_track_buffer,
+                minimum_consecutive_frames=args.minimum_consecutive_frames,
+                botsort_proximity_threshold=args.boxmot_proximity_threshold,
+                botsort_appearance_threshold=args.boxmot_appearance_threshold,
+                occluboost_recovery_appearance_threshold=(
+                    args.occluboost_recovery_appearance_threshold
+                ),
+                occluboost_gta_appearance_threshold=(
+                    args.occluboost_gta_appearance_threshold
+                ),
+            )
+        )
     if args.provider == "deepsort-openvino":
         if not args.reid_model.is_file():
             raise SystemExit(f"ReID model not found: {args.reid_model}")

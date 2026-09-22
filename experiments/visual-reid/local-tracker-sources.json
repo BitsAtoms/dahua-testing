@@ -41,8 +41,11 @@
       "revision_date": "2026-09-18",
       "license": "AGPL-3.0",
       "appearance_reid": true,
-      "status": "license_blocked",
-      "reason": "Technically current and comprehensive, but cannot enter a potentially proprietary product without an explicit AGPL or commercial-license decision."
+      "reid_model": "osnet_x0_25_msmt17.pt",
+      "reid_model_source": "https://drive.google.com/uc?id=1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF",
+      "reid_model_sha256": "6f57607fed9f502b9efed546108132ee715df5a5b6e6932c6269bacb47f59f99",
+      "status": "evaluated_internal_demo",
+      "reason": "The project owner authorized AGPL evaluation for this internal, non-commercial showroom demo. BoT-SORT was the least unsafe BoxMOT candidate but produced seven tracks for two people; OccluBoost produced fewer tracks by incorrectly merging people with persistent false positives. Revisit licensing before distribution, hosted access or commercial use."
     },
     {
       "name": "open-model-zoo-multi-camera-tracker",
@@ -56,11 +59,11 @@
     },
     {
       "name": "nvidia-deepstream-nvdcf",
-      "source": "https://docs.nvidia.com/metropolis/deepstream/9.0/text/DS_plugin_gst-nvtracker.html",
-      "version": "9.x",
+      "source": "https://docs.nvidia.com/metropolis/deepstream/9.1/text/DS_plugin_gst-nvtracker.html",
+      "version": "9.1",
       "license": "NVIDIA SDK terms",
       "appearance_reid": true,
-      "status": "next_platform_benchmark",
+      "status": "parallel_platform_benchmark",
       "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
       "reason": "Maintained detector/tracker/ReID pipeline. Docker Desktop exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13 container; the official image download remains incomplete."
     }
