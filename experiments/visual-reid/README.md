@@ -43,8 +43,12 @@ The collectors and the future video tracker have different responsibilities:
 - Detector consensus runs in shadow mode and never suppresses a live track.
 - Norfair and Open Model Zoo were evaluated only as isolated tracker
   baselines. Neither meets the two-person acceptance gate.
-- BoT-SORT-ReID is the next local-tracker candidate. It is not installed or
-  connected to the live stack yet.
+- Roboflow BoT-SORT and Deep SORT Realtime/OpenVINO are implemented behind the
+  neutral provider contract, but both failed the Meetings fragmentation gate.
+- BoxMOT is technically current but blocked by its AGPL-3.0 license pending an
+  explicit product decision.
+- DeepStream 9.1 is the next candidate. Docker can expose this host's RTX 3050
+  to Linux/CUDA containers; no candidate is connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).
@@ -84,6 +88,11 @@ acceleration must remain behind a provider boundary.
 The previous Norfair/Open Model Zoo comparison uses the separate
 `.venv-norfair` environment and `requirements-norfair.txt`. These dependencies
 are temporary benchmark tooling and must not enter the supervisor environment.
+
+Current local-tracker candidates, revisions, licenses and decisions are
+recorded in `local-tracker-sources.json`. The Python baselines use the separate
+`.venv-trackers` environment and `requirements-local-tracker.txt` because
+their NumPy requirement is intentionally isolated from the evidence stack.
 
 ## Adaptive capture
 

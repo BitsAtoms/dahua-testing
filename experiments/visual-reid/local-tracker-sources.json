@@ -1,0 +1,68 @@
+{
+  "accepted_provider": null,
+  "candidates": [
+    {
+      "name": "original-bot-sort",
+      "source": "https://github.com/NirAharon/BoT-SORT",
+      "revision": "251985436d6712aaf682aaaf5f71edb4987224bd",
+      "revision_date": "2022-10-30",
+      "license": "MIT",
+      "appearance_reid": true,
+      "status": "reference_only",
+      "reason": "The upstream dependency set pins obsolete ONNX components and is not suitable for the live environment unchanged."
+    },
+    {
+      "name": "roboflow-trackers-botsort",
+      "source": "https://github.com/roboflow/trackers",
+      "package": "trackers==2.6.0",
+      "audited_revision": "52610c3ce8eab6d0d2a6beb91e8a1fed9fea34de",
+      "revision_date": "2026-09-21",
+      "license": "Apache-2.0",
+      "appearance_reid": false,
+      "status": "rejected_motion_baseline",
+      "reason": "Maintained, detector-agnostic and Windows-compatible, but deliberately excludes appearance. It produced 12 tracks in the controlled two-person recording and split the stationary false positive."
+    },
+    {
+      "name": "deep-sort-realtime-openvino",
+      "source": "https://github.com/levan92/deep_sort_realtime",
+      "revision": "3341f823ee0ad20aa58c906079a37f3d43b42bbe",
+      "revision_date": "2026-03-25",
+      "license": "MIT",
+      "appearance_reid": true,
+      "reid_model": "person-reidentification-retail-0287",
+      "status": "rejected_baseline",
+      "reason": "Clean external-embedding API, but the best controlled run still produced 10 tracks and duplicate person tracks; stricter settings produced 17 or 22."
+    },
+    {
+      "name": "boxmot",
+      "source": "https://github.com/mikel-brostrom/boxmot",
+      "package": "boxmot==25.0.0",
+      "audited_revision": "259625c81a633437d399a1697dd594b13e688363",
+      "revision_date": "2026-09-18",
+      "license": "AGPL-3.0",
+      "appearance_reid": true,
+      "status": "license_blocked",
+      "reason": "Technically current and comprehensive, but cannot enter a potentially proprietary product without an explicit AGPL or commercial-license decision."
+    },
+    {
+      "name": "open-model-zoo-multi-camera-tracker",
+      "source": "https://github.com/openvinotoolkit/open_model_zoo",
+      "revision": "a6946b6d6ce42cbf4278df20275fab199655fc7d",
+      "revision_date": "2026-09-21",
+      "license": "Apache-2.0",
+      "appearance_reid": true,
+      "status": "best_offline_reference",
+      "reason": "Produced three identity-pure final histories for two people, but its delayed track merging requires explicit supersession semantics before it can be a live provider."
+    },
+    {
+      "name": "nvidia-deepstream-nvdcf",
+      "source": "https://docs.nvidia.com/metropolis/deepstream/9.0/text/DS_plugin_gst-nvtracker.html",
+      "version": "9.x",
+      "license": "NVIDIA SDK terms",
+      "appearance_reid": true,
+      "status": "next_platform_benchmark",
+      "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
+      "reason": "Maintained detector/tracker/ReID pipeline. Docker Desktop exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13 container; the official image download remains incomplete."
+    }
+  ]
+}

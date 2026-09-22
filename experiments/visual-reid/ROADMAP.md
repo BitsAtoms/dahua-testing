@@ -16,12 +16,14 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/visual-reid`.
+Current branch: `codex/botsort-local-tracker`.
 
-Current decision: stop designing another frame-to-frame tracker. Evaluate
-BoT-SORT-ReID as a replaceable local-tracker provider using its intended
-per-frame detector input. Dahua and Frigate events remain source evidence and
-audit inputs; they do not replace frame-level tracking.
+Current decision: stop designing another frame-to-frame tracker. Roboflow
+BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
+Meetings gate. BoxMOT is blocked by AGPL-3.0. The next benchmark is the
+maintained DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT pipeline; this host's
+Docker GPU path has been validated. Dahua and Frigate events remain source
+evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -57,19 +59,22 @@ directly into BoT-SORT before the complete detector/tracker pipeline is tested.
 
 ## 2. Local tracker provider — current phase
 
-- [ ] Record the exact BoT-SORT repository commit, transitive model licenses
-  and reproducible isolated environment.
-- [ ] Define source-neutral `DetectionFrame`, `LocalTrackUpdate` and
+- [x] Record exact tracker sources, revisions, licenses and reproducible
+  isolated environments in `local-tracker-sources.json`.
+- [x] Define source-neutral `DetectionFrame`, `LocalTrackUpdate` and
   `LocalTrackerProvider` contracts.
-- [ ] Run detector + BoT-SORT-ReID over the immutable controlled recordings at
-  realistic cadence; do not reuse only the sparse consensus boxes.
-- [ ] Measure track count, fragmentation, ID switches, false tracks, detector
-  coverage, latency, CPU/GPU and memory.
+- [x] Run full-frame detector + Roboflow BoT-SORT and Deep SORT Realtime/0287
+  over the immutable Meetings recording at 10 FPS.
+- [~] Measure track count, fragmentation, false tracks and latency. GPU/memory
+  and full ID-switch metrics remain for DeepStream.
 - [ ] Pass the Meetings two-person gate: exactly two identity-pure tracks with
   no observed switch.
 - [ ] Pass empty, interference, seated, one-person and stream-loss cases.
-- [ ] Decide whether BoT-SORT is accepted, rejected or requires a different
-  maintained implementation behind the same contract.
+- [x] Reject the tested BoT-SORT and Deep SORT providers for live integration.
+- [ ] Extend the contract with explicit supersession only if a provider uses
+  delayed tracklet merging; never silently rewrite an emitted ID.
+- [ ] Benchmark DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT in its official
+  GPU container against the same recordings.
 
 Exit criterion: one pinned pipeline passes the local test matrix on immutable
 recordings and has a clear license/deployment path. Benchmark thresholds are
@@ -139,9 +144,10 @@ degrades to observable uncertainty rather than a silent wrong identity.
 2. [x] Run the complete automated suite and inspect the current checkpoint for
    generated media, local configuration and credentials.
 3. [x] Commit the coherent `codex/visual-reid` checkpoint without merging it.
-4. [ ] Create `codex/botsort-local-tracker` from that checkpoint.
-5. [ ] Pin and reproduce the official MIT BoT-SORT baseline in an isolated
-   environment.
-6. [ ] Define the provider contract and benchmark the complete detector/tracker
-   pipeline on the existing recordings.
-7. [ ] Decide from the exit criterion whether to proceed to live shadow mode.
+4. [x] Create `codex/botsort-local-tracker` from that checkpoint.
+5. [x] Audit and pin maintained/permissive tracker candidates; record license
+   blockers separately.
+6. [x] Define the provider contract and benchmark two complete local pipelines
+   on the existing Meetings recording.
+7. [ ] Complete the DeepStream image, run PeopleNet + NvDCF/NvDeepSORT on the
+   immutable test matrix and decide whether to proceed to live shadow mode.

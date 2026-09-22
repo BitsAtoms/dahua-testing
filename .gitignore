@@ -11,6 +11,7 @@ runtime/
 .playwright-cli/
 experiments/visual-reid/.venv/
 experiments/visual-reid/.venv-norfair/
+experiments/visual-reid/.venv-trackers/
 experiments/visual-reid/models/
 experiments/visual-reid/output/
 experiments/visual-reid/adaptive-capture.local.json

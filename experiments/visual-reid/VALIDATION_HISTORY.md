@@ -69,9 +69,32 @@ only `25.9%`. This means the sparse consensus export is not an appropriate
 input for judging a tracker whose association strategy depends on weaker
 per-frame detections.
 
+### Replaceable local-tracker providers
+
+The full YOLOX-Tiny pipeline was replayed at 10 FPS over 676 sampled frames of
+the same Meetings capture:
+
+| Provider | Result | Median tracker latency | Decision |
+|---|---:|---:|---|
+| Roboflow BoT-SORT 2.6.0 | 12 tracks | 0.44 ms | Reject as motion-only solution |
+| Deep SORT Realtime + OpenVINO 0287, strict | 17 tracks | 0.17 ms | Reject |
+| Deep SORT Realtime + OpenVINO 0287, relaxed | 10 tracks | 0.16 ms | Reject |
+
+The relaxed Deep SORT run kept the two principal human IDs distinct in the
+reviewed crossing, but partial/full-body duplicate detections and intermittent
+false detections still created extra IDs. Relaxing association further would
+trade fragmentation for unsafe identity merges.
+
+BoxMOT was technically suitable and current but is AGPL-3.0, so it is blocked
+pending an explicit product licensing decision. Docker Desktop successfully
+exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13 container. This makes an
+isolated DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT benchmark feasible; the
+10.7 GB official image was only partially downloaded during this checkpoint.
+
 ## Current decision
 
-Do not extend Norfair or the Open Model Zoo demo into production. Evaluate a
-complete pinned BoT-SORT-ReID detector/tracker pipeline behind a neutral local
-tracker contract. Keep the existing collectors and evidence system as
-independent enrichment and audit inputs.
+Keep the neutral provider contract and the collectors as independent evidence
+inputs. Do not promote Roboflow BoT-SORT or Deep SORT Realtime. Benchmark the
+integrated DeepStream detector/tracker pipeline next. Open Model Zoo remains
+the best Apache-2.0 offline reference, but its delayed merges require an
+explicit track-supersession contract before live use.

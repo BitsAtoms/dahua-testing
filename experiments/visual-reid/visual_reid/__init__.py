@@ -9,6 +9,18 @@ from .adaptive_capture import (
     EvidenceState,
 )
 from .media_catalog import MediaAsset, iter_media_assets, summarize_assets
+from .local_tracking import (
+    DetectionFrame,
+    FrameDetection,
+    LocalTrackerProvider,
+    LocalTrackUpdate,
+    LocalTrackUpdateKind,
+    PixelBox,
+)
+from .deep_sort_realtime_provider import (
+    DeepSortRealtimeConfig,
+    DeepSortRealtimeProvider,
+)
 from .adaptive_media import AdaptiveMediaStore, adaptive_media_revisions
 from .quality import QualityAssessment, assess_image_quality
 from .rtsp_buffer import BufferedFrame, RollingJpegBuffer, RtspBufferWorker
@@ -32,7 +44,15 @@ __all__ = [
     "EvidenceReservoir",
     "EvidenceState",
     "HandoffOption",
+    "DetectionFrame",
+    "FrameDetection",
+    "LocalTrackerProvider",
+    "LocalTrackUpdate",
+    "LocalTrackUpdateKind",
     "MediaAsset",
+    "PixelBox",
+    "DeepSortRealtimeConfig",
+    "DeepSortRealtimeProvider",
     "QualityAssessment",
     "RollingJpegBuffer",
     "SequenceResolution",
