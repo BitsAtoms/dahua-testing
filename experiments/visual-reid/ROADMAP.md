@@ -25,7 +25,9 @@ ReID trackers also failed: its BoT-SORT is the least unsafe result and still
 fragments one person, while OccluBoost merges people with persistent false
 positives. DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT is the parallel
 integrated-pipeline benchmark; this host's Docker GPU path has been validated.
-Dahua and Frigate events remain source evidence and audit inputs.
+The image is present but cannot start until the Windows NVIDIA driver exposes
+CUDA 13.2 instead of 13.0. Dahua and Frigate events remain source evidence and
+audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -158,4 +160,5 @@ degrades to observable uncertainty rather than a silent wrong identity.
    allowance; retain BoT-SORT only as the least unsafe BoxMOT reference.
 8. [ ] Complete the DeepStream image, run PeopleNet + NvDCF/NvDeepSORT on the
    immutable test matrix and decide whether any candidate merits live shadow
-   mode.
+   mode. The image is complete; first update driver 580.97 to CUDA 13.2
+   support and verify `deepstream-app --version-all`.

@@ -99,8 +99,10 @@ positive. Its conservative appearance thresholds did not prevent the merge.
 
 Docker Desktop successfully exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13
 container. This makes an isolated DeepStream 9.1 PeopleNet +
-NvDCF/NvDeepSORT benchmark feasible; the 10.7 GB official image was only
-partially downloaded during this checkpoint.
+NvDCF/NvDeepSORT benchmark feasible. The official image was subsequently
+downloaded, but startup correctly rejected the host driver: the image declares
+CUDA 13.2 while Windows driver 580.97 exposes CUDA 13.0. The benchmark remains
+blocked until the host driver is updated.
 
 ## Current decision
 

@@ -50,8 +50,10 @@ The collectors and the future video tracker have different responsibilities:
   the Meetings gate: BoT-SORT fragmented one person, while OccluBoost made an
   unsafe person-to-interference merge.
 - DeepStream 9.1 is the parallel integrated-pipeline benchmark. Docker can
-  expose this host's RTX 3050 to Linux/CUDA containers; no candidate is
-  connected to the live stack yet.
+  expose this host's RTX 3050 to Linux/CUDA containers. Its official image is
+  downloaded, but needs a newer Windows driver because it requires CUDA 13.2
+  and driver 580.97 exposes CUDA 13.0. No candidate is connected to the live
+  stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).

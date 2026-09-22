@@ -65,7 +65,7 @@
       "appearance_reid": true,
       "status": "parallel_platform_benchmark",
       "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
-      "reason": "Maintained detector/tracker/ReID pipeline. Docker Desktop exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13 container; the official image download remains incomplete."
+      "reason": "Maintained detector/tracker/ReID pipeline. The official image is downloaded and declares CUDA 13.2, but the current Windows driver 580.97 exposes only CUDA 13.0. Upgrade the host driver to CUDA 13.2 support before running the benchmark."
     }
   ]
 }
