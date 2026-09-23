@@ -27,8 +27,10 @@ positives. DeepStream 9.1 PeopleNet + NvDCF is now the best integrated
 reference: it removed persistent stationary interference and its bounded
 re-association variant repeatably reduced the two-person run from six to four
 apparently identity-pure fragments. It still fails the two-track fragmentation
-gate and weak-pose coverage case. NvDeepSORT produced nine tracks. Dahua and
-Frigate events remain source evidence and audit inputs.
+gate and weak-pose coverage case. A repeatable Reception run improved this to
+three tracks, confirming camera geometry matters without eliminating the
+underlying fragmentation. NvDeepSORT produced nine tracks. Dahua and Frigate
+events remain source evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -168,5 +170,5 @@ degrades to observable uncertainty rather than a silent wrong identity.
    it yields four fragments for two people and weak, nondeterministic coverage
    in mixed pose.
 9. [ ] Decide the next bounded provider experiment: improve detector coverage
-   without regressing the negative cases, or stop local-provider work until a
-   final-layout acceptance recording is available.
+   without regressing the negative cases. Repeat the acceptance matrix after
+   final camera placement rather than calibrating around provisional geometry.

@@ -18,6 +18,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tracks", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--label", default="Person")
+    parser.add_argument("--coordinate-width", type=int, default=1920)
+    parser.add_argument("--coordinate-height", type=int, default=1080)
     return parser.parse_args()
 
 
@@ -48,7 +50,11 @@ def main() -> int:
             if not ok:
                 break
             for item in by_frame.get(frame_index, ()):
-                left, top, right, bottom = (round(value) for value in item.box)
+                left, top, right, bottom = scale_box(
+                    item.box,
+                    coordinate_size=(args.coordinate_width, args.coordinate_height),
+                    output_size=(width, height),
+                )
                 color = track_color(item.track_id)
                 cv2.rectangle(frame, (left, top), (right, bottom), color, 3)
                 cv2.putText(
@@ -75,6 +81,22 @@ def track_color(track_id: int) -> tuple[int, int, int]:
         64 + (track_id * 67) % 192,
         64 + (track_id * 113) % 192,
         64 + (track_id * 151) % 192,
+    )
+
+
+def scale_box(
+    box: tuple[float, float, float, float],
+    *,
+    coordinate_size: tuple[int, int],
+    output_size: tuple[int, int],
+) -> tuple[int, int, int, int]:
+    scale_x = output_size[0] / coordinate_size[0]
+    scale_y = output_size[1] / coordinate_size[1]
+    return (
+        round(box[0] * scale_x),
+        round(box[1] * scale_y),
+        round(box[2] * scale_x),
+        round(box[3] * scale_y),
     )
 
 

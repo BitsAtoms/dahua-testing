@@ -56,8 +56,12 @@ The collectors and the future video tracker have different responsibilities:
   configuration produced six clean fragments; a bounded re-association variant
   reduced this repeatably to four without mixing the two people. It also
   rejected the Reception robot and the empty Meetings room, but still failed
-  pose coverage and continuity cases. It is the best integrated reference,
-  not yet a passing provider. No candidate is connected to the live stack yet.
+  pose coverage and continuity cases. Repeating the crossing from the better
+  Reception view gave three repeatable tracks: one person stayed stable and the
+  other split once after partial occlusion/out-of-frame movement. Camera
+  geometry therefore matters, but does not fully solve fragmentation. It is
+  the best integrated reference, not yet a passing provider. No candidate is
+  connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).

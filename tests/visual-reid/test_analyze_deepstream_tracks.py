@@ -12,9 +12,20 @@ from analyze_deepstream_tracks import (  # noqa: E402
     build_report,
     parse_track_directory,
 )
+from render_deepstream_tracks import scale_box  # noqa: E402
 
 
 class AnalyzeDeepStreamTracksTests(unittest.TestCase):
+    def test_scales_tracker_coordinates_to_source_video(self):
+        self.assertEqual(
+            scale_box(
+                (960.0, 270.0, 1920.0, 1080.0),
+                coordinate_size=(1920, 1080),
+                output_size=(704, 576),
+            ),
+            (352, 144, 704, 576),
+        )
+
     def test_parses_split_and_inline_labels(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

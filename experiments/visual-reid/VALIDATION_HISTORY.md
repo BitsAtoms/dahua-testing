@@ -138,6 +138,15 @@ available immutable scenario matrix:
 | Meetings mixed pose | 6-20 | 2 | Fail: weak and nondeterministic detector coverage in two clean repetitions |
 | Meetings two-person crossing/occlusion | 619 | 4 | Fail: repeatable and identity-pure in review, but fragmented |
 
+A second controlled two-person crossing was then captured from the Reception
+camera at 704x576 and 25 FPS. The same pipeline produced exactly 3 tracks and
+1,449 observations in two clean repetitions. Visual review showed the black
+subject remaining on ID 0 throughout; the grey subject changed from ID 1 to ID
+2 after becoming partially occluded/out of frame. The stationary robot was
+never tracked. This is better than the four fragments from the low lateral
+Meetings view, so camera geometry materially affects the result, but the
+remaining split proves it is not the only cause.
+
 The Reception two-track result represents two appearances of the same real
 person separated by about 13 seconds outside detection, not a robot track. A
 PeopleNet threshold experiment from 0.5 to the upstream example's 0.4 did not
