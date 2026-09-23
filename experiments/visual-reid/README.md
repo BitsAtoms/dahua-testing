@@ -233,6 +233,16 @@ This report measures generic temporal confirmation only. A successful single
 recording does not authorize suppression or occupancy changes in the live
 stack.
 
+Run or resume the complete retained matrix:
+
+```powershell
+experiments/visual-reid/run_deepstream_confirmation_matrix.ps1
+```
+
+Completed scenarios are skipped unless `-Force` is supplied. The current
+three-frame confirmation policy passed five of seven retained cases and is not
+approved for live integration.
+
 ## Validation discipline
 
 Every tracker candidate is tested first on immutable recordings. A live

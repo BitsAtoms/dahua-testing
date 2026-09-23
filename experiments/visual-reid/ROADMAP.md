@@ -32,8 +32,9 @@ three tracks, confirming camera geometry matters without eliminating the
 underlying fragmentation. RT-DETR Warehouse regressed both interference and
 fragmentation. PeopleNet Transformer v2 preserved two stable human IDs but
 also tracked the robot. An offline v1 confirmation gate retained both human
-tracks and rejected both robot fragments with zero robot confirmations, but
-the full matrix is still open. NvDeepSORT produced nine tracks. Dahua and
+tracks and rejected both robot fragments with zero robot confirmations in
+Reception, but passed only five of seven retained cases: seated and Meetings
+crossing still fragmented people. NvDeepSORT produced nine tracks. Dahua and
 Frigate events remain source evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
@@ -177,9 +178,10 @@ degrades to observable uncertainty rather than a silent wrong identity.
    without regressing the negative cases. RT-DETR and PeopleNet v2 were
    screened and rejected unchanged; v2's stable human tracks justify one
    offline, source-neutral confirmation-gate experiment before stopping.
-10. [~] Test whether v1/consensus temporal confirmation can reject v2's
-    persistent false tracks while retaining both stable human IDs. The
-    Reception screen passed: human tracks had 653 and 418 confirmations while
-    both robot fragments had zero. Do not use a fixed spatial mask or
-    robot-specific class. Repeat the retained acceptance matrix next, and
-    repeat it again after final camera placement.
+10. [x] Test whether v1 temporal confirmation can reject v2's persistent false
+    tracks while retaining stable human IDs. It passed five of seven cases and
+    removed the static false tracks, but failed seated and Meetings crossing
+    through human fragmentation. Reject it for live shadow mode unchanged.
+11. [ ] Stop tuning around provisional geometry. Retain the reproducible
+    candidates and repeat the local acceptance matrix after final camera
+    placement; add the missing stream-loss case before selecting a provider.

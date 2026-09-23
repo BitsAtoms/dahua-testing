@@ -173,6 +173,25 @@ would therefore expose exactly the two stable human IDs in this recording.
 This is a successful single-recording screen, not yet a validated live policy;
 the full retained matrix must pass before shadow integration.
 
+The seven-case retained matrix was then replayed with the same IoU and
+three-consecutive-confirmation policy:
+
+| Recording | Expected eligible tracks | Eligible tracks | Result |
+|---|---:|---:|---|
+| Reception interference only | 0 | 0 | Pass |
+| Reception person near interference | 1 | 1 | Pass |
+| Meetings mixed pose | 1 | 1 | Pass, but only a three-frame confirmation streak |
+| Meetings seated/partial | 1 | 2 | Fail: one person remained fragmented |
+| Meetings empty | 0 | 0 | Pass |
+| Meetings two-person crossing | 2 | 4 | Fail: two people remained fragmented |
+| Reception two-person crossing | 2 | 2 | Pass |
+
+The policy passed five of seven cases. It reliably removed the retained static
+false positives, including all robot/display tracks in the negative cases, but
+did not solve human fragmentation in the difficult Meetings geometry. It is
+therefore rejected as the accepted provider configuration and remains an
+offline comparison only.
+
 The Reception two-track result represents two appearances of the same real
 person separated by about 13 seconds outside detection, not a robot track. A
 PeopleNet threshold experiment from 0.5 to the upstream example's 0.4 did not
@@ -187,10 +206,10 @@ Keep the neutral provider contract and the collectors as independent evidence
 inputs. Do not promote any tested Python tracker to live use. DeepStream NvDCF
 with PeopleNet v1 remains the safest integrated pipeline, but its bounded
 built-in re-association still fails the local-track gate and must not enter
-live shadow mode. Offline v1 confirmation cleanly separated v2's two human
-tracks from its two persistent false tracks on the Reception screen. Repeat
-that generic eligibility gate over the retained matrix before considering
-shadow mode; do not encode the robot's class or location. Otherwise, defer
-further calibration to final-layout acceptance recordings. Open Model Zoo remains
+live shadow mode. Offline v1 confirmation reliably removed persistent false
+tracks but passed only five of seven retained cases: seated and Meetings
+crossing still fragmented real people. Do not promote the combined pipeline or
+tune around the provisional camera geometry. Retain it as a reproducible
+reference and repeat acceptance after final camera placement. Open Model Zoo remains
 the best Apache-2.0 offline fragmentation reference, but its delayed merges
 require an explicit track-supersession contract before live use.
