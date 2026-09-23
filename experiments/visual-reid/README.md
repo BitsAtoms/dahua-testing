@@ -60,7 +60,9 @@ The collectors and the future video tracker have different responsibilities:
   Reception view gave three repeatable tracks: one person stayed stable and the
   other split once after partial occlusion/out-of-frame movement. Camera
   geometry therefore matters, but does not fully solve fragmentation. It is
-  the best integrated reference, not yet a passing provider. No candidate is
+  the best integrated reference, not a persistent-identity solution. The next
+  checkpoint will connect PeopleNet v1.1 + bounded NvDCF as a shadow-only
+  tracklet provider through Frigate/go2rtc's restream. No candidate is
   connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.

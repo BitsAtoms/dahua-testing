@@ -16,7 +16,7 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/botsort-local-tracker`.
+Current branch: `codex/deepstream-shadow-provider`.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
@@ -36,6 +36,14 @@ tracks and rejected both robot fragments with zero robot confirmations in
 Reception, but passed only five of seven retained cases: seated and Meetings
 crossing still fragmented people. NvDeepSORT produced nine tracks. Dahua and
 Frigate events remain source evidence and audit inputs.
+
+Implementation decision: use PeopleNet Transformer v1.1 plus bounded NvDCF as
+the conservative local-tracklet provider for the next shadow checkpoint. This
+does not mean it passed persistent-identity acceptance: its IDs remain
+temporary tracklets, it has no authority over occupancy or handoffs, and the
+v2/v1 confirmation pipeline remains an offline benchmark only. The shadow
+checkpoint prioritizes correct active occupancy, explicit uncertainty and
+restart recovery over pretending that fragmented tracklets are one identity.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -182,6 +190,23 @@ degrades to observable uncertainty rather than a silent wrong identity.
     tracks while retaining stable human IDs. It passed five of seven cases and
     removed the static false tracks, but failed seated and Meetings crossing
     through human fragmentation. Reject it for live shadow mode unchanged.
-11. [ ] Stop tuning around provisional geometry. Retain the reproducible
-    candidates and repeat the local acceptance matrix after final camera
-    placement; add the missing stream-loss case before selecting a provider.
+11. [x] Stop tuning around provisional geometry and select PeopleNet v1.1 plus
+    bounded NvDCF as a conservative shadow-only tracklet provider.
+12. [ ] Feed DeepStream from Frigate/go2rtc's existing restream instead of
+    opening another direct camera connection. Start with one Reception stream,
+    keep URLs in ignored local configuration/environment variables, and prove
+    reconnect behavior before adding MQTT publication.
+13. [ ] Publish versioned shadow tracklet updates through MQTT, normalize them
+    without treating NvDCF IDs as people, and correlate them with Dahua and
+    Frigate evidence. Do not affect occupancy or handoffs until the controlled
+    shadow matrix and stream-loss case pass.
+
+## Next-session handoff
+
+Start at immediate-sequence item 12. First inspect the Frigate/go2rtc restream
+configuration and existing local-supervisor/Docker wiring without exposing
+credentials. Then add the smallest reproducible DeepStream RTSP input config
+for Reception and verify that it consumes the restream, produces bounded
+PeopleNet v1.1 + NvDCF tracklets, and reconnects cleanly. Do not add the MQTT
+publisher or modify occupancy in the same checkpoint unless the restream and
+restart exit criteria have passed.
