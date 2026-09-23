@@ -65,7 +65,11 @@
       "appearance_reid": true,
       "status": "best_integrated_reference",
       "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
-      "reason": "After updating the host driver, PeopleNet Transformer plus the official NvDCF accuracy config processed all 1,352 frames faster than the 20 FPS source and produced six clean fragments for two people without retaining the stationary interference. A bounded re-association variant produced four identity-pure fragments in two clean repetitions, while NvDeepSORT produced nine. The available negative and seated recordings passed, but weak-pose and separated-reappearance continuity did not. NvDCF remains below the exactly-two-tracks gate and is not accepted for live use."
+      "custom_parser_source": "https://github.com/NVIDIA/DeepStream/tree/0a63ef8be554346820e01c96eaea390d04962939/src/apps/reference_apps/deepstream-tracker-3d-multi-view/models/RTDETR/custom_parser",
+      "custom_parser_revision": "0a63ef8be554346820e01c96eaea390d04962939",
+      "custom_parser_license": "Apache-2.0",
+      "custom_parser_build_container": "nvcr.io/nvidia/deepstream:9.1-triton-multiarch@sha256:fd31f5b44ababdbdee8cd397a375e888191b49e402ac237254a4cdc239130f5b",
+      "reason": "PeopleNet Transformer v1 plus bounded NvDCF rejected the Reception robot but split one of two people. RT-DETR Warehouse retained the robot and produced five tracks. PeopleNet Transformer v2 kept the two real people on two stable IDs, but also retained the robot as two sequential IDs. An offline v1 confirmation screen confirmed the human tracks 653 and 418 times and both robot fragments zero times; the full retained matrix is still required before live use."
     }
   ]
 }

@@ -147,6 +147,32 @@ never tracked. This is better than the four fragments from the low lateral
 Meetings view, so camera geometry materially affects the result, but the
 remaining split proves it is not the only cause.
 
+The same Reception file was used to screen two official NVIDIA detector
+candidates while keeping the bounded NvDCF configuration fixed:
+
+| Detector | Person observations | Tracks | Runtime | Decision |
+|---|---:|---:|---:|---|
+| PeopleNet Transformer v1.1 | 1,449 | 3 | about 38.7 FPS | Safest reference: robot rejected, one human split |
+| RT-DETR Warehouse EfficientViT-L2 | 2,981 | 5 | about 32.5 FPS | Reject: persistent robot tracks and a human fragment |
+| PeopleNet Transformer v2.0 | 2,989 | 4 | about 16.6 FPS | Reject unchanged: two stable human IDs plus two sequential robot IDs |
+
+PeopleNet v2 is the first tested DeepStream detector to preserve exactly two
+stable human IDs through this crossing. However, IDs 0 and 3 covered the same
+stationary robot before and after the people were present. Their boxes stayed
+at approximately the same image coordinate and visual review confirmed the
+false positive. Its high confidence means raising only the detector threshold
+is not a safe remedy. The full scenario matrix was not repeated for either
+candidate after this negative-case failure.
+
+An offline, source-neutral confirmation gate then compared every PeopleNet v2
+track box with independent PeopleNet v1 detections at IoU `0.3`. The robot
+tracks received `0/549` and `0/822` confirmations. The two human tracks
+received `653/899` and `418/719`, with maximum consecutive confirmation runs
+of 145 and 57 frames. Requiring three consecutive independent confirmations
+would therefore expose exactly the two stable human IDs in this recording.
+This is a successful single-recording screen, not yet a validated live policy;
+the full retained matrix must pass before shadow integration.
+
 The Reception two-track result represents two appearances of the same real
 person separated by about 13 seconds outside detection, not a robot track. A
 PeopleNet threshold experiment from 0.5 to the upstream example's 0.4 did not
@@ -159,9 +185,12 @@ is no immutable stream-loss recording yet.
 
 Keep the neutral provider contract and the collectors as independent evidence
 inputs. Do not promote any tested Python tracker to live use. DeepStream NvDCF
-is now the best integrated pipeline, but its bounded built-in re-association
-still fails the local-track gate and must not enter live shadow mode. The next
-experiment must address detector coverage without regressing the clean negative
-cases, or wait for final-layout acceptance recordings. Open Model Zoo remains
+with PeopleNet v1 remains the safest integrated pipeline, but its bounded
+built-in re-association still fails the local-track gate and must not enter
+live shadow mode. Offline v1 confirmation cleanly separated v2's two human
+tracks from its two persistent false tracks on the Reception screen. Repeat
+that generic eligibility gate over the retained matrix before considering
+shadow mode; do not encode the robot's class or location. Otherwise, defer
+further calibration to final-layout acceptance recordings. Open Model Zoo remains
 the best Apache-2.0 offline fragmentation reference, but its delayed merges
 require an explicit track-supersession contract before live use.

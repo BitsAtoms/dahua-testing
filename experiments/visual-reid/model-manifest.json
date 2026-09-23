@@ -133,6 +133,34 @@
           "sha384": "0c475553f7e757d1c9532b53f7c43f78969b2aa22694e70dd1ae38edae47a3e8a8fff5c71e89ee74ad9c1e32ffacdfe0"
         }
       ]
+    },
+    {
+      "name": "rtdetr-2d-warehouse-efficientvit-l2-deployable-v1.0",
+      "purpose": "deepstream_person_detection_candidate",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse",
+      "license": "NVIDIA Open Model License",
+      "files": [
+        {
+          "path": "deepstream/rtdetr_warehouse_v1.0.fp16.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/rtdetr_2d_warehouse/deployable_efficientvit_l2_v1.0/files?redirect=true&path=rtdetr_warehouse_v1.0.fp16.onnx",
+          "bytes": 141956350,
+          "sha384": "0a51f139fa37a7a8217b410fe9722c83e4e68a82612aee7c8075915c1c776cf41ce28dcc25f94e605c3c2141b74f2f6c"
+        }
+      ]
+    },
+    {
+      "name": "peoplenet-transformer-v2-deployable-v1.0",
+      "purpose": "deepstream_person_detection_candidate",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/dino_fan_small_astro_delta.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer_v2/deployable_v1.0/files?redirect=true&path=dino_fan_small_astro_delta.onnx",
+          "bytes": 214935774,
+          "sha384": "7b9557b3bbb9e122b429c9830d7a7464391f2a20d35865b5919228a2fcf06ea7aa708775d6bdc4ad00156b39d6dd0ff5"
+        }
+      ]
     }
   ]
 }

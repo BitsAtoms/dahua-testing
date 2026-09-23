@@ -29,8 +29,12 @@ re-association variant repeatably reduced the two-person run from six to four
 apparently identity-pure fragments. It still fails the two-track fragmentation
 gate and weak-pose coverage case. A repeatable Reception run improved this to
 three tracks, confirming camera geometry matters without eliminating the
-underlying fragmentation. NvDeepSORT produced nine tracks. Dahua and Frigate
-events remain source evidence and audit inputs.
+underlying fragmentation. RT-DETR Warehouse regressed both interference and
+fragmentation. PeopleNet Transformer v2 preserved two stable human IDs but
+also tracked the robot. An offline v1 confirmation gate retained both human
+tracks and rejected both robot fragments with zero robot confirmations, but
+the full matrix is still open. NvDeepSORT produced nine tracks. Dahua and
+Frigate events remain source evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -169,6 +173,13 @@ degrades to observable uncertainty rather than a silent wrong identity.
    NvDCF re-association is the best result but does not merit live shadow mode:
    it yields four fragments for two people and weak, nondeterministic coverage
    in mixed pose.
-9. [ ] Decide the next bounded provider experiment: improve detector coverage
-   without regressing the negative cases. Repeat the acceptance matrix after
-   final camera placement rather than calibrating around provisional geometry.
+9. [x] Decide the next bounded provider experiment: improve detector coverage
+   without regressing the negative cases. RT-DETR and PeopleNet v2 were
+   screened and rejected unchanged; v2's stable human tracks justify one
+   offline, source-neutral confirmation-gate experiment before stopping.
+10. [~] Test whether v1/consensus temporal confirmation can reject v2's
+    persistent false tracks while retaining both stable human IDs. The
+    Reception screen passed: human tracks had 653 and 418 confirmations while
+    both robot fragments had zero. Do not use a fixed spatial mask or
+    robot-specific class. Repeat the retained acceptance matrix next, and
+    repeat it again after final camera placement.

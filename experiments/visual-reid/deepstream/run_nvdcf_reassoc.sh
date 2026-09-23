@@ -4,6 +4,8 @@ set -euo pipefail
 official_tracker=/opt/nvidia/deepstream/deepstream/samples/configs/deepstream-app/config_tracker_NvDCF_accuracy.yml
 tuned_tracker=/tmp/config_tracker_NvDCF_reassoc.yml
 tuned_app=/tmp/deepstream_nvdcf_reassoc.txt
+primary_gie_config=${PRIMARY_GIE_CONFIG:-/workspace/config/config_infer_peoplenet_transformer.txt}
+output_stem=${OUTPUT_STEM:-nvdcf-reassoc}
 
 cp "$official_tracker" "$tuned_tracker"
 sed -i \
@@ -14,8 +16,9 @@ sed -i \
 
 cp /workspace/config/deepstream_nvdcf.txt "$tuned_app"
 sed -i \
-  -e 's|kitti-track-nvdcf-person|kitti-track-nvdcf-reassoc-person|' \
-  -e 's|kitti-nvdcf|kitti-nvdcf-reassoc|g' \
+  -e "s|gie-kitti-output-dir=.*|gie-kitti-output-dir=/workspace/output/kitti-$output_stem|" \
+  -e "s|kitti-track-output-dir=.*|kitti-track-output-dir=/workspace/output/kitti-track-$output_stem-person|" \
+  -e "s|config-file=.*|config-file=$primary_gie_config|" \
   -e "s|ll-config-file=.*|ll-config-file=$tuned_tracker|" \
   "$tuned_app"
 

@@ -102,6 +102,14 @@ The same manifest pins the NGC PeopleNet Transformer and ReIdentificationNet
 files used by DeepStream. TensorRT engines are generated locally for the host
 GPU and remain under the ignored `models/deepstream/` directory.
 
+RT-DETR Warehouse and PeopleNet Transformer v2 use NVIDIA's TAO D-DETR parser.
+Build the pinned Apache-2.0 parser once; its source checkout, binary and build
+container remain outside Git:
+
+```powershell
+experiments/visual-reid/build_deepstream_tao_parser.ps1
+```
+
 The previous Norfair/Open Model Zoo comparison uses the separate
 `.venv-norfair` environment and `requirements-norfair.txt`. These dependencies
 are temporary benchmark tooling and must not enter the supervisor environment.
@@ -195,6 +203,10 @@ Run the pinned DeepStream 9.1 GPU benchmark and convert its official
 experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCF
 experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDeepSORT
 experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCFReassoc
+experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCFReassoc `
+  -Detector RTDETR -Recording PATH_TO_RECORDING
+experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCFReassoc `
+  -Detector PeopleNetV2 -Recording PATH_TO_RECORDING
 ```
 
 The configs pass only PeopleNet's `Person` class to the tracker. Optional
@@ -204,6 +216,22 @@ accuracy configuration's shadow age, tracklet-search window and ReID extraction
 interval. It is a bounded benchmark, not a production calibration.
 The runner replaces only the selected scenario/tracker's generated KITTI
 directory before each replay so results cannot inherit stale detections.
+The alternate detectors are bounded offline candidates. RT-DETR and PeopleNet
+v2 both failed the Reception interference gate and are not enabled in the live
+stack.
+
+Compare a candidate's track boxes with detections from an independent run:
+
+```powershell
+experiments/visual-reid/.venv/Scripts/python.exe `
+  experiments/visual-reid/analyze_deepstream_confirmation.py `
+  --tracks PATH_TO_CANDIDATE_TRACKS `
+  --detections PATH_TO_CONFIRMING_DETECTIONS --iou 0.3
+```
+
+This report measures generic temporal confirmation only. A successful single
+recording does not authorize suppression or occupancy changes in the live
+stack.
 
 ## Validation discipline
 
