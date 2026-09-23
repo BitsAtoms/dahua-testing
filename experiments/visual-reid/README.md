@@ -50,10 +50,14 @@ The collectors and the future video tracker have different responsibilities:
   the Meetings gate: BoT-SORT fragmented one person, while OccluBoost made an
   unsafe person-to-interference merge.
 - DeepStream 9.1 is the parallel integrated-pipeline benchmark. Docker can
-  expose this host's RTX 3050 to Linux/CUDA containers. Its official image is
-  downloaded, but needs a newer Windows driver because it requires CUDA 13.2
-  and driver 580.97 exposes CUDA 13.0. No candidate is connected to the live
-  stack yet.
+  expose this host's RTX 3050 to Linux/CUDA containers. After the Windows
+  driver update, PeopleNet Transformer + NvDeepSORT and NvDCF both completed
+  the Meetings replay faster than its 20 FPS source. The official NvDCF
+  configuration produced six clean fragments; a bounded re-association variant
+  reduced this repeatably to four without mixing the two people. It also
+  rejected the Reception robot and the empty Meetings room, but still failed
+  pose coverage and continuity cases. It is the best integrated reference,
+  not yet a passing provider. No candidate is connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).
@@ -89,6 +93,10 @@ experiments/visual-reid/.venv/Scripts/python.exe `
 `model-manifest.json` records model source, license, size and checksum. Model
 weights stay outside Git. The active providers use OpenVINO on CPU; hardware
 acceleration must remain behind a provider boundary.
+
+The same manifest pins the NGC PeopleNet Transformer and ReIdentificationNet
+files used by DeepStream. TensorRT engines are generated locally for the host
+GPU and remain under the ignored `models/deepstream/` directory.
 
 The previous Norfair/Open Model Zoo comparison uses the separate
 `.venv-norfair` environment and `requirements-norfair.txt`. These dependencies
@@ -175,6 +183,23 @@ the baseline summarized in `VALIDATION_HISTORY.md`. Local-tracker experiments
 must consume regular per-frame detections from their intended detector. They
 must not be judged only from the sparse high-confidence consensus export,
 because that removes weak detections used to bridge occlusions.
+
+Run the pinned DeepStream 9.1 GPU benchmark and convert its official
+`kitti-track-output-dir` files into a JSON report:
+
+```powershell
+experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCF
+experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDeepSORT
+experiments/visual-reid/run_deepstream_benchmark.ps1 -Tracker NvDCFReassoc
+```
+
+The configs pass only PeopleNet's `Person` class to the tracker. Optional
+GStreamer warnings for audio/DVD, Triton, Rivermax and UCX plugins do not apply
+to this file-video pipeline. `NvDCFReassoc` changes only the official NvDCF
+accuracy configuration's shadow age, tracklet-search window and ReID extraction
+interval. It is a bounded benchmark, not a production calibration.
+The runner replaces only the selected scenario/tracker's generated KITTI
+directory before each replay so results cannot inherit stale detections.
 
 ## Validation discipline
 

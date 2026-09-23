@@ -7,6 +7,10 @@
     {
       "url": "https://github.com/NickM-27/facenet-onnx",
       "license": "Apache-2.0"
+    },
+    {
+      "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models",
+      "license": "NVIDIA NGC model terms"
     }
   ],
   "models": [
@@ -93,6 +97,40 @@
           "url": "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facenet.tflite",
           "bytes": 93941044,
           "sha384": "139098cd69748290bdbbd1d6fd2d3650ef14104df61bca850bca3acb085e85cb12e182294c92c836c7e9667e16e2cd82"
+        }
+      ]
+    },
+    {
+      "name": "peoplenet-transformer-deployable-v1.1",
+      "purpose": "deepstream_person_detection",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/resnet50_peoplenet_transformer_op17.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer/deployable_v1.1/files?redirect=true&path=resnet50_peoplenet_transformer_op17.onnx",
+          "bytes": 93960915,
+          "sha384": "ff6fd70cb85e52c269b09e84ca7e15ce7f3cf23113f842c5487540bb1fbb2e8800a58c90a408c4070f6921e3a03a27a1"
+        },
+        {
+          "path": "deepstream/peoplenet_labels.txt",
+          "url": "https://api.ngc.nvidia.com/v2/models/nvidia/tao/peoplenet_transformer/versions/deployable_v1.0/files/labels.txt",
+          "bytes": 21,
+          "sha384": "799fb4645a82b3327173e584440924c6d2bf3d5e5dbaf9eed6f00dc52fae552ec7266423c14593032d95df0f183b96c2"
+        }
+      ]
+    },
+    {
+      "name": "reidentificationnet-deployable-v1.0",
+      "purpose": "deepstream_local_tracking_reid",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/resnet50_market1501.etlt",
+          "url": "https://api.ngc.nvidia.com/v2/models/nvidia/tao/reidentificationnet/versions/deployable_v1.0/files/resnet50_market1501.etlt",
+          "bytes": 96377716,
+          "sha384": "0c475553f7e757d1c9532b53f7c43f78969b2aa22694e70dd1ae38edae47a3e8a8fff5c71e89ee74ad9c1e32ffacdfe0"
         }
       ]
     }

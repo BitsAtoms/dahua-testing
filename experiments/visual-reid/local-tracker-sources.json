@@ -63,9 +63,9 @@
       "version": "9.1",
       "license": "NVIDIA SDK terms",
       "appearance_reid": true,
-      "status": "parallel_platform_benchmark",
+      "status": "best_integrated_reference",
       "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
-      "reason": "Maintained detector/tracker/ReID pipeline. The official image is downloaded and declares CUDA 13.2, but the current Windows driver 580.97 exposes only CUDA 13.0. Upgrade the host driver to CUDA 13.2 support before running the benchmark."
+      "reason": "After updating the host driver, PeopleNet Transformer plus the official NvDCF accuracy config processed all 1,352 frames faster than the 20 FPS source and produced six clean fragments for two people without retaining the stationary interference. A bounded re-association variant produced four identity-pure fragments in two clean repetitions, while NvDeepSORT produced nine. The available negative and seated recordings passed, but weak-pose and separated-reappearance continuity did not. NvDCF remains below the exactly-two-tracks gate and is not accepted for live use."
     }
   ]
 }

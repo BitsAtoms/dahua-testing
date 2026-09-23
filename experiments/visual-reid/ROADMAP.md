@@ -23,11 +23,12 @@ BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
 Meetings gate. BoxMOT is authorized for this internal demo, but all four tested
 ReID trackers also failed: its BoT-SORT is the least unsafe result and still
 fragments one person, while OccluBoost merges people with persistent false
-positives. DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT is the parallel
-integrated-pipeline benchmark; this host's Docker GPU path has been validated.
-The image is present but cannot start until the Windows NVIDIA driver exposes
-CUDA 13.2 instead of 13.0. Dahua and Frigate events remain source evidence and
-audit inputs.
+positives. DeepStream 9.1 PeopleNet + NvDCF is now the best integrated
+reference: it removed persistent stationary interference and its bounded
+re-association variant repeatably reduced the two-person run from six to four
+apparently identity-pure fragments. It still fails the two-track fragmentation
+gate and weak-pose coverage case. NvDeepSORT produced nine tracks. Dahua and
+Frigate events remain source evidence and audit inputs.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -75,13 +76,17 @@ directly into BoT-SORT before the complete detector/tracker pipeline is tested.
   and full ID-switch metrics remain for DeepStream.
 - [ ] Pass the Meetings two-person gate: exactly two identity-pure tracks with
   no observed switch.
-- [ ] Pass empty, interference, seated, one-person and stream-loss cases.
+- [~] Pass empty, interference, seated, one-person and stream-loss cases. The
+  empty, interference and seated recordings pass; one-person continuity and
+  stream-loss remain open.
 - [x] Reject the tested Roboflow, Deep SORT and BoxMOT configurations for live
   integration while retaining them as reproducible benchmarks.
 - [ ] Extend the contract with explicit supersession only if a provider uses
   delayed tracklet merging; never silently rewrite an emitted ID.
-- [ ] Benchmark DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT in its official
-  GPU container against the same recordings.
+- [~] Benchmark DeepStream 9.1 PeopleNet + NvDCF/NvDeepSORT in its official
+  GPU container against the complete recording matrix. The retained recordings
+  are complete; the crossing, weak-pose and separated-reappearance cases still
+  fail, and no stream-loss recording exists yet.
 
 Exit criterion: one pinned pipeline passes the local test matrix on immutable
 recordings and has a clear license/deployment path. Benchmark thresholds are
@@ -158,7 +163,10 @@ degrades to observable uncertainty rather than a silent wrong identity.
    pipelines on the existing Meetings recording.
 7. [x] Evaluate BoxMOT's four ReID trackers under the demo's explicit AGPL
    allowance; retain BoT-SORT only as the least unsafe BoxMOT reference.
-8. [ ] Complete the DeepStream image, run PeopleNet + NvDCF/NvDeepSORT on the
-   immutable test matrix and decide whether any candidate merits live shadow
-   mode. The image is complete; first update driver 580.97 to CUDA 13.2
-   support and verify `deepstream-app --version-all`.
+8. [x] Run PeopleNet + NvDCF/NvDeepSORT on the available immutable test matrix.
+   NvDCF re-association is the best result but does not merit live shadow mode:
+   it yields four fragments for two people and weak, nondeterministic coverage
+   in mixed pose.
+9. [ ] Decide the next bounded provider experiment: improve detector coverage
+   without regressing the negative cases, or stop local-provider work until a
+   final-layout acceptance recording is available.

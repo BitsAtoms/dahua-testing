@@ -101,14 +101,58 @@ Docker Desktop successfully exposed the RTX 3050 to an Ubuntu 24.04 CUDA 13
 container. This makes an isolated DeepStream 9.1 PeopleNet +
 NvDCF/NvDeepSORT benchmark feasible. The official image was subsequently
 downloaded, but startup correctly rejected the host driver: the image declares
-CUDA 13.2 while Windows driver 580.97 exposes CUDA 13.0. The benchmark remains
-blocked until the host driver is updated.
+CUDA 13.2 while Windows driver 580.97 exposes CUDA 13.0.
+
+After updating the Windows driver, the container reported DeepStream 9.1.0,
+CUDA driver/runtime 13.2, TensorRT 10.16 and cuDNN 9.23. The pinned PeopleNet
+Transformer `deployable_v1.1` detector and ReIdentificationNet
+`deployable_v1.0` model completed all 1,352 source frames at about 43 FPS.
+Only the `Person` class was passed to tracking:
+
+| DeepStream tracker | Person tracks | Person observations | Review |
+|---|---:|---:|---|
+| NvDeepSORT official config | 9 | 456 | Reject for fragmentation |
+| NvDCF accuracy official config | 6 | 494 | Best integrated reference; still fragmented |
+| NvDCF bounded re-association | 4 | 619 | Two clean repetitions; still fragmented |
+
+NvDCF produced three fragments for each of the two visible people. Review at
+entry, overlap, crossing and exit points found the sampled IDs identity-pure.
+Unlike the YOLOX runs, it did not retain either persistent stationary
+interference as a person track. The bounded variant changed only
+`maxShadowTrackingAge` and `maxTrackletMatchingTimeSearchRange` from their
+official values to 180 frames, plus `reidExtractionInterval` from 8 to 2. Two
+clean repetitions both produced four tracks and 619 observations. No sampled
+track mixed the two people. An earlier five-track/645-observation result was
+invalidated after finding that the runner reused KITTI output files; the runner
+now deletes only the selected scenario/tracker output directory before replay.
+
+The same pinned detector and bounded NvDCF variant were replayed over the
+available immutable scenario matrix:
+
+| Recording | Person observations | Tracks | Result |
+|---|---:|---:|---|
+| Reception persistent interference only | 0 | 0 | Pass: robot not detected as a person |
+| Meetings empty with displays | 0 | 0 | Pass: no false person track |
+| Meetings seated/partially visible person | 368 | 1 | Pass for this bounded case |
+| Reception person near interference | 290 | 2 | Robot rejected; one real person split across two separated appearances |
+| Meetings mixed pose | 6-20 | 2 | Fail: weak and nondeterministic detector coverage in two clean repetitions |
+| Meetings two-person crossing/occlusion | 619 | 4 | Fail: repeatable and identity-pure in review, but fragmented |
+
+The Reception two-track result represents two appearances of the same real
+person separated by about 13 seconds outside detection, not a robot track. A
+PeopleNet threshold experiment from 0.5 to the upstream example's 0.4 did not
+show an improvement and kept interference at zero. Its quantitative comparison
+was invalidated by the stale-output issue, so the experiment retains the
+original conservative 0.5 rather than claiming a calibrated threshold. There
+is no immutable stream-loss recording yet.
 
 ## Current decision
 
 Keep the neutral provider contract and the collectors as independent evidence
-inputs. Do not promote any tested Python tracker to live use. BoxMOT BoT-SORT
-is the least unsafe BoxMOT reference, not a passing provider. Benchmark the
-integrated DeepStream detector/tracker pipeline next. Open Model Zoo remains
-the best Apache-2.0 offline reference, but its delayed merges require an
-explicit track-supersession contract before live use.
+inputs. Do not promote any tested Python tracker to live use. DeepStream NvDCF
+is now the best integrated pipeline, but its bounded built-in re-association
+still fails the local-track gate and must not enter live shadow mode. The next
+experiment must address detector coverage without regressing the clean negative
+cases, or wait for final-layout acceptance recordings. Open Model Zoo remains
+the best Apache-2.0 offline fragmentation reference, but its delayed merges
+require an explicit track-supersession contract before live use.
