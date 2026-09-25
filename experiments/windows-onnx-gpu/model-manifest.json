@@ -1,0 +1,10 @@
+{
+  "path": "models/matmul_relu.onnx",
+  "sha256": "42e5bc40d23fadc795bfbd7a9d20829929918c811f0a8ce9fb426264ddde5eaa",
+  "size_bytes": 16881,
+  "format": "ONNX",
+  "opset": 20,
+  "generator": "generate_fixture.py with onnx==1.20.1",
+  "purpose": "Synthetic MatMul/Add/Relu correctness and provider-assignment fixture",
+  "license": "Project-generated test fixture"
+}

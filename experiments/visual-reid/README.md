@@ -49,7 +49,7 @@ The collectors and the future video tracker have different responsibilities:
   internal, non-commercial demo. Its four tested ReID trackers did not pass
   the Meetings gate: BoT-SORT fragmented one person, while OccluBoost made an
   unsafe person-to-interference merge.
-- DeepStream 9.1 is the parallel integrated-pipeline benchmark. Docker can
+- DeepStream 9.1 is a retained integrated-pipeline benchmark. Docker can
   expose this host's RTX 3050 to Linux/CUDA containers. After the Windows
   driver update, PeopleNet Transformer + NvDeepSORT and NvDCF both completed
   the Meetings replay faster than its 20 FPS source. The official NvDCF
@@ -60,9 +60,12 @@ The collectors and the future video tracker have different responsibilities:
   Reception view gave three repeatable tracks: one person stayed stable and the
   other split once after partial occlusion/out-of-frame movement. Camera
   geometry therefore matters, but does not fully solve fragmentation. It is
-  the best integrated reference, not a persistent-identity solution. The next
-  checkpoint will connect PeopleNet v1.1 + bounded NvDCF as a shadow-only
-  tracklet provider through Frigate/go2rtc's restream. No candidate is
+  the best NVIDIA reference, not a persistent-identity solution. The final
+  deployment computer has AMD GPUs and remains on Windows, so DeepStream is no
+  longer a deployment candidate. The active checkpoint is the isolated
+  [native Windows ONNX GPU benchmark](../windows-onnx-gpu/README.md), which must
+  prove explicit RX 9070 XT selection through Windows ML/MIGraphX or DirectML
+  before a detector or live shadow worker is selected. No candidate is
   connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.

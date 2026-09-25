@@ -16,7 +16,7 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/deepstream-shadow-provider`.
+Current branch: `codex/windows-onnx-shadow-provider`.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
@@ -37,13 +37,15 @@ Reception, but passed only five of seven retained cases: seated and Meetings
 crossing still fragmented people. NvDeepSORT produced nine tracks. Dahua and
 Frigate events remain source evidence and audit inputs.
 
-Implementation decision: use PeopleNet Transformer v1.1 plus bounded NvDCF as
-the conservative local-tracklet provider for the next shadow checkpoint. This
-does not mean it passed persistent-identity acceptance: its IDs remain
-temporary tracklets, it has no authority over occupancy or handoffs, and the
-v2/v1 confirmation pipeline remains an offline benchmark only. The shadow
-checkpoint prioritizes correct active occupancy, explicit uncertainty and
-restart recovery over pretending that fragmented tracklets are one identity.
+Deployment decision: retain every DeepStream result as benchmark evidence, but
+do not integrate it into the live stack. The final computer has two AMD RX 9070
+XT GPUs, no NVIDIA GPU, remains on Windows and must not depend on Ubuntu, ROCm
+multi-GPU under WSL or Docker GPU passthrough. The next provider must therefore
+run in native Windows processes. Windows ML with MIGraphX is the first
+candidate and ONNX Runtime with DirectML is the fallback. Each camera worker
+will eventually own one explicitly selected GPU; the two cards are not shared
+memory or CrossFire. Detector, tracker and ReID choices remain deferred until
+the isolated hardware gate passes.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -77,7 +79,7 @@ The current shadow policy rejected the Reception robot without suppressing the
 nearby real person. It is not a production classifier and must not be coupled
 directly into BoT-SORT before the complete detector/tracker pipeline is tested.
 
-## 2. Local tracker provider — current phase
+## 2. Local tracker provider — blocked on Windows hardware gate
 
 - [x] Record exact tracker sources, revisions, licenses and reproducible
   isolated environments in `local-tracker-sources.json`.
@@ -102,6 +104,33 @@ directly into BoT-SORT before the complete detector/tracker pipeline is tested.
   GPU container against the complete recording matrix. The retained recordings
   are complete; the crossing, weak-pose and separated-reappearance cases still
   fail, and no stream-loss recording exists yet.
+
+DeepStream remains the best integrated NVIDIA reference, but it cannot be the
+deployment provider on the final AMD/Windows machine. Its validation evidence
+is preserved unchanged in `VALIDATION_HISTORY.md`.
+
+## 2a. Native Windows ONNX hardware gate — current phase
+
+- [x] Define a small camera-free ONNX benchmark with CPU correctness tests.
+- [x] Enumerate Windows ML catalog providers, ORT EP devices and Windows
+  physical display adapters without assuming GPU order.
+- [x] Select a specific ORT EP device for MIGraphX or DirectML and reject runs
+  where profiling shows total or partial CPU fallback.
+- [x] Run two selected devices concurrently in independent processes and emit
+  versioned JSONL evidence.
+- [x] Pin dependencies, commit the small ONNX fixture and document clean-clone
+  setup for Windows.
+- [ ] On the final computer, map the two discrete RX 9070 XT cards and the
+  integrated GPU to provider-local indexes using the inventory and PCI
+  location evidence.
+- [ ] Pass CPU, each RX 9070 XT separately and both RX 9070 XT cards
+  simultaneously with MIGraphX; if MIGraphX fails, repeat with DirectML and
+  preserve both errors and successful evidence.
+
+Exit criterion: a report from the final computer proves which real provider
+and physical device executed every run, contains no hidden CPU fallback, and
+shows two independent GPU processes succeeding concurrently. This gate does
+not select the production detector or local tracker.
 
 Exit criterion: one pinned pipeline passes the local test matrix on immutable
 recordings and has a clear license/deployment path. Benchmark thresholds are
@@ -192,21 +221,21 @@ degrades to observable uncertainty rather than a silent wrong identity.
     through human fragmentation. Reject it for live shadow mode unchanged.
 11. [x] Stop tuning around provisional geometry and select PeopleNet v1.1 plus
     bounded NvDCF as a conservative shadow-only tracklet provider.
-12. [ ] Feed DeepStream from Frigate/go2rtc's existing restream instead of
-    opening another direct camera connection. Start with one Reception stream,
-    keep URLs in ignored local configuration/environment variables, and prove
-    reconnect behavior before adding MQTT publication.
-13. [ ] Publish versioned shadow tracklet updates through MQTT, normalize them
-    without treating NvDCF IDs as people, and correlate them with Dahua and
-    Frigate evidence. Do not affect occupancy or handoffs until the controlled
-    shadow matrix and stream-loss case pass.
+12. [x] Invalidate the DeepStream live-integration handoff after confirming the
+    final deployment is native Windows on two AMD RX 9070 XT cards. Preserve
+    DeepStream only as benchmark evidence.
+13. [x] Prepare the reproducible `experiments/windows-onnx-gpu/` hardware gate
+    with CPU tests, strict provider profiling, explicit device selection,
+    independent dual-process execution and JSONL output.
+14. [ ] Run the gate on the final AMD computer and attach its JSONL report.
+15. [ ] Only after item 14, select a portable ONNX detector and local tracker,
+    then connect one native worker to Frigate/go2rtc's restream in shadow mode.
 
 ## Next-session handoff
 
-Start at immediate-sequence item 12. First inspect the Frigate/go2rtc restream
-configuration and existing local-supervisor/Docker wiring without exposing
-credentials. Then add the smallest reproducible DeepStream RTSP input config
-for Reception and verify that it consumes the restream, produces bounded
-PeopleNet v1.1 + NvDCF tracklets, and reconnects cleanly. Do not add the MQTT
-publisher or modify occupancy in the same checkpoint unless the restream and
-restart exit criteria have passed.
+Start at immediate-sequence item 14. On the final AMD computer, check out
+`codex/windows-onnx-shadow-provider`, follow
+`experiments/windows-onnx-gpu/README.md`, identify the provider-local indexes
+for both discrete RX 9070 XT cards, and run the MIGraphX matrix. Use DirectML
+only as the recorded fallback. Return the generated JSONL before choosing a
+detector, touching restream/MQTT integration or modifying occupancy/handoffs.
