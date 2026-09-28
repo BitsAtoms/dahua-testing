@@ -14,6 +14,7 @@ import time
 import cv2
 
 from visual_reid.onnx_person_detector import OnnxRuntime, YoloXPersonDetector
+from visual_reid.rfdetr_person_detector import RfDetrMediumPersonDetector
 
 
 ROOT = Path(__file__).resolve().parent
@@ -29,7 +30,7 @@ def sha256(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", choices=("yolox_tiny", "yolox_m"), required=True)
+    parser.add_argument("--model", choices=("yolox_tiny", "yolox_m", "rfdetr_medium"), required=True)
     parser.add_argument("--provider", choices=("cpu", "directml"), default="cpu")
     parser.add_argument("--device-index", type=int)
     parser.add_argument("--threshold", type=float, default=0.4)
@@ -44,11 +45,15 @@ def main() -> int:
     if model_path.stat().st_size != model["bytes"] or sha256(model_path) != model["sha256"]:
         raise RuntimeError(f"model size or checksum mismatch: {model_path}")
     matrix = json.loads((ROOT / "onnx-detector-matrix.json").read_text(encoding="utf-8"))["recordings"]
-    runtime = OnnxRuntime(model_path, provider=args.provider, device_index=args.device_index)
-    detector = YoloXPersonDetector(runtime)
     records = []
     summaries = []
+    profiles = []
     for item in matrix:
+        # A fresh session per clip keeps ORT's finite profiling event buffer
+        # below its cap and verifies the requested provider for every replay.
+        runtime = OnnxRuntime(model_path, provider=args.provider, device_index=args.device_index)
+        detector = (RfDetrMediumPersonDetector(runtime) if args.model == "rfdetr_medium"
+                    else YoloXPersonDetector(runtime))
         path = ROOT / item["path"]
         capture = cv2.VideoCapture(str(path))
         if not capture.isOpened():
@@ -100,8 +105,11 @@ def main() -> int:
                           "negative_false_positive_frames": hit if item["expected_person"] == "absent" else None,
                           "latency_ms_p50": round(statistics.median(latencies), 3),
                           "latency_ms_p95": round(ordered[min(count - 1, int(count * .95))], 3)})
+        profiles.append({"scenario": item["scenario"], **runtime.close()})
         print(json.dumps(summaries[-1], sort_keys=True), flush=True)
-    profile = runtime.close()  # Refuse to publish evidence if GPU execution fell back to CPU.
+    profile = {"per_scenario": profiles,
+               "node_providers": sorted({node for item in profiles for node in item["node_providers"]}),
+               "cpu_fallback": False}  # Every runtime.close() rejects a GPU CPU fallback.
     header = {"kind": "run", "schema_version": "onnx_person_benchmark.v1",
               "generated_at": datetime.now(timezone.utc).isoformat(), "model": args.model,
               "model_sha256": model["sha256"], "provider": args.provider,

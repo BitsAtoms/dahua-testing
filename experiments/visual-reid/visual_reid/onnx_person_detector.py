@@ -56,14 +56,15 @@ class OnnxRuntime:
         if self.requested not in self.session.get_providers():
             raise ProviderError(f"session lacks {self.requested}: {self.session.get_providers()}")
         inputs, outputs = self.session.get_inputs(), self.session.get_outputs()
-        if len(inputs) != 1 or len(outputs) != 1 or inputs[0].type != "tensor(float)":
-            raise ValueError("expected one float input and one output")
+        if len(inputs) != 1 or not outputs or inputs[0].type != "tensor(float)":
+            raise ValueError("expected one float input and at least one output")
         self.input_name = inputs[0].name
         self.input_shape = inputs[0].shape
-        self.output_shape = outputs[0].shape
+        self.output_names = [item.name for item in outputs]
+        self.output_shapes = [item.shape for item in outputs]
 
-    def run(self, tensor: np.ndarray) -> np.ndarray:
-        return self.session.run(None, {self.input_name: tensor})[0]
+    def run(self, tensor: np.ndarray) -> list[np.ndarray]:
+        return self.session.run(None, {self.input_name: tensor})
 
     def close(self) -> dict:
         profile_path = Path(self.session.end_profiling())
@@ -116,10 +117,10 @@ class YoloXPersonDetector:
             raise ValueError(f"unsupported YOLOX input shape: {shape}")
         self.height, self.width = shape[2:]
         expected = sum((self.height // stride) * (self.width // stride) for stride in (8, 16, 32))
-        if runtime.output_shape != [1, expected, 85]:
-            raise ValueError(f"unsupported YOLOX output shape: {runtime.output_shape}")
+        if runtime.output_shapes != [[1, expected, 85]]:
+            raise ValueError(f"unsupported YOLOX output shape: {runtime.output_shapes}")
 
     def detect(self, frame: np.ndarray, threshold: float) -> list[Detection]:
         tensor, ratio = preprocess_yolox(frame, self.height, self.width)
-        return decode_yolox(self.runtime.run(tensor), frame.shape[:2], ratio,
+        return decode_yolox(self.runtime.run(tensor)[0], frame.shape[:2], ratio,
                             threshold, (self.height, self.width))

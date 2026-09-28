@@ -14,6 +14,7 @@ experiments/visual-reid/.venv-norfair/
 experiments/visual-reid/.venv-trackers/
 experiments/visual-reid/.venv-boxmot/
 experiments/visual-reid/.venv-onnx-detector/
+experiments/visual-reid/.venv-rfdetr-export/
 experiments/visual-reid/models/
 experiments/visual-reid/output/
 experiments/windows-onnx-gpu/.venv/

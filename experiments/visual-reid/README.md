@@ -175,6 +175,58 @@ YOLOX-Tiny marked a chair in 19/150 empty-room frames. Both had weak mixed-pose
 detection. Detailed measurements and the decision are in
 `VALIDATION_HISTORY.md`. No detector is enabled in the live stack.
 
+### RF-DETR Medium follow-up
+
+The follow-up candidate is the official [RF-DETR Medium v1.11.0](https://github.com/roboflow/rf-detr/releases/tag/v1.11.0),
+whose Medium code and weights are designated Apache-2.0 by the upstream
+[repository](https://github.com/roboflow/rf-detr). Its upstream weight URL,
+official MD5, measured byte count and SHA-256, and the locally exported ONNX
+byte count and SHA-256 are pinned in `onnx-detector-models.json`. The `.pth`
+and `.onnx` files remain ignored. The export environment is pinned separately
+in `requirements-rfdetr-export.lock.txt`:
+
+```powershell
+py -3.12 -m venv experiments/visual-reid/.venv-rfdetr-export
+experiments/visual-reid/.venv-rfdetr-export/Scripts/python.exe -m pip install `
+  -r experiments/visual-reid/requirements-rfdetr-export.lock.txt
+New-Item -ItemType Directory -Force experiments/visual-reid/models/rfdetr
+curl.exe -L --fail -o experiments/visual-reid/models/rfdetr/rf-detr-medium.pth `
+  https://storage.googleapis.com/rfdetr/medium_coco/checkpoint_best_regular.pth
+experiments/visual-reid/.venv-rfdetr-export/Scripts/python.exe `
+  experiments/visual-reid/export_rfdetr_medium.py
+```
+
+Check the official source and license before downloading. The export script checks the exact checkpoint
+and ONNX hashes. It uses the upstream exporter with ONNX opset 17 and float32.
+The RF-DETR-specific adapter follows the [official ONNX recipe](https://rfdetr.roboflow.com/latest/exports/onnx/):
+RGB bilinear resize to 576 × 576, values in `[0,1]`, ImageNet normalization,
+then sigmoid on the sparse COCO person logit (class ID 1) and normalized
+`cxcywh` box decoding. It keeps the `dets` and `labels` output handling outside
+the shared ONNX Runtime provider adapter. The exported graph has one float32
+`[1,3,576,576]` input and named `dets` `[1,300,4]` and `labels` `[1,300,91]`
+outputs.
+
+Run the same seven-clip CPU screen at 0.3; its per-box scores also permit
+retrospective checks at 0.4 and 0.5:
+
+```powershell
+experiments/visual-reid/.venv-onnx-detector/Scripts/python.exe `
+  experiments/visual-reid/benchmark_onnx_person.py --model rfdetr_medium `
+  --provider cpu --threshold 0.3 --sample-fps 5 `
+  --output experiments/visual-reid/output/onnx-detector/rfdetr-medium-cpu-030.jsonl
+```
+
+The runner creates a new ORT session for each clip and verifies its node
+profile before publishing the JSONL, avoiding the profiler's finite event
+buffer. The evidence and selection decision are in `VALIDATION_HISTORY.md`.
+At 0.3, the robot is rejected in all 151 negative frames and the seated/partial
+clip has detections in all 148 frames. However, the empty room has four
+screen-person false-positive frames and the mixed-pose clip misses 25 of 153
+frames, including visible partial-person intervals. Raising the threshold to
+0.5 clears the screen frames but leaves only 59/153 mixed-pose frames with a
+detection. RF-DETR Medium is therefore retained as a benchmark candidate, not
+selected for DirectML deployment or local tracking.
+
 RT-DETR Warehouse and PeopleNet Transformer v2 use NVIDIA's TAO D-DETR parser.
 Build the pinned Apache-2.0 parser once; its source checkout, binary and build
 container remain outside Git:

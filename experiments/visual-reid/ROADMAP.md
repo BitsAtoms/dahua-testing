@@ -16,7 +16,7 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/directml-detector-benchmark`.
+Current branch: `codex/rfdetr-medium-detector`.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
@@ -141,7 +141,7 @@ and physical device executed every run, contains no hidden CPU fallback, and
 shows two independent GPU processes succeeding concurrently. This gate does
 not select the production detector or local tracker.
 
-## 2b. Portable ONNX person detector — offline screen complete; no survivor
+## 2b. Portable ONNX person detector — RF-DETR follow-up complete; no survivor
 
 - [x] Keep the existing YOLOX-Tiny ONNX model as a regression baseline rather
   than treating its previous weak coverage as an accepted detector.
@@ -155,6 +155,13 @@ not select the production detector or local tracker.
   per-frame detections, coverage proxy, negative-case false positives and latency.
 - [x] Reject YOLOX-M for persistent robot detections and weak mixed-pose
   coverage. YOLOX-Tiny also fails the empty-room and mixed-pose gates.
+- [x] Export official Apache-2.0 RF-DETR Medium v1.11.0 to ONNX with pinned
+  weight/export hashes and model-specific RGB/COCO decoding. Verify ONNX
+  inference against upstream PyTorch on a retained frame.
+- [x] Screen RF-DETR Medium on all seven recordings at 0.3 and compare 0.4/0.5
+  from the per-frame scores. It removes robot false positives and improves
+  seated/partial coverage, but still fires on screen people and misses visible
+  difficult poses. Keep it as an offline benchmark, not an accepted detector.
 - [ ] Validate the surviving detector through DirectML on each RX 9070 XT and
   in two independent processes on the final computer.
 
@@ -165,6 +172,15 @@ respectively. These are frame-level detection proxies, not annotated recall.
 No model proceeds to the DirectML detector gate. Exact per-frame local evidence
 is under ignored `output/onnx-detector/`; the decision summary is in
 `VALIDATION_HISTORY.md`.
+
+RF-DETR Medium at 0.3 detects the person in 128/153 mixed-pose frames and all
+148 seated/partial frames, with zero robot detections but four screen-person
+false-positive frames in the empty room. At 0.5 the screen false positives
+disappear but mixed-pose coverage drops to 59/153. The 0.3 run profiles each
+recording separately and records only `CPUExecutionProvider` nodes. There is
+no operating point in the tested range that meets both negative and difficult
+pose cases; the detector remains unselected. This is a frame-detection proxy,
+not annotated recall or a DirectML result.
 
 Exit criterion: one clearly licensed ONNX detector passes the retained
 negative and person-coverage cases, has reproducible preprocessing and output
@@ -267,9 +283,9 @@ degrades to observable uncertainty rather than a silent wrong identity.
     records the MIGraphX failure, and
     `experiments/windows-onnx-gpu/output/benchmark-20260928T115558.jsonl`
     records the passing DirectML matrix. Both remain ignored local evidence.
-15. [x] Benchmark YOLOX-Tiny as the portable regression baseline and one
-    stronger licensed ONNX person detector on the immutable recordings. Both
-    failed the offline gate; no detector is selected.
+15. [x] Benchmark YOLOX-Tiny as the portable regression baseline, YOLOX-M,
+    and the separate RF-DETR Medium follow-up on the immutable recordings.
+    None passed the offline negative and difficult-pose gate.
 16. [ ] Validate the surviving detector with DirectML on both RX 9070 XT cards,
     separately and concurrently, without CPU fallback.
 17. [ ] In a separate checkpoint, select a local tracker using the accepted
@@ -277,10 +293,11 @@ degrades to observable uncertainty rather than a silent wrong identity.
 
 ## Next-session handoff
 
-Item 15 is complete with a negative selection result. Review the ignored
-per-frame JSONL reports and the retained immutable recordings before choosing
-another detector candidate in a separate checkpoint. The next candidate must
-pass persistent-interference and difficult-pose gates offline before item 16
-tests that detector through DirectML on both RX cards. The hardware gate from
-`70ef79e` remains valid; the unresolved LUID-to-PCI correlation does not block
-offline detector work. Do not select a tracker or connect live sources yet.
+Item 15 and the RF-DETR Medium follow-up are complete with a negative selection
+result. The ignored `rfdetr-medium-cpu-030.jsonl` records every sampled frame
+and seven CPU provider profiles. Review its screen-person false positives and
+partial-person misses when designing the next candidate or labelled eval set.
+The next detector must pass interference and difficult-pose gates offline
+before item 16 tests it through DirectML on both RX cards. The hardware gate
+from `70ef79e` remains valid; LUID-to-PCI correlation does not block offline
+work. Do not select a tracker or connect live sources yet.

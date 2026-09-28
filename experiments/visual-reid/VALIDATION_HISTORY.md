@@ -261,3 +261,78 @@ passes**. Item 16 DirectML detector validation is deferred until a new
 officially sourced, licensed ONNX detector clears the same offline matrix.
 The prior DirectML hardware gate remains proven for its synthetic model on
 both RX 9070 XT cards; no claim is made yet for these detector graphs.
+
+## RF-DETR Medium ONNX follow-up — 2026-09-28
+
+Started from clean `codex/directml-detector-benchmark` at `46a12e7` (parent
+`9bba2f4`) and continued on `codex/rfdetr-medium-detector`. This follow-up
+evaluated one model only. Upstream [RF-DETR v1.11.0](https://github.com/roboflow/rf-detr/releases/tag/v1.11.0)
+designates Medium code and weights Apache-2.0. The official package listed
+`rf-detr-medium.pth` at
+`https://storage.googleapis.com/rfdetr/medium_coco/checkpoint_best_regular.pth`
+with MD5 `7223f764a87b863f02eb8d52bf0ce2ee`. The local download matched
+that MD5, measured 404,992,918 bytes and SHA-256
+`749ff6071828aaffac63e204c4f4135ed3d6cdae4d702e086c360edc3b5768c8`.
+The official exporter in `rfdetr==1.11.0` produced float32 ONNX opset 17,
+131,569,304 bytes, SHA-256
+`534ca11b273449052cf83f6d6eb53c5e11585225d41c66d271004150618f7937`.
+The pinned sources and sizes are in `onnx-detector-models.json`; the export
+environment is in `requirements-rfdetr-export.lock.txt`. Both weight files
+are ignored local data.
+
+The upstream ONNX preprocessing/decoding recipe uses RGB, bilinear 576 × 576
+resize, `[0,1]` float32, ImageNet normalization, sigmoid logits and normalized
+`cxcywh` boxes. The official COCO checkpoint retains sparse class IDs, so
+person is logit slot **1**, not 0. The exported graph exposes `dets`
+`[1,300,4]` and `labels` `[1,300,91]`. Our preprocessing differed from the
+upstream transform by at most `1.97e-5` on a controlled synthetic image.
+On the first seated/partial recording frame at threshold 0.4, official
+PyTorch and ONNX both returned one person: scores `0.94509208` and
+`0.94509143`, respectively; their box coordinates differed by less than one
+pixel. This checks preprocessing, sparse class selection and decode against
+the upstream implementation before the full replay.
+
+The authoritative replay used ONNX Runtime `1.23.2` on CPU, threshold 0.3,
+5 sampled FPS and all seven immutable recordings. The ignored
+`output/onnx-detector/rfdetr-medium-cpu-030.jsonl` has 1,655 frame rows,
+seven scenario summaries, recording SHA-256s, scored boxes, negative-scene
+false-positive flags and measured latency. All seven separate ORT session
+profiles reported only `CPUExecutionProvider` nodes. The first preliminary
+0.4 run hit the ORT profiler event cap late in the replay; the runner now
+creates and verifies one session per recording. Counts at 0.4 and 0.5 below
+are filters of the authoritative 0.3 per-box scores.
+
+| Recording | Frames | RF-DETR 0.3 | RF-DETR 0.4 | RF-DETR 0.5 | 0.3 median CPU latency |
+|---|---:|---:|---:|---:|---:|
+| Reception robot only | 151 | 0 | 0 | 0 | 192.8 ms |
+| Reception person near robot | 151 | 128 | 128 | 128 | 193.6 ms |
+| Meetings mixed pose | 153 | 128 | 100 | 59 | 204.8 ms |
+| Meetings seated/partial | 148 | 148 | 148 | 142 | 202.0 ms |
+| Meetings empty with displays | 150 | 4 false positives | 2 false positives | 0 | 200.8 ms |
+| Meetings crossing | 451 | 207 | 182 | 176 | 201.6 ms |
+| Reception crossing | 451 | 182 | 181 | 180 | 185.7 ms |
+
+The robot-only result is a real gain over YOLOX-M's 128/151 false-positive
+frames, and seated/partial coverage is strong. Visual review showed that the
+four empty-room boxes at 0.3 surround a person *shown on the central screen*;
+three occur between 28.0 and 28.8 seconds. The 0.4 screen boxes have scores
+`0.484045` and `0.464464`. At 0.3 the mixed-pose clip still has 25/153
+frames with no detection, including runs of six sampled frames (1.0 second)
+when the real person is small and partly hidden by a chair. At 0.4 these
+runs grow to ten and nine frames. Raising the threshold enough to clear the
+screen boxes leaves at most 59/153 mixed-pose frames with a detection at 0.5.
+Some positive clips also contain duplicate overlapping boxes, so these
+frame-level hit counts must not be mistaken for clean per-person recall.
+Mixed crossing clips include intervals with nobody present and have no
+per-person box annotations; their hit fractions are coverage proxies only.
+
+Decision: **RF-DETR Medium improves the baseline but does not pass the offline
+detector gate.** The tested thresholds do not jointly preserve difficult-pose
+coverage and reject screen people. Do not promote it to DirectML detector
+validation or choose a tracker yet. The next useful evidence is frame-level
+person and hard-negative annotation for the retained clips, then a separate
+candidate or controlled model improvement can be measured against it. Public
+data can expand pose variation, but these site-specific robot and display
+negatives must remain in the local acceptance set. The prior DirectML
+synthetic-model hardware result does not establish that this RF-DETR graph
+executes on either RX 9070 XT.

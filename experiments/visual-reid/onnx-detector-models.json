@@ -22,6 +22,21 @@
       "license": "Apache-2.0",
       "bytes": 101259744,
       "sha256": "21ff6cfdeb53b013bac2249599e55f00bff3cfdfdab37ed7a4620818c1d15b3f"
+    },
+    {
+      "name": "rfdetr_medium",
+      "role": "candidate",
+      "path": "models/rfdetr/rfdetr-medium.onnx",
+      "source": "https://github.com/roboflow/rf-detr/releases/tag/v1.11.0",
+      "version": "rfdetr==1.11.0",
+      "license": "Apache-2.0",
+      "bytes": 131569304,
+      "sha256": "534ca11b273449052cf83f6d6eb53c5e11585225d41c66d271004150618f7937",
+      "export": "export_rfdetr_medium.py, opset 17, fp32",
+      "weights_url": "https://storage.googleapis.com/rfdetr/medium_coco/checkpoint_best_regular.pth",
+      "weights_bytes": 404992918,
+      "weights_md5": "7223f764a87b863f02eb8d52bf0ce2ee",
+      "weights_sha256": "749ff6071828aaffac63e204c4f4135ed3d6cdae4d702e086c360edc3b5768c8"
     }
   ]
 }
