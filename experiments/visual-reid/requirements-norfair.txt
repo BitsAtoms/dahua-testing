@@ -1,0 +1,7 @@
+# Isolated benchmark environment. Norfair 2.2.0 requires NumPy <2.
+norfair==2.2.0
+numpy>=1.26,<2
+opencv-python-headless>=4.10,<5
+openvino>=2025.0,<2026
+tqdm>=4.66,<5
+tensorboardX>=2.6,<3

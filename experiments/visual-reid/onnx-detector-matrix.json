@@ -1,0 +1,12 @@
+{
+  "schema_version": "onnx_detector_matrix.v1",
+  "recordings": [
+    {"scenario": "interference_only", "camera_id": "recepcion_terminator", "expected_person": "absent", "path": "output/detector-benchmark/20260921T113306Z-interference_only/recepcion_terminator.mkv"},
+    {"scenario": "person_near_interference", "camera_id": "recepcion_terminator", "expected_person": "mixed", "path": "output/detector-benchmark/20260921T143019Z-person_near_interference/recepcion_terminator.mkv"},
+    {"scenario": "person_present_mixed_pose", "camera_id": "reuniones_terminator", "expected_person": "present", "path": "output/detector-benchmark/20260921T143345Z-person_present_mixed_pose/reuniones_terminator.mkv"},
+    {"scenario": "person_present_seated_partial", "camera_id": "reuniones_terminator", "expected_person": "present", "path": "output/detector-benchmark/20260921T143706Z-person_present_seated_partial/reuniones_terminator.mkv"},
+    {"scenario": "room_empty_with_displays", "camera_id": "reuniones_terminator", "expected_person": "absent", "path": "output/detector-benchmark/20260921T144103Z-room_empty_with_displays/reuniones_terminator.mkv"},
+    {"scenario": "two_person_crossing_meetings", "camera_id": "reuniones_terminator", "expected_person": "mixed", "path": "output/detector-benchmark/20260922T094309Z-two_person_crossing_occlusion/reuniones_terminator.mkv"},
+    {"scenario": "two_person_crossing_reception", "camera_id": "recepcion_terminator", "expected_person": "mixed", "path": "output/detector-benchmark/20260923T081054Z-two_person_crossing_occlusion_alternate_camera/recepcion_terminator.mkv"}
+  ]
+}

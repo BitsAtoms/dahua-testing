@@ -1,0 +1,166 @@
+{
+  "sources": [
+    {
+      "url": "https://github.com/openvinotoolkit/open_model_zoo",
+      "license": "Apache-2.0"
+    },
+    {
+      "url": "https://github.com/NickM-27/facenet-onnx",
+      "license": "Apache-2.0"
+    },
+    {
+      "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models",
+      "license": "NVIDIA NGC model terms"
+    }
+  ],
+  "models": [
+    {
+      "name": "face-detection-retail-0004",
+      "purpose": "adaptive_face_detection",
+      "files": [
+        {
+          "path": "face-detection-retail-0004/FP16/face-detection-retail-0004.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-detection-retail-0004/FP16/face-detection-retail-0004.xml",
+          "bytes": 143827,
+          "sha384": "a7f8d1d41998503c4f3cdd8c12275f04f1736e5142127edcb4c76c3e17188499390574095a5b2a9dd78d3d0f77d02034"
+        },
+        {
+          "path": "face-detection-retail-0004/FP16/face-detection-retail-0004.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-detection-retail-0004/FP16/face-detection-retail-0004.bin",
+          "bytes": 1176544,
+          "sha384": "394185d3e42c34d7f9d43229ec8f5755c07e19fd6469d23883e71707fdd8eb66d90cbd62248db90ff3ba1c94adac599b"
+        }
+      ]
+    },
+    {
+      "name": "person-reidentification-retail-0287",
+      "purpose": "body_embedding",
+      "files": [
+        {
+          "path": "person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.xml",
+          "bytes": 614946,
+          "sha384": "922cc5560fa298a9f02cac5bad5cbeeaee2a913ec435ae6f446d0c783936598b333c017ce1a702b605c2fd7fa33a6ee7"
+        },
+        {
+          "path": "person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/person-reidentification-retail-0287/FP16/person-reidentification-retail-0287.bin",
+          "bytes": 1181124,
+          "sha384": "ad86ea0b8661e43b01482fef63b2fe423ec9df8e55f6283f28c01094223f7731e4d60de5700036e6a2df7ebae0f5012d"
+        }
+      ]
+    },
+    {
+      "name": "face-reidentification-retail-0095",
+      "purpose": "face_embedding",
+      "files": [
+        {
+          "path": "face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml",
+          "bytes": 350427,
+          "sha384": "689fb39e94bbd0d22cfeeb9292d0b91ac753424a7ee2c0555070e4038a00bfcaad473b47303012b9a393027dbad0dbce"
+        },
+        {
+          "path": "face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.bin",
+          "bytes": 2213628,
+          "sha384": "6d51703e854509dafdab9dfc6b932136d301d95be6d52c9c23b5a4f5de1ffec80e8d38b87e0e9556ad36f0dded1588ed"
+        }
+      ]
+    },
+    {
+      "name": "landmarks-regression-retail-0009",
+      "purpose": "face_alignment",
+      "files": [
+        {
+          "path": "landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml",
+          "bytes": 66508,
+          "sha384": "393eda465df2a886f7edd932e2f1cd6930ae91f85708f91b4cd60e411acfb86e9de9e083907901208e9e8af639846572"
+        },
+        {
+          "path": "landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.bin",
+          "url": "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2023.0/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.bin",
+          "bytes": 381232,
+          "sha384": "0e6e830387f56783de313e0f7022b7808fd2e9e0b28b411a65608e2c1df0bcf939c65fb699fc51868df30232d6308515"
+        }
+      ]
+    },
+    {
+      "name": "facenet-small-v1",
+      "purpose": "anonymous_face_embedding",
+      "source": "https://github.com/NickM-27/facenet-onnx",
+      "license": "Apache-2.0",
+      "files": [
+        {
+          "path": "facenet-small-v1/facenet.tflite",
+          "url": "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facenet.tflite",
+          "bytes": 93941044,
+          "sha384": "139098cd69748290bdbbd1d6fd2d3650ef14104df61bca850bca3acb085e85cb12e182294c92c836c7e9667e16e2cd82"
+        }
+      ]
+    },
+    {
+      "name": "peoplenet-transformer-deployable-v1.1",
+      "purpose": "deepstream_person_detection",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/resnet50_peoplenet_transformer_op17.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer/deployable_v1.1/files?redirect=true&path=resnet50_peoplenet_transformer_op17.onnx",
+          "bytes": 93960915,
+          "sha384": "ff6fd70cb85e52c269b09e84ca7e15ce7f3cf23113f842c5487540bb1fbb2e8800a58c90a408c4070f6921e3a03a27a1"
+        },
+        {
+          "path": "deepstream/peoplenet_labels.txt",
+          "url": "https://api.ngc.nvidia.com/v2/models/nvidia/tao/peoplenet_transformer/versions/deployable_v1.0/files/labels.txt",
+          "bytes": 21,
+          "sha384": "799fb4645a82b3327173e584440924c6d2bf3d5e5dbaf9eed6f00dc52fae552ec7266423c14593032d95df0f183b96c2"
+        }
+      ]
+    },
+    {
+      "name": "reidentificationnet-deployable-v1.0",
+      "purpose": "deepstream_local_tracking_reid",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/reidentificationnet",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/resnet50_market1501.etlt",
+          "url": "https://api.ngc.nvidia.com/v2/models/nvidia/tao/reidentificationnet/versions/deployable_v1.0/files/resnet50_market1501.etlt",
+          "bytes": 96377716,
+          "sha384": "0c475553f7e757d1c9532b53f7c43f78969b2aa22694e70dd1ae38edae47a3e8a8fff5c71e89ee74ad9c1e32ffacdfe0"
+        }
+      ]
+    },
+    {
+      "name": "rtdetr-2d-warehouse-efficientvit-l2-deployable-v1.0",
+      "purpose": "deepstream_person_detection_candidate",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/rtdetr_2d_warehouse",
+      "license": "NVIDIA Open Model License",
+      "files": [
+        {
+          "path": "deepstream/rtdetr_warehouse_v1.0.fp16.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/rtdetr_2d_warehouse/deployable_efficientvit_l2_v1.0/files?redirect=true&path=rtdetr_warehouse_v1.0.fp16.onnx",
+          "bytes": 141956350,
+          "sha384": "0a51f139fa37a7a8217b410fe9722c83e4e68a82612aee7c8075915c1c776cf41ce28dcc25f94e605c3c2141b74f2f6c"
+        }
+      ]
+    },
+    {
+      "name": "peoplenet-transformer-v2-deployable-v1.0",
+      "purpose": "deepstream_person_detection_candidate",
+      "source": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/peoplenet_transformer_v2",
+      "license": "NVIDIA NGC model terms",
+      "files": [
+        {
+          "path": "deepstream/dino_fan_small_astro_delta.onnx",
+          "url": "https://api.ngc.nvidia.com/v2/models/org/nvidia/team/tao/peoplenet_transformer_v2/deployable_v1.0/files?redirect=true&path=dino_fan_small_astro_delta.onnx",
+          "bytes": 214935774,
+          "sha384": "7b9557b3bbb9e122b429c9830d7a7464391f2a20d35865b5919228a2fcf06ea7aa708775d6bdc4ad00156b39d6dd0ff5"
+        }
+      ]
+    }
+  ]
+}

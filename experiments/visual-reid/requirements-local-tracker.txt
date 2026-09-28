@@ -1,0 +1,5 @@
+# Kept separate because Roboflow Trackers requires NumPy >= 2 while the
+# current OpenVINO evidence environment supports NumPy 1.x.
+trackers==2.6.0
+openvino>=2025,<2026
+deep-sort-realtime @ git+https://github.com/levan92/deep_sort_realtime.git@3341f823ee0ad20aa58c906079a37f3d43b42bbe

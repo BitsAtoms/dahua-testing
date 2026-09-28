@@ -15,10 +15,15 @@ import threading
 import time
 from typing import Any
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+TRACK_TRANSPORT_ROOT = REPOSITORY_ROOT / "services" / "track-transport"
+sys.path.insert(0, str(TRACK_TRANSPORT_ROOT))
+
 from frigate_adapter import FrigateEventAdapter
 from frigate_adapter.retention import remove_expired_files
 from frigate_adapter.snapshots import SnapshotEnricher
 from frigate_adapter.timing import build_pipeline_timing
+from track_transport import MqttOutboxPublisher, OutboxStore
 
 
 QueueItem = tuple[str, bytes, str, int]
@@ -66,6 +71,23 @@ def parse_frame_sizes(value: str) -> dict[str, tuple[int, int]]:
     return sizes
 
 
+def parse_classification_policy(value: str) -> dict[str, dict[str, str]]:
+    """Parse a model -> label -> eligibility JSON policy."""
+    if not value.strip():
+        return {}
+    try:
+        policy = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "FRIGATE_TRACK_CLASSIFICATION_POLICY must be valid JSON"
+        ) from error
+    if not isinstance(policy, dict):
+        raise ValueError(
+            "FRIGATE_TRACK_CLASSIFICATION_POLICY must be a JSON object"
+        )
+    return policy
+
+
 def merged_config(env_file: Path) -> dict[str, str]:
     """Merge dotenv values with process environment taking precedence."""
     return {**read_env(env_file), **os.environ}
@@ -95,6 +117,7 @@ def main() -> int:
         default=Path("experiments/frigate-adapter/output"),
     )
     parser.add_argument("--queue-size", type=int, default=1000)
+    parser.add_argument("--outbox-database", type=Path)
     args = parser.parse_args()
     if args.queue_size <= 0:
         raise ValueError("queue size must be positive")
@@ -103,11 +126,28 @@ def main() -> int:
     host = require(config, "FRIGATE_MQTT_HOST")
     port = int(config.get("FRIGATE_MQTT_PORT", "1883"))
     topic_prefix = config.get("FRIGATE_MQTT_TOPIC_PREFIX", "frigate")
-    topic = f"{topic_prefix}/events"
+    event_topic = f"{topic_prefix}/events"
+    tracked_object_topic = f"{topic_prefix}/tracked_object_update"
     instance_id = config.get("FRIGATE_INSTANCE_ID", "local-frigate")
     frame_sizes = parse_frame_sizes(require(config, "FRIGATE_CAMERA_FRAME_SIZES"))
-    adapter = FrigateEventAdapter(frame_sizes, instance_id=instance_id)
+    classification_policy = parse_classification_policy(
+        config.get("FRIGATE_TRACK_CLASSIFICATION_POLICY", "")
+    )
+    adapter = FrigateEventAdapter(
+        frame_sizes,
+        instance_id=instance_id,
+        classification_policy=classification_policy,
+    )
     snapshot_api_url = config.get("FRIGATE_API_URL", "")
+    track_host = config.get("TRACK_MQTT_HOST") or host
+    track_port = int(config.get("TRACK_MQTT_PORT", str(port)))
+    track_topic = config.get("TRACK_MQTT_TOPIC", "tracking/track-updates")
+    outbox_path = args.outbox_database or Path(
+        config.get(
+            "TRACK_OUTBOX_DATABASE",
+            "runtime/track-outbox/frigate.sqlite3",
+        )
+    )
 
     try:
         import paho.mqtt.client as mqtt
@@ -126,6 +166,17 @@ def main() -> int:
         SnapshotEnricher(adapter, snapshot_api_url, session_root / "media")
         if snapshot_api_url
         else None
+    )
+    track_publisher = MqttOutboxPublisher(
+        OutboxStore(outbox_path),
+        host=track_host,
+        port=track_port,
+        topic=track_topic,
+        client_id=f"track-publisher-{instance_id}",
+        username=config.get("TRACK_MQTT_USER")
+        or config.get("FRIGATE_MQTT_USER", ""),
+        password=config.get("TRACK_MQTT_PASSWORD")
+        or config.get("FRIGATE_MQTT_PASSWORD", ""),
     )
 
     messages: queue.Queue[QueueItem] = queue.Queue(maxsize=args.queue_size)
@@ -150,8 +201,13 @@ def main() -> int:
         if reason_code != 0:
             print(f"mqtt_connection_failed reason={reason_code}", flush=True)
             return
-        connected_client.subscribe(topic, qos=0)
-        print(f"mqtt_connected topic={topic}", flush=True)
+        connected_client.subscribe(event_topic, qos=0)
+        connected_client.subscribe(tracked_object_topic, qos=0)
+        print(
+            "mqtt_connected "
+            f"topics={event_topic},{tracked_object_topic}",
+            flush=True,
+        )
 
     def on_disconnect(
         _client: Any,
@@ -183,6 +239,8 @@ def main() -> int:
         stop.set()
 
     signal.signal(signal.SIGINT, request_stop)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, request_stop)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, request_stop)
 
@@ -192,6 +250,8 @@ def main() -> int:
     print(f"output={session_root}")
     print(f"retention_removed files={removed_files} bytes={removed_bytes}")
     print(f"snapshots={'enabled' if snapshot_enricher else 'disabled'}")
+    print(f"track_outbox={outbox_path.resolve()}")
+    track_publisher.start()
     client.connect(host, port, keepalive=60)
     client.loop_start()
     next_retention = time.monotonic() + 3600
@@ -216,13 +276,23 @@ def main() -> int:
                         )
                         continue
                     append_json_line(update_output, result.update)
+                    track_publisher.publish(result.update)
                     print(
                         "snapshot_update "
                         f"camera={result.camera_id} "
                         f"track={result.local_track_id} "
-                        f"bytes={result.byte_count}",
+                        f"bytes={result.byte_count} "
+                        f"faces={result.face_count}",
                         flush=True,
                     )
+                    if result.face_error:
+                        print(
+                            "face_crop_failed "
+                            f"camera={result.camera_id} "
+                            f"track={result.local_track_id} "
+                            f"error={result.face_error}",
+                            flush=True,
+                        )
 
             while (
                 not stop.is_set()
@@ -261,7 +331,10 @@ def main() -> int:
                 raw_persisted_ns = time.perf_counter_ns()
                 normalize_started_ns = raw_persisted_ns
                 try:
-                    update = adapter.adapt(payload)
+                    if received_topic == tracked_object_topic:
+                        update = adapter.adapt_classification(payload)
+                    else:
+                        update = adapter.adapt(payload)
                 except ValueError as error:
                     print(f"invalid_frigate_event error={error}", flush=True)
                     continue
@@ -269,6 +342,7 @@ def main() -> int:
                 if update is None:
                     continue
                 append_json_line(update_output, update)
+                track_publisher.publish(update)
                 output_persisted_at = datetime.now(timezone.utc).isoformat()
                 output_persisted_ns = time.perf_counter_ns()
                 timing = build_pipeline_timing(
@@ -296,6 +370,8 @@ def main() -> int:
                     f"mqtt_to_output={durations['mqtt_callback_to_output']:.1f}ms",
                     flush=True,
                 )
+                if received_topic != event_topic:
+                    continue
                 after = payload.get("after", {})
                 snapshot = after.get("snapshot") or {}
                 snapshot_timestamp = snapshot.get("frame_time")
@@ -305,7 +381,11 @@ def main() -> int:
                     and after.get("has_snapshot") is True
                     and isinstance(snapshot_timestamp, (int, float))
                 ):
-                    if not snapshot_enricher.submit(update, float(snapshot_timestamp)):
+                    if not snapshot_enricher.submit(
+                        update,
+                        float(snapshot_timestamp),
+                        snapshot_box=snapshot.get("box"),
+                    ):
                         print(
                             "snapshot_queue_full "
                             f"camera={update['camera_id']} "
@@ -319,6 +399,7 @@ def main() -> int:
             snapshot_enricher.shutdown()
         client.disconnect()
         client.loop_stop()
+        track_publisher.stop()
         print("mqtt_runner_stopped", flush=True)
     return 2 if overflow.is_set() else 0
 

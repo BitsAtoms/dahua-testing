@@ -55,7 +55,27 @@ FRIGATE_MQTT_TOPIC_PREFIX=frigate
 FRIGATE_INSTANCE_ID=local-frigate
 FRIGATE_CAMERA_FRAME_SIZES=puerta_planeta=1280x720,dahua_213=704x576
 FRIGATE_API_URL=http://127.0.0.1:5000
+TRACK_MQTT_TOPIC=tracking/track-updates
 ```
+
+The adapter also listens to `frigate/tracked_object_update`. A deployment may
+map the labels of one or more Frigate object classifiers onto the generic track
+eligibility states `eligible`, `excluded`, or `contaminated`:
+
+```dotenv
+FRIGATE_TRACK_CLASSIFICATION_POLICY={"person_validity":{"valid_person":"eligible","not_person":"excluded"}}
+```
+
+Model and label names are deployment configuration, not product semantics. A
+site may train with its own hard negatives, but downstream services see only a
+source-neutral eligibility decision plus the original model, label, score and
+reason. When a policy is configured, lifecycle events start as `provisional`
+until Frigate reaches classification consensus. Unknown labels remain
+provisional; they are never silently treated as a valid person.
+
+Do not configure this variable until the referenced Frigate model exists and
+has been evaluated on held-out local sessions. Without a policy, existing
+behavior remains compatible and tracks are marked eligible by source policy.
 
 Install the small client dependency and start the runner:
 
@@ -86,11 +106,27 @@ The MQTT callback uses a bounded queue and stops loudly instead of silently
 dropping an event if the queue fills. All adapter output uses the same
 seven-day retention policy as the Dahua collector.
 
+Every normalized update is also placed in the SQLite outbox at
+`runtime/track-outbox/frigate.sqlite3` and published to
+`tracking/track-updates` with MQTT QoS 1. The row is deleted only after the
+broker's PUBACK. If the broker or receiver is unavailable, Frigate ingestion
+continues. Broker outages remain in the local outbox and are retried after
+reconnection. Receiver outages are queued by Mosquitto after the receiver has
+registered its persistent MQTT session at least once. A crash between PUBACK
+and deletion can produce a redelivery; the receiver deduplicates it by
+`message_id`. Pending records also follow the seven-day retention policy.
+
+`TRACK_MQTT_HOST`, `TRACK_MQTT_PORT`, `TRACK_MQTT_USER`, and
+`TRACK_MQTT_PASSWORD` can override the input-broker settings when transport
+uses a separate broker. `TRACK_OUTBOX_DATABASE` can override the outbox path.
+
 Snapshot retrieval runs in a bounded worker pool outside the MQTT event path.
 An `end` update is persisted immediately; when Frigate's JPEG becomes
 available, the adapter emits a second `phase=snapshot` update with the same
-`track_id` and an absolute media path. Bind Frigate's unauthenticated internal
-API to Windows loopback only, never to the LAN:
+`track_id`, an absolute media path, and the bounding box stored beside the
+snapshot's own `frame_time`. It does not reuse the later end-of-track box for
+that earlier image. Bind Frigate's unauthenticated internal API to Windows
+loopback only, never to the LAN:
 
 ```yaml
 ports:
@@ -106,6 +142,13 @@ snapshots:
   retain:
     default: 7
 ```
+
+When Frigate face recognition is enabled, the adapter also queries the public
+face-attempt index after an event ends. If Frigate retained one or more crops
+correlated by event ID, the highest-scoring attempt is copied under an
+anonymous local filename and emitted as media role `face`. The original
+Frigate label is not propagated. Missing face crops are normal and leave the
+full snapshot available for body evidence or later local face detection.
 
 ### Live validation
 

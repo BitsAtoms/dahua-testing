@@ -141,6 +141,7 @@ After building the native executable, run both transports and the correlator
 as one foreground process:
 
 ```powershell
+python -m pip install -r services\track-transport\requirements.txt
 python experiments\dahua-netsdk\collector\live.py --camera-id dahua_213
 ```
 
@@ -204,8 +205,16 @@ keeps the tracking connector small while retaining complete diagnostic data in
 the collector output. Dahua's numeric AI attribute enums are not copied into
 the tracking message until a provider-neutral semantic mapping is defined.
 
-`JsonlEventSink` is the current destination. The sink interface allows a future
-HTTP receiver to be added without changing camera ingestion or correlation.
+After the durable JSONL write, every `track_update.v1` is placed in a
+per-camera SQLite outbox under `runtime/track-outbox/` and published to the
+common `tracking/track-updates` topic with MQTT QoS 1. The shared transport
+removes an outbox row only after the broker PUBACK and retries broker outages.
+The receiver deduplicates possible redeliveries by `message_id`.
+
+The worker uses `TRACK_MQTT_*` values from the ignored `.env` and falls back to
+the local `FRIGATE_MQTT_HOST` and port. Keeping one outbox per camera preserves
+process isolation and avoids SQLite write contention when several Dahua
+cameras are running.
 
 ## Output retention
 

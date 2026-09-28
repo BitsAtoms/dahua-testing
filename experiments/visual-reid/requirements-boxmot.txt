@@ -1,0 +1,4 @@
+# AGPL-3.0 dependency: internal, non-commercial demo evaluation only.
+# Revisit licensing before distribution, hosted access or commercial use.
+boxmot==25.0.0
+openvino>=2025,<2026

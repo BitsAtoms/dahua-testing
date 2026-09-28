@@ -11,17 +11,21 @@ from unittest.mock import patch
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_ROOT = REPOSITORY_ROOT / "experiments" / "frigate-adapter"
+TRACK_RECEIVER_ROOT = REPOSITORY_ROOT / "services" / "track-receiver"
 sys.path.insert(0, str(ADAPTER_ROOT))
+sys.path.insert(0, str(TRACK_RECEIVER_ROOT))
 
 from frigate_adapter import FrigateEventAdapter  # noqa: E402
 from frigate_adapter.retention import remove_expired_files  # noqa: E402
 from frigate_adapter.snapshots import (  # noqa: E402
     SnapshotFetchError,
+    fetch_best_face_crop,
     fetch_snapshot,
     validate_api_url,
 )
 from frigate_adapter.timing import build_pipeline_timing  # noqa: E402
-from mqtt_runner import parse_frame_sizes  # noqa: E402
+from mqtt_runner import parse_classification_policy, parse_frame_sizes  # noqa: E402
+from track_receiver.validation import validate_track_update  # noqa: E402
 
 
 class FrigateEventAdapterTests(unittest.TestCase):
@@ -104,6 +108,83 @@ class FrigateEventAdapterTests(unittest.TestCase):
         self.assertEqual(sizes["front_door"], (1280, 720))
         self.assertEqual(sizes["dahua_213"], (704, 576))
 
+    def test_configured_classification_controls_generic_track_eligibility(self) -> None:
+        adapter = FrigateEventAdapter(
+            {"front_door": (1280, 720)},
+            instance_id="local-frigate",
+            classification_policy={
+                "person_validity": {
+                    "valid_person": "eligible",
+                    "not_person": "excluded",
+                }
+            },
+        )
+        lifecycle = adapter.adapt(self.payloads[0])
+        classification = adapter.adapt_classification(
+            {
+                "type": "classification",
+                "id": "fixture-person-001",
+                "camera": "front_door",
+                "timestamp": 1789394401.2,
+                "model": "person_validity",
+                "attribute": "not_person",
+                "score": 0.97,
+            },
+            "2026-09-14T18:00:00+00:00",
+        )
+
+        self.assertEqual(
+            lifecycle["attributes"]["track_eligibility"]["state"],
+            "provisional",
+        )
+        self.assertEqual(classification["track_id"], lifecycle["track_id"])
+        self.assertEqual(
+            classification["attributes"]["track_eligibility"]["state"],
+            "excluded",
+        )
+        self.assertEqual(
+            classification["attributes"]["source_classification"]["label"],
+            "not_person",
+        )
+        validate_track_update(classification)
+
+    def test_unmapped_classification_remains_provisional(self) -> None:
+        adapter = FrigateEventAdapter(
+            {"front_door": (1280, 720)},
+            classification_policy={
+                "person_validity": {"not_person": "excluded"}
+            },
+        )
+        update = adapter.adapt_classification(
+            {
+                "type": "classification",
+                "id": "fixture-person-001",
+                "camera": "front_door",
+                "timestamp": 1789394401.2,
+                "model": "person_validity",
+                "attribute": "uncertain",
+                "score": 0.81,
+            }
+        )
+
+        self.assertEqual(
+            update["attributes"]["track_eligibility"]["state"],
+            "provisional",
+        )
+        self.assertIsNone(adapter.adapt_classification({"type": "face"}))
+
+    def test_parses_generic_classification_policy(self) -> None:
+        policy = parse_classification_policy(
+            '{"person_validity":{"valid_person":"eligible",'
+            '"not_person":"excluded"}}'
+        )
+
+        self.assertEqual(policy["person_validity"]["not_person"], "excluded")
+        with self.assertRaises(ValueError):
+            FrigateEventAdapter(
+                {}, classification_policy={"model": {"label": "robot"}}
+            )
+
     def test_retention_removes_only_files_older_than_seven_days(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -159,11 +240,14 @@ class FrigateEventAdapterTests(unittest.TestCase):
         lifecycle = self.adapter.adapt(self.payloads[-1])
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "snapshot.jpg"
+            face = Path(directory) / "face.webp"
             update = self.adapter.snapshot_update(
                 lifecycle,
                 path,
                 1789394401.5,
-                "2026-09-14T14:00:02+00:00",
+                face_paths=[face],
+                published_at="2026-09-14T14:00:02+00:00",
+                snapshot_box=[320, 180, 960, 600],
             )
 
         self.assertEqual(update["phase"], "snapshot")
@@ -171,6 +255,15 @@ class FrigateEventAdapterTests(unittest.TestCase):
         self.assertEqual(update["source_ref"]["event_id"], "fixture-person-001")
         self.assertEqual(update["media"][0]["role"], "snapshot")
         self.assertEqual(update["media"][0]["content_type"], "image/jpeg")
+        self.assertEqual(update["media"][1]["role"], "face")
+        self.assertEqual(update["media"][1]["content_type"], "image/webp")
+        self.assertEqual(
+            update["geometry"]["box"],
+            {"x_min": 0.25, "y_min": 0.25, "x_max": 0.75, "y_max": 0.833333},
+        )
+        self.assertEqual(update["quality"]["source_lifecycle"], "live")
+        self.assertNotIn("track_eligibility", update["attributes"])
+        validate_track_update(update)
         self.assertNotEqual(update["message_id"], lifecycle["message_id"])
 
     def test_fetches_and_validates_jpeg_snapshot(self) -> None:
@@ -184,6 +277,47 @@ class FrigateEventAdapterTests(unittest.TestCase):
 
             self.assertEqual(byte_count, 12)
             self.assertEqual(destination.read_bytes(), b"\xff\xd8\xffpayload\xff\xd9")
+
+    def test_fetches_best_correlated_frigate_face_crop(self) -> None:
+        face_index = json.dumps(
+            {
+                "train": [
+                    "fixture-person-001-1789394401.1-unknown-0.42.webp",
+                    "fixture-person-001-1789394401.2-alias-0.95.webp",
+                    "another-event-1789394401.3-alias-0.99.webp",
+                ]
+            }
+        ).encode()
+        webp = b"RIFF\x04\x00\x00\x00WEBPpayload"
+        responses = [
+            FakeResponse(face_index, "application/json"),
+            FakeResponse(webp, "application/octet-stream"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "face.webp"
+            with patch(
+                "frigate_adapter.snapshots.urlopen", side_effect=responses
+            ) as mocked:
+                byte_count = fetch_best_face_crop(
+                    "http://127.0.0.1:5000",
+                    "fixture-person-001",
+                    destination,
+                )
+
+            self.assertEqual(byte_count, len(webp))
+            self.assertEqual(destination.read_bytes(), webp)
+            self.assertIn("0.95.webp", mocked.call_args_list[1].args[0].full_url)
+
+    def test_face_crop_is_optional_when_frigate_has_no_attempt(self) -> None:
+        response = FakeResponse(b'{"train":[]}', "application/json")
+        with patch("frigate_adapter.snapshots.urlopen", return_value=response):
+            self.assertIsNone(
+                fetch_best_face_crop(
+                    "http://127.0.0.1:5000",
+                    "fixture-person-001",
+                    Path("unused.webp"),
+                )
+            )
 
     def test_rejects_credentials_and_invalid_snapshot(self) -> None:
         with self.assertRaises(ValueError):

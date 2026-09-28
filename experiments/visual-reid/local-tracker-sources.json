@@ -1,0 +1,75 @@
+{
+  "accepted_provider": null,
+  "candidates": [
+    {
+      "name": "original-bot-sort",
+      "source": "https://github.com/NirAharon/BoT-SORT",
+      "revision": "251985436d6712aaf682aaaf5f71edb4987224bd",
+      "revision_date": "2022-10-30",
+      "license": "MIT",
+      "appearance_reid": true,
+      "status": "reference_only",
+      "reason": "The upstream dependency set pins obsolete ONNX components and is not suitable for the live environment unchanged."
+    },
+    {
+      "name": "roboflow-trackers-botsort",
+      "source": "https://github.com/roboflow/trackers",
+      "package": "trackers==2.6.0",
+      "audited_revision": "52610c3ce8eab6d0d2a6beb91e8a1fed9fea34de",
+      "revision_date": "2026-09-21",
+      "license": "Apache-2.0",
+      "appearance_reid": false,
+      "status": "rejected_motion_baseline",
+      "reason": "Maintained, detector-agnostic and Windows-compatible, but deliberately excludes appearance. It produced 12 tracks in the controlled two-person recording and split the stationary false positive."
+    },
+    {
+      "name": "deep-sort-realtime-openvino",
+      "source": "https://github.com/levan92/deep_sort_realtime",
+      "revision": "3341f823ee0ad20aa58c906079a37f3d43b42bbe",
+      "revision_date": "2026-03-25",
+      "license": "MIT",
+      "appearance_reid": true,
+      "reid_model": "person-reidentification-retail-0287",
+      "status": "rejected_baseline",
+      "reason": "Clean external-embedding API, but the best controlled run still produced 10 tracks and duplicate person tracks; stricter settings produced 17 or 22."
+    },
+    {
+      "name": "boxmot",
+      "source": "https://github.com/mikel-brostrom/boxmot",
+      "package": "boxmot==25.0.0",
+      "audited_revision": "259625c81a633437d399a1697dd594b13e688363",
+      "revision_date": "2026-09-18",
+      "license": "AGPL-3.0",
+      "appearance_reid": true,
+      "reid_model": "osnet_x0_25_msmt17.pt",
+      "reid_model_source": "https://drive.google.com/uc?id=1sSwXSUlj4_tHZequ_iZ8w_Jh0VaRQMqF",
+      "reid_model_sha256": "6f57607fed9f502b9efed546108132ee715df5a5b6e6932c6269bacb47f59f99",
+      "status": "evaluated_internal_demo",
+      "reason": "The project owner authorized AGPL evaluation for this internal, non-commercial showroom demo. BoT-SORT was the least unsafe BoxMOT candidate but produced seven tracks for two people; OccluBoost produced fewer tracks by incorrectly merging people with persistent false positives. Revisit licensing before distribution, hosted access or commercial use."
+    },
+    {
+      "name": "open-model-zoo-multi-camera-tracker",
+      "source": "https://github.com/openvinotoolkit/open_model_zoo",
+      "revision": "a6946b6d6ce42cbf4278df20275fab199655fc7d",
+      "revision_date": "2026-09-21",
+      "license": "Apache-2.0",
+      "appearance_reid": true,
+      "status": "best_offline_reference",
+      "reason": "Produced three identity-pure final histories for two people, but its delayed track merging requires explicit supersession semantics before it can be a live provider."
+    },
+    {
+      "name": "nvidia-deepstream-nvdcf",
+      "source": "https://docs.nvidia.com/metropolis/deepstream/9.1/text/DS_plugin_gst-nvtracker.html",
+      "version": "9.1",
+      "license": "NVIDIA SDK terms",
+      "appearance_reid": true,
+      "status": "best_integrated_reference",
+      "validated_container": "nvcr.io/nvidia/deepstream:9.1-samples-multiarch@sha256:10eca409b3894e91c1bac915c9f1346307e56695e552487cbe8cf2f58a3f998f",
+      "custom_parser_source": "https://github.com/NVIDIA/DeepStream/tree/0a63ef8be554346820e01c96eaea390d04962939/src/apps/reference_apps/deepstream-tracker-3d-multi-view/models/RTDETR/custom_parser",
+      "custom_parser_revision": "0a63ef8be554346820e01c96eaea390d04962939",
+      "custom_parser_license": "Apache-2.0",
+      "custom_parser_build_container": "nvcr.io/nvidia/deepstream:9.1-triton-multiarch@sha256:fd31f5b44ababdbdee8cd397a375e888191b49e402ac237254a4cdc239130f5b",
+      "reason": "PeopleNet Transformer v1 plus bounded NvDCF rejected the Reception robot but split one of two people. RT-DETR Warehouse retained the robot and produced five tracks. PeopleNet Transformer v2 kept the two real people on two stable IDs, but also retained the robot as two sequential IDs. An offline v1 confirmation screen confirmed the human tracks 653 and 418 times and both robot fragments zero times; the full retained matrix is still required before live use."
+    }
+  ]
+}

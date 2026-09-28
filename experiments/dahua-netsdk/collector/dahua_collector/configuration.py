@@ -41,6 +41,21 @@ class CameraConfig:
             environment["DAHUA_LIVE_TRACK_PROBE"] = secrets[
                 "DAHUA_LIVE_TRACK_PROBE"
             ]
+        # Pass only the known transport settings to each isolated worker.
+        for key in (
+            "TRACK_MQTT_HOST",
+            "TRACK_MQTT_PORT",
+            "TRACK_MQTT_TOPIC",
+            "TRACK_MQTT_USER",
+            "TRACK_MQTT_PASSWORD",
+            "TRACK_OUTBOX_ROOT",
+            "FRIGATE_MQTT_HOST",
+            "FRIGATE_MQTT_PORT",
+            "FRIGATE_MQTT_USER",
+            "FRIGATE_MQTT_PASSWORD",
+        ):
+            if key in secrets:
+                environment[key] = secrets[key]
         return environment
 
 
