@@ -2,3 +2,6 @@ numpy==2.3.3
 onnxruntime-windowsml==1.25.2.202605110140
 wasdk-Microsoft.Windows.AI.MachineLearning==2.3.0
 wasdk-Microsoft.Windows.ApplicationModel.DynamicDependency.Bootstrap==2.3.0
+winrt-Windows.ApplicationModel==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1

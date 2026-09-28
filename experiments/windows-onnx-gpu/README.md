@@ -50,7 +50,9 @@ take several minutes and requires Windows Update/component-download access.
 `onnxruntime-windowsml` is pinned to the exact version required by the pinned
 Windows ML 2.3.0 Python bindings; these two packages must be upgraded together.
 The optional `[all]` binding extra is intentionally omitted because it expands
-unrelated Windows namespaces that this console benchmark never imports.
+unrelated Windows namespaces that this console benchmark never imports. The
+three WinRT namespaces imported directly by the generated Windows ML binding
+are pinned individually instead.
 
 ## Prepare the environment
 
