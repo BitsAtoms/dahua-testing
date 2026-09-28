@@ -85,8 +85,8 @@ Los errores que sí rompen el conteo son otros dos:
 - **Fusión:** un solo track que empieza en una persona y termina en otra.
   Mezcla identidades sin que nadie lo note.
 
-Por eso el criterio propuesto para aceptar el tracking es "conteo correcto
-y cero fusiones". La fragmentación se mide y se informa, pero no bloquea: se
+Por eso el criterio para aceptar el tracking es "conteo correcto y cero
+fusiones". La fragmentación se mide y se informa, pero no bloquea: se
 repara más arriba, uniendo fragmentos con tiempo, geometría y apariencia.
 
 ---
@@ -104,7 +104,7 @@ Para un mapa en tiempo real, un aviso que llega 20–30 segundos tarde no
 sirve como posición. Sí sirve como evidencia de calidad. La fase 2 del roadmap
 comprueba si las Dahua pueden dar también posiciones en vivo (los datos
 "IVS" que su propia web usa para dibujar recuadros). De eso depende que 5 de
-las 8 cámaras necesiten que el PC haga detección o no.
+las 7 cámaras necesiten que el PC haga detección o no.
 
 ---
 

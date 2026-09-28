@@ -29,14 +29,16 @@ cámaras.
 
 | Marca | Modelo | Cant. | Entrada al sistema | Quién detecta |
 |---|---|---:|---|---|
-| Dahua | DH-IPC-HDBW7459Z-Z-PV-X | 4 (a confirmar) | Colector Dahua (NetSDK + CGI) | La cámara |
+| Dahua | DH-IPC-HDBW7459Z-Z-PV-X | 3 | Colector Dahua (NetSDK + CGI) | La cámara |
+| Dahua | DH-IPC-HDBW7859ZP-Z-PV-0832-X | 1 | Colector Dahua (capacidades a verificar) | La cámara |
 | Dahua | DH-IPC-HDBW5459Z-ZHE-PV-PRO | 1 | Colector Dahua (capacidades a verificar) | La cámara |
-| Hikvision | iDS-2CD7186G0-IZS (DeepinView) | 2 | Frigate | El PC (CPU). La cámara tiene IA propia, aprovechable más adelante |
+| Hikvision | iDS-2CD7186G0-IZS (DeepinView) | 1 | Frigate | El PC (CPU). La cámara tiene IA propia, aprovechable más adelante |
 | Eufy | S350 | 1 | Frigate, RTSP directo sin HomeBase | El PC (CPU) |
 | A definir | No Dahua | 1–2 | Frigate | El PC (CPU) |
 
-Las cámaras de prueba actuales son la Dahua 213, la Hikvision de Recepción y
-la Eufy de Reuniones.
+En total son 7 cámaras y está previsto llegar a 9. Hay una segunda Hikvision
+en el portero eléctrico, que no se incorpora. Las cámaras de prueba actuales
+son la Dahua 213, la Hikvision de Recepción y la Eufy de Reuniones.
 
 **Operación:**
 
@@ -101,8 +103,8 @@ no sirve para el mapa en vivo.
 - [ ] Si nada funciona: las Dahua también pasan por Frigate para la posición
   en vivo, y `HumanTrait` queda como enriquecimiento (caras, atributos,
   fotos).
-- [ ] Verificar qué ofrece el modelo HDBW5459Z-ZHE (Video Metadata,
-  `HumanTrait`).
+- [ ] Verificar qué ofrecen los modelos HDBW7859ZP y HDBW5459Z-ZHE (Video
+  Metadata, `HumanTrait`, IVS), que aún no se han probado.
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
 modelo Dahua.
@@ -147,8 +149,9 @@ Salida: clonar, instalar y pasar la verificación en el PC final.
 
 ### Fase 6 — En el PC final, antes de colocar las cámaras `[ ]`
 
-- [ ] Prueba de capacidad con 8–10 cámaras virtuales (grabaciones
-  re-emitidas por RTSP): CPU, RAM, disco y retrasos p50/p95/p99.
+- [ ] Prueba de capacidad con 9 cámaras virtuales (las 7 previstas más 2
+  futuras, con grabaciones re-emitidas por RTSP): CPU, RAM, disco y retrasos
+  p50/p95/p99.
 - [ ] Prueba prolongada de 24–72 h con cámaras virtuales.
 - [ ] Si se usa la GPU: verificar que funciona desde el arranque automático.
 
@@ -181,7 +184,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-28 | El detector propio con GPU pasa a ser opcional (fase 8) | Solo se retoma si Frigate no alcanza en calidad o en CPU |
 | 2026-09-28 | Retención de 7 días; Frigate graba solo clips de eventos | Decisión del propietario |
 | 2026-09-28 | Mapa solo en la pantalla local; usuario con inicio automático | Decisión del propietario |
-| Propuesta | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se reporta pero no bloquea | Pendiente del OK del propietario |
+| 2026-09-28 | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se mide y se informa, pero no bloquea | Para contar, la fragmentación secuencial no cambia la ocupación; los errores que la rompen son los duplicados y las fusiones (ver `docs/guia.md`, sección 3) |
 
 ## Trabajo actual
 
