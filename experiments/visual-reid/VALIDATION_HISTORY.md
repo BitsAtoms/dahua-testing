@@ -213,3 +213,51 @@ tune around the provisional camera geometry. Retain it as a reproducible
 reference and repeat acceptance after final camera placement. Open Model Zoo remains
 the best Apache-2.0 offline fragmentation reference, but its delayed merges
 require an explicit track-supersession contract before live use.
+
+## Portable ONNX detector screen — item 15, 2026-09-28
+
+The starting branch was clean at `9bba2f4` (parent `70ef79e`). An inventory
+found seven retained immutable scenarios: Reception robot alone, person near
+robot, Meetings mixed pose, seated/partially visible, empty with displays,
+Meetings two-person crossing, and Reception two-person crossing. Prior local
+outputs included the controlled SSD/YOLOX report and DeepStream runs. The
+existing official YOLOX-Tiny ONNX was kept solely as a regression baseline.
+The sole new candidate was Megvii YOLOX-M release `0.1.1rc0`, downloaded from
+the official release after checking Apache-2.0 licensing, the upstream ONNX
+table, export path and demo preprocessing/decoding. Exact URLs, bytes and
+SHA-256 are in `onnx-detector-models.json`.
+
+Both models ran through ONNX Runtime CPU at threshold `0.4` and 5 sampled FPS.
+The ignored per-frame reports are
+`output/onnx-detector/yolox-tiny-cpu-040.jsonl` and
+`output/onnx-detector/yolox-m-cpu-040.jsonl`. Each contains the recording hash,
+boxes, scores, frame detection/false-positive flags and inference latency.
+ORT profiling showed only `CPUExecutionProvider` nodes in both runs. The
+reported rates are frames with any detection, not annotated per-person recall;
+the mixed clips include stretches without people.
+
+| Recording | Frames | Tiny detections | M detections | M median CPU latency |
+|---|---:|---:|---:|---:|
+| Reception robot only | 151 | 0 | 128 false-positive frames | 115.1 ms |
+| Reception person near robot | 151 | 128 | 128 | 115.6 ms |
+| Meetings mixed pose | 153 | 79 | 86 | 116.2 ms |
+| Meetings seated/partial | 148 | 148 | 148 | 116.0 ms |
+| Meetings empty with displays | 150 | 19 false-positive frames | 1 false-positive frame | 115.4 ms |
+| Meetings crossing | 451 | 168 | 190 | 115.8 ms |
+| Reception crossing | 451 | 177 | 195 | 115.3 ms |
+
+YOLOX-Tiny's median CPU latency was about 23–24 ms across scenarios. Visual
+inspection of retained frames confirmed the YOLOX-M Reception box surrounds
+the stationary robot and one Tiny empty-room box surrounds a chair. YOLOX-M's
+robot detections occurred in 128/151 sampled frames, at median score `0.508`.
+Filtering recorded scores retrospectively at `0.7` leaves one robot frame but
+only 22/153 mixed-pose frames; this does not produce an acceptable operating
+point. Its seated result is encouraging but cannot compensate for persistent
+interference and weak difficult-pose coverage. The negative-scene false
+positives also reject YOLOX-Tiny as an accepted detector.
+
+Decision: item 15's offline comparison is complete, but **neither detector
+passes**. Item 16 DirectML detector validation is deferred until a new
+officially sourced, licensed ONNX detector clears the same offline matrix.
+The prior DirectML hardware gate remains proven for its synthetic model on
+both RX 9070 XT cards; no claim is made yet for these detector graphs.

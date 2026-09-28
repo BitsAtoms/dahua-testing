@@ -111,6 +111,70 @@ The same manifest pins the NGC PeopleNet Transformer and ReIdentificationNet
 files used by DeepStream. TensorRT engines are generated locally for the host
 GPU and remain under the ignored `models/deepstream/` directory.
 
+### Portable ONNX detector screen (item 15)
+
+`onnx-detector-models.json` pins the existing YOLOX-Tiny regression baseline
+and the one stronger candidate, YOLOX-M, by official URL, `0.1.1rc0` release,
+size and SHA-256. Both are from [Megvii's official ONNX model table](https://github.com/Megvii-BaseDetection/YOLOX/blob/main/demo/ONNXRuntime/README.md)
+under the repository's [Apache-2.0 license](https://github.com/Megvii-BaseDetection/YOLOX/blob/main/LICENSE).
+The same table documents export with `tools/export_onnx.py`; the benchmark uses
+the official pre-exported files. Download only the candidate after checking
+these sources, then verify its pinned size and hash before inference:
+
+```powershell
+curl.exe -L --fail -o experiments/visual-reid/models/detectors/yolox_m.onnx `
+  https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_m.onnx
+```
+
+The [upstream ONNX Runtime demo](https://github.com/Megvii-BaseDetection/YOLOX/blob/main/demo/ONNXRuntime/onnx_inference.py)
+uses BGR input, top-left letterbox with value 114, no mean/std scaling,
+float32 NCHW, grid/stride decode, objectness times COCO person class 0 score,
+and IoU NMS. `visual_reid/onnx_person_detector.py` implements that model-specific
+path separately from strict ONNX Runtime provider selection. It checks input
+and output shapes and rejects any profiled CPU node during DirectML execution.
+DirectML device indexes are provider-local and must be supplied explicitly.
+
+For a clean CPU environment, from the repository root:
+
+```powershell
+py -3.12 -m venv experiments/visual-reid/.venv-onnx-detector
+experiments/visual-reid/.venv-onnx-detector/Scripts/python.exe -m pip install `
+  -r experiments/visual-reid/requirements-onnx-detector-cpu.txt
+```
+
+On the final AMD PC, use the already pinned
+Windows ML/DirectML environment from `../windows-onnx-gpu/`, add
+`opencv-python-headless==4.11.0.86`, and supply `--provider directml
+--device-index INDEX` after inspecting its device inventory. Item 16 will run
+that hardware validation only after a detector passes offline.
+
+From the repository root, reproduce the seven-clip offline screen:
+
+```powershell
+experiments/visual-reid/.venv-onnx-detector/Scripts/python.exe `
+  experiments/visual-reid/benchmark_onnx_person.py --model yolox_tiny `
+  --provider cpu --threshold 0.4 --sample-fps 5 `
+  --output experiments/visual-reid/output/onnx-detector/yolox-tiny-cpu-040.jsonl
+experiments/visual-reid/.venv-onnx-detector/Scripts/python.exe `
+  experiments/visual-reid/benchmark_onnx_person.py --model yolox_m `
+  --provider cpu --threshold 0.4 --sample-fps 5 `
+  --output experiments/visual-reid/output/onnx-detector/yolox-m-cpu-040.jsonl
+```
+
+`onnx-detector-matrix.json` identifies the exact seven retained recordings.
+The JSONL records a run header, per-scenario summaries and every sampled
+frame's recording SHA-256, time, person boxes, score, detection flag, negative
+scene false-positive flag and latency. The program writes it only after the
+ORT node profile confirms the requested provider and no CPU fallback on GPU.
+Recordings and JSONL stay ignored. `frame_coverage` is the fraction of sampled
+frames with any person detection; mixed clips contain empty intervals and have
+no per-person ground-truth boxes, so this is not recall or precision.
+
+Neither detector passed: YOLOX-M marked the robot in 128/151 negative frames;
+YOLOX-Tiny marked a chair in 19/150 empty-room frames. Both had weak mixed-pose
+detection. Detailed measurements and the decision are in
+`VALIDATION_HISTORY.md`. No detector is enabled in the live stack.
+
 RT-DETR Warehouse and PeopleNet Transformer v2 use NVIDIA's TAO D-DETR parser.
 Build the pinned Apache-2.0 parser once; its source checkout, binary and build
 container remain outside Git:

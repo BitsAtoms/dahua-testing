@@ -141,22 +141,30 @@ and physical device executed every run, contains no hidden CPU fallback, and
 shows two independent GPU processes succeeding concurrently. This gate does
 not select the production detector or local tracker.
 
-## 2b. Portable ONNX person detector — current phase
+## 2b. Portable ONNX person detector — offline screen complete; no survivor
 
-- [ ] Keep the existing YOLOX-Tiny ONNX model as a regression baseline rather
+- [x] Keep the existing YOLOX-Tiny ONNX model as a regression baseline rather
   than treating its previous weak coverage as an accepted detector.
-- [ ] Audit official source, license, export path and preprocessing for at most
-  one stronger portable ONNX candidate before downloading weights.
-- [ ] Add a source-neutral ONNX Runtime detector adapter with explicit provider
-  and provider-local device selection; keep decoding model-specific.
-- [ ] Pin every model file by URL, version, size and checksum. Generated models
+- [x] Audit official source, license, export path and preprocessing for one
+  stronger portable ONNX candidate (YOLOX-M) before downloading weights.
+- [x] Add a source-neutral ONNX Runtime detector adapter with explicit provider
+  and provider-local device selection; keep YOLOX decoding model-specific.
+- [x] Pin both model files by URL, version, size and checksum. Generated models
   and recordings remain ignored.
-- [ ] Replay the retained immutable scenario matrix and emit machine-readable
-  detections, coverage, false-positive and latency evidence.
-- [ ] Reject a detector that recognizes the persistent robot/display as a
-  person, misses the seated/mixed-pose cases, or hides CPU fallback.
+- [x] Replay the seven retained immutable scenarios and emit machine-readable
+  per-frame detections, coverage proxy, negative-case false positives and latency.
+- [x] Reject YOLOX-M for persistent robot detections and weak mixed-pose
+  coverage. YOLOX-Tiny also fails the empty-room and mixed-pose gates.
 - [ ] Validate the surviving detector through DirectML on each RX 9070 XT and
   in two independent processes on the final computer.
+
+The offline CPU matrix at 5 FPS and threshold 0.4 found YOLOX-M detecting the
+robot in 128/151 negative frames; YOLOX-Tiny detected a chair in 19/150
+empty-room frames. Mixed-pose frame detection was only 86/153 and 79/153,
+respectively. These are frame-level detection proxies, not annotated recall.
+No model proceeds to the DirectML detector gate. Exact per-frame local evidence
+is under ignored `output/onnx-detector/`; the decision summary is in
+`VALIDATION_HISTORY.md`.
 
 Exit criterion: one clearly licensed ONNX detector passes the retained
 negative and person-coverage cases, has reproducible preprocessing and output
@@ -259,8 +267,9 @@ degrades to observable uncertainty rather than a silent wrong identity.
     records the MIGraphX failure, and
     `experiments/windows-onnx-gpu/output/benchmark-20260928T115558.jsonl`
     records the passing DirectML matrix. Both remain ignored local evidence.
-15. [ ] Benchmark YOLOX-Tiny as the portable regression baseline and at most
-    one stronger licensed ONNX person detector on the immutable recordings.
+15. [x] Benchmark YOLOX-Tiny as the portable regression baseline and one
+    stronger licensed ONNX person detector on the immutable recordings. Both
+    failed the offline gate; no detector is selected.
 16. [ ] Validate the surviving detector with DirectML on both RX 9070 XT cards,
     separately and concurrently, without CPU fallback.
 17. [ ] In a separate checkpoint, select a local tracker using the accepted
@@ -268,17 +277,10 @@ degrades to observable uncertainty rather than a silent wrong identity.
 
 ## Next-session handoff
 
-Start on `codex/directml-detector-benchmark`, based on hardware-gate commit
-`70ef79e`. Read this roadmap, `AGENTS.md`, `VALIDATION_HISTORY.md`, the visual
-ReID README and Git status before editing. The DirectML hardware gate already
-passed; do not reopen MIGraphX diagnosis or require the unresolved LUID-to-PCI
-bus mapping for offline development.
-
-Implement only item 15. First inventory the retained recordings and existing
-detector outputs. Reuse YOLOX-Tiny as the regression baseline, then audit at
-most one stronger candidate from official sources for license, native ONNX
-availability/export, preprocessing and output decoding. Keep inference behind
-a small source-neutral adapter that supports CPU tests now and explicit
-DirectML device selection later. Preserve exact model hashes and
-machine-readable per-frame evidence. Do not implement a tracker, connect
-RTSP/Frigate/MQTT, or modify occupancy and handoffs in this checkpoint.
+Item 15 is complete with a negative selection result. Review the ignored
+per-frame JSONL reports and the retained immutable recordings before choosing
+another detector candidate in a separate checkpoint. The next candidate must
+pass persistent-interference and difficult-pose gates offline before item 16
+tests that detector through DirectML on both RX cards. The hardware gate from
+`70ef79e` remains valid; the unresolved LUID-to-PCI correlation does not block
+offline detector work. Do not select a tracker or connect live sources yet.

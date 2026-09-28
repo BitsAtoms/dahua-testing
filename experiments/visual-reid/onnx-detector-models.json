@@ -1,0 +1,27 @@
+{
+  "schema_version": "onnx_person_models.v1",
+  "models": [
+    {
+      "name": "yolox_tiny",
+      "role": "regression_baseline",
+      "path": "models/detectors/yolox_tiny.onnx",
+      "source": "https://github.com/Megvii-BaseDetection/YOLOX/tree/0.1.1rc0/demo/ONNXRuntime",
+      "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx",
+      "version": "0.1.1rc0",
+      "license": "Apache-2.0",
+      "bytes": 20219662,
+      "sha256": "427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7"
+    },
+    {
+      "name": "yolox_m",
+      "role": "candidate",
+      "path": "models/detectors/yolox_m.onnx",
+      "source": "https://github.com/Megvii-BaseDetection/YOLOX/tree/0.1.1rc0/demo/ONNXRuntime",
+      "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_m.onnx",
+      "version": "0.1.1rc0",
+      "license": "Apache-2.0",
+      "bytes": 101259744,
+      "sha256": "21ff6cfdeb53b013bac2249599e55f00bff3cfdfdab37ed7a4620818c1d15b3f"
+    }
+  ]
+}
