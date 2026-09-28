@@ -207,7 +207,14 @@ def open_winml_catalog() -> WinMLCatalog:
     return WinMLCatalog(providers, objects, handle)
 
 
+def ready_status_is_success(status: Any, success_state: Any) -> bool:
+    """Accept the WinRT IntEnum or its integer value, but no other status."""
+    return isinstance(status, int) and not isinstance(status, bool) and status == success_state
+
+
 def ensure_and_register_provider(ort: Any, provider_name: str) -> tuple[WinMLCatalog, list[str]]:
+    import winui3.microsoft.windows.ai.machinelearning as winml
+
     catalog = open_winml_catalog()
     matches = [item for item in catalog.provider_objects if str(item.name) == provider_name]
     if not matches:
@@ -217,9 +224,16 @@ def ensure_and_register_provider(ort: Any, provider_name: str) -> tuple[WinMLCat
     try:
         for provider in matches:
             result = provider.ensure_ready_async().get()
-            state = str(getattr(result, "status", result))
-            if "success" not in state.lower():
-                raise BenchmarkError(f"Windows ML could not prepare {provider_name}: {state}")
+            state = result.status
+            if not ready_status_is_success(state, winml.ExecutionProviderReadyResultState.SUCCESS):
+                diagnostic = str(getattr(result, "diagnostic_text", "") or "").strip()
+                extended_error = getattr(result, "extended_error", None)
+                details = f"status={state!s}"
+                if extended_error is not None:
+                    details += f", extended_error={extended_error!s}"
+                if diagnostic:
+                    details += f", diagnostic_text={diagnostic}"
+                raise BenchmarkError(f"Windows ML could not prepare {provider_name}: {details}")
             library_path = str(provider.library_path)
             if not library_path:
                 raise BenchmarkError(f"Windows ML returned no library path for {provider_name}")

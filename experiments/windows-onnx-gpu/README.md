@@ -125,11 +125,50 @@ CPU, the numerical result is wrong, or a child in the dual run fails. The
 report contains initialization time, mean/p50/p90/p95/p99 latency, throughput,
 provider and device metadata, driver and dependency versions, and errors.
 
+## Final Windows/AMD computer: 2026-09-28 validation
+
+The test PC ran Windows 11 build 26200, Python 3.12.10, Windows ML bindings
+2.3.0, ONNX Runtime Windows ML 1.25.2, and RX 9070 XT driver
+32.0.31041.1004. The corrected readiness check compared the binding's
+`ExecutionProviderReadyResultState.SUCCESS` (integer value 1), so MIGraphX
+installed and registered. Windows ML supplied the AMD EP from package
+`Microsoft.WinML.AMD.GPU.EP.2_1.8.64.0_x64`.
+
+| Provider-local index | GPU | DXGI adapter | DXGI high-performance index | LUID | Video memory |
+|---|---|---:|---:|---:|---:|
+| 0 | RX 9070 XT | 0 | 0 | 11189931 | 16188 MB |
+| 1 | RX 9070 XT | 1 | 2 | 11384819 | 16188 MB |
+| 2 | Radeon integrated | 2 | 1 | 110399 | 2021 MB |
+
+Windows also reported discrete cards on PCI buses 3 and 6, and the integrated
+GPU on bus 125. The current inventory does not prove which RX LUID corresponds
+to bus 3 or 6. Do not infer that mapping from the table order.
+
+The MIGraphX matrix passed CPU and RX index 0 with all profiled GPU nodes on
+`MIGraphXExecutionProvider`, then stopped on index 1. The second card failed
+twice with `BatchOrCopyMLValue ... Failed to find allocator ... DeviceId:1`.
+An additional bounded test with MIGraphX's documented `device_id=1` option
+failed with `invalid device function`; that option was not retained in the
+benchmark. No MIGraphX dual result exists. The original command output,
+including the failing inventory and run, remains in the ignored
+`output/benchmark-20260928T115538.jsonl`.
+
+The DirectML fallback matrix passed CPU, each RX index separately, and two
+independent GPU processes concurrently. The GPU profiles contained only
+`DmlExecutionProvider` nodes; no partial or total CPU fallback was observed.
+The session's available provider list also contains CPU, but this does not
+mean CPU executed a node. The complete passing inventory and matrix are in
+the ignored `output/benchmark-20260928T115558.jsonl`. These results validate
+the small synthetic ONNX fixture only, not a detector or tracker workload.
+
 ## Source and version basis
 
-Package/API names were checked against current official sources on 2026-09-25:
+Package/API names were checked against current official sources on 2026-09-25;
+the readiness-state comparison and explicit EP-device guidance were checked
+again on 2026-09-28:
 
 - [Install and deploy Windows ML](https://learn.microsoft.com/windows/ai/new-windows-ml/distributing-your-app)
+- [Install Windows ML execution providers](https://learn.microsoft.com/windows/ai/new-windows-ml/initialize-execution-providers)
 - [Windows ML execution providers](https://learn.microsoft.com/windows/ai/new-windows-ml/supported-execution-providers)
 - [Select execution providers](https://learn.microsoft.com/windows/ai/new-windows-ml/select-execution-providers)
 - [ONNX Runtime DirectML provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)

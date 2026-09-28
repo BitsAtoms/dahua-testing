@@ -41,11 +41,12 @@ Deployment decision: retain every DeepStream result as benchmark evidence, but
 do not integrate it into the live stack. The final computer has two AMD RX 9070
 XT GPUs, no NVIDIA GPU, remains on Windows and must not depend on Ubuntu, ROCm
 multi-GPU under WSL or Docker GPU passthrough. The next provider must therefore
-run in native Windows processes. Windows ML with MIGraphX is the first
-candidate and ONNX Runtime with DirectML is the fallback. Each camera worker
-will eventually own one explicitly selected GPU; the two cards are not shared
-memory or CrossFire. Detector, tracker and ReID choices remain deferred until
-the isolated hardware gate passes.
+run in native Windows processes. Windows ML with MIGraphX was the first
+candidate. It worked on RX index 0 but failed on RX index 1; ONNX Runtime with
+DirectML passed the native Windows hardware gate on both RX cards. Each camera
+worker will eventually own one explicitly selected GPU; the two cards are not
+shared memory or CrossFire. Detector, tracker and ReID choices remain deferred
+to a separate checkpoint.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -79,7 +80,7 @@ The current shadow policy rejected the Reception robot without suppressing the
 nearby real person. It is not a production classifier and must not be coupled
 directly into BoT-SORT before the complete detector/tracker pipeline is tested.
 
-## 2. Local tracker provider — blocked on Windows hardware gate
+## 2. Local tracker provider — Windows hardware gate passed; pipeline deferred
 
 - [x] Record exact tracker sources, revisions, licenses and reproducible
   isolated environments in `local-tracker-sources.json`.
@@ -109,7 +110,7 @@ DeepStream remains the best integrated NVIDIA reference, but it cannot be the
 deployment provider on the final AMD/Windows machine. Its validation evidence
 is preserved unchanged in `VALIDATION_HISTORY.md`.
 
-## 2a. Native Windows ONNX hardware gate — current phase
+## 2a. Native Windows ONNX hardware gate — passed via DirectML
 
 - [x] Define a small camera-free ONNX benchmark with CPU correctness tests.
 - [x] Enumerate Windows ML catalog providers, ORT EP devices and Windows
@@ -120,12 +121,15 @@ is preserved unchanged in `VALIDATION_HISTORY.md`.
   versioned JSONL evidence.
 - [x] Pin dependencies, commit the small ONNX fixture and document clean-clone
   setup for Windows.
-- [ ] On the final computer, map the two discrete RX 9070 XT cards and the
+- [~] On the final computer, map the two discrete RX 9070 XT cards and the
   integrated GPU to provider-local indexes using the inventory and PCI
-  location evidence.
-- [ ] Pass CPU, each RX 9070 XT separately and both RX 9070 XT cards
+  location evidence. Provider indexes 0/1/2 and distinct DXGI LUIDs are
+  recorded; bus 3 versus bus 6 is not yet correlated to the two RX LUIDs.
+- [x] Pass CPU, each RX 9070 XT separately and both RX 9070 XT cards
   simultaneously with MIGraphX; if MIGraphX fails, repeat with DirectML and
-  preserve both errors and successful evidence.
+  preserve both errors and successful evidence. MIGraphX passed RX index 0
+  but failed on index 1 with a missing allocator for DeviceId 1; the DirectML
+  fallback passed the complete matrix without profiled CPU fallback.
 
 Exit criterion: a report from the final computer proves which real provider
 and physical device executed every run, contains no hidden CPU fallback, and
@@ -227,15 +231,19 @@ degrades to observable uncertainty rather than a silent wrong identity.
 13. [x] Prepare the reproducible `experiments/windows-onnx-gpu/` hardware gate
     with CPU tests, strict provider profiling, explicit device selection,
     independent dual-process execution and JSONL output.
-14. [ ] Run the gate on the final AMD computer and attach its JSONL report.
+14. [x] Run the gate on the final AMD computer and attach its JSONL report.
+    `experiments/windows-onnx-gpu/output/benchmark-20260928T115538.jsonl`
+    records the MIGraphX failure, and
+    `experiments/windows-onnx-gpu/output/benchmark-20260928T115558.jsonl`
+    records the passing DirectML matrix. Both remain ignored local evidence.
 15. [ ] Only after item 14, select a portable ONNX detector and local tracker,
     then connect one native worker to Frigate/go2rtc's restream in shadow mode.
 
 ## Next-session handoff
 
-Start at immediate-sequence item 14. On the final AMD computer, check out
-`codex/windows-onnx-shadow-provider`, follow
-`experiments/windows-onnx-gpu/README.md`, identify the provider-local indexes
-for both discrete RX 9070 XT cards, and run the MIGraphX matrix. Use DirectML
-only as the recorded fallback. Return the generated JSONL before choosing a
-detector, touching restream/MQTT integration or modifying occupancy/handoffs.
+The native Windows hardware gate passed with DirectML on the final two-RX
+computer. MIGraphX is not currently viable on RX index 1. Preserve the two
+ignored JSONL reports and correlate the RX LUIDs with PCI buses 3 and 6 before
+claiming a bus-specific mapping. Item 15 remains deferred: choose an ONNX
+detector and local tracker only in a separate checkpoint, without changing
+restream/MQTT integration or occupancy/handoffs here.
