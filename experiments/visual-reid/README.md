@@ -62,11 +62,13 @@ The collectors and the future video tracker have different responsibilities:
   geometry therefore matters, but does not fully solve fragmentation. It is
   the best NVIDIA reference, not a persistent-identity solution. The final
   deployment computer has AMD GPUs and remains on Windows, so DeepStream is no
-  longer a deployment candidate. The active checkpoint is the isolated
-  [native Windows ONNX GPU benchmark](../windows-onnx-gpu/README.md), which must
-  prove explicit RX 9070 XT selection through Windows ML/MIGraphX or DirectML
-  before a detector or live shadow worker is selected. No candidate is
-  connected to the live stack yet.
+  longer a deployment candidate. The isolated
+  [native Windows ONNX GPU benchmark](../windows-onnx-gpu/README.md) passed via
+  DirectML on each RX 9070 XT and on both cards concurrently without profiled
+  CPU fallback. MIGraphX failed on the second RX and is not the deployment
+  path. The active checkpoint now compares a portable ONNX person detector on
+  the immutable recordings before any tracker or live shadow worker is
+  selected. No candidate is connected to the live stack yet.
 
 The local supervisor remains the supported way to run the current services.
 See [the supervisor README](../../services/local-supervisor/README.md).
@@ -100,8 +102,10 @@ experiments/visual-reid/.venv/Scripts/python.exe `
 ```
 
 `model-manifest.json` records model source, license, size and checksum. Model
-weights stay outside Git. The active providers use OpenVINO on CPU; hardware
-acceleration must remain behind a provider boundary.
+weights stay outside Git. The retained providers use OpenVINO on CPU. New
+native-Windows detector work uses ONNX Runtime behind a provider boundary so
+CPU tests and explicit DirectML device selection share the same preprocessing
+and decoding path.
 
 The same manifest pins the NGC PeopleNet Transformer and ReIdentificationNet
 files used by DeepStream. TensorRT engines are generated locally for the host

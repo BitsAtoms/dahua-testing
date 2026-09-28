@@ -16,7 +16,7 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/windows-onnx-shadow-provider`.
+Current branch: `codex/directml-detector-benchmark`.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the
@@ -45,8 +45,9 @@ run in native Windows processes. Windows ML with MIGraphX was the first
 candidate. It worked on RX index 0 but failed on RX index 1; ONNX Runtime with
 DirectML passed the native Windows hardware gate on both RX cards. Each camera
 worker will eventually own one explicitly selected GPU; the two cards are not
-shared memory or CrossFire. Detector, tracker and ReID choices remain deferred
-to a separate checkpoint.
+shared memory or CrossFire. The current checkpoint selects a portable ONNX
+person detector on immutable recordings. Tracker and ReID selection remain
+deferred until that detector passes its own gate.
 
 ## 0. Source ingestion and evidence — complete
 
@@ -110,6 +111,10 @@ DeepStream remains the best integrated NVIDIA reference, but it cannot be the
 deployment provider on the final AMD/Windows machine. Its validation evidence
 is preserved unchanged in `VALIDATION_HISTORY.md`.
 
+Exit criterion: one pinned pipeline passes the local test matrix on immutable
+recordings and has a clear license/deployment path. Benchmark thresholds are
+not presented as universal production calibration.
+
 ## 2a. Native Windows ONNX hardware gate — passed via DirectML
 
 - [x] Define a small camera-free ONNX benchmark with CPU correctness tests.
@@ -136,9 +141,27 @@ and physical device executed every run, contains no hidden CPU fallback, and
 shows two independent GPU processes succeeding concurrently. This gate does
 not select the production detector or local tracker.
 
-Exit criterion: one pinned pipeline passes the local test matrix on immutable
-recordings and has a clear license/deployment path. Benchmark thresholds are
-not presented as universal production calibration.
+## 2b. Portable ONNX person detector — current phase
+
+- [ ] Keep the existing YOLOX-Tiny ONNX model as a regression baseline rather
+  than treating its previous weak coverage as an accepted detector.
+- [ ] Audit official source, license, export path and preprocessing for at most
+  one stronger portable ONNX candidate before downloading weights.
+- [ ] Add a source-neutral ONNX Runtime detector adapter with explicit provider
+  and provider-local device selection; keep decoding model-specific.
+- [ ] Pin every model file by URL, version, size and checksum. Generated models
+  and recordings remain ignored.
+- [ ] Replay the retained immutable scenario matrix and emit machine-readable
+  detections, coverage, false-positive and latency evidence.
+- [ ] Reject a detector that recognizes the persistent robot/display as a
+  person, misses the seated/mixed-pose cases, or hides CPU fallback.
+- [ ] Validate the surviving detector through DirectML on each RX 9070 XT and
+  in two independent processes on the final computer.
+
+Exit criterion: one clearly licensed ONNX detector passes the retained
+negative and person-coverage cases, has reproducible preprocessing and output
+decoding, and executes through DirectML on both RX cards without profiled CPU
+fallback. This checkpoint does not choose a tracker or connect to live video.
 
 ## 3. Shared frame pipeline and shadow integration
 
@@ -236,14 +259,26 @@ degrades to observable uncertainty rather than a silent wrong identity.
     records the MIGraphX failure, and
     `experiments/windows-onnx-gpu/output/benchmark-20260928T115558.jsonl`
     records the passing DirectML matrix. Both remain ignored local evidence.
-15. [ ] Only after item 14, select a portable ONNX detector and local tracker,
-    then connect one native worker to Frigate/go2rtc's restream in shadow mode.
+15. [ ] Benchmark YOLOX-Tiny as the portable regression baseline and at most
+    one stronger licensed ONNX person detector on the immutable recordings.
+16. [ ] Validate the surviving detector with DirectML on both RX 9070 XT cards,
+    separately and concurrently, without CPU fallback.
+17. [ ] In a separate checkpoint, select a local tracker using the accepted
+    detector; only then consider a native Frigate/go2rtc shadow worker.
 
 ## Next-session handoff
 
-The native Windows hardware gate passed with DirectML on the final two-RX
-computer. MIGraphX is not currently viable on RX index 1. Preserve the two
-ignored JSONL reports and correlate the RX LUIDs with PCI buses 3 and 6 before
-claiming a bus-specific mapping. Item 15 remains deferred: choose an ONNX
-detector and local tracker only in a separate checkpoint, without changing
-restream/MQTT integration or occupancy/handoffs here.
+Start on `codex/directml-detector-benchmark`, based on hardware-gate commit
+`70ef79e`. Read this roadmap, `AGENTS.md`, `VALIDATION_HISTORY.md`, the visual
+ReID README and Git status before editing. The DirectML hardware gate already
+passed; do not reopen MIGraphX diagnosis or require the unresolved LUID-to-PCI
+bus mapping for offline development.
+
+Implement only item 15. First inventory the retained recordings and existing
+detector outputs. Reuse YOLOX-Tiny as the regression baseline, then audit at
+most one stronger candidate from official sources for license, native ONNX
+availability/export, preprocessing and output decoding. Keep inference behind
+a small source-neutral adapter that supports CPU tests now and explicit
+DirectML device selection later. Preserve exact model hashes and
+machine-readable per-frame evidence. Do not implement a tracker, connect
+RTSP/Frigate/MQTT, or modify occupancy and handoffs in this checkpoint.
