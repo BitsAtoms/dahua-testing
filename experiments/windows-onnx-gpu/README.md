@@ -47,6 +47,10 @@ The pinned dependencies are the official packages named by Microsoft's Python
 installation documentation. Vendor providers such as MIGraphX are not bundled;
 Windows downloads them when `EnsureReadyAsync()` is called. That first call may
 take several minutes and requires Windows Update/component-download access.
+`onnxruntime-windowsml` is pinned to the exact version required by the pinned
+Windows ML 2.3.0 Python bindings; these two packages must be upgraded together.
+The optional `[all]` binding extra is intentionally omitted because it expands
+unrelated Windows namespaces that this console benchmark never imports.
 
 ## Prepare the environment
 
