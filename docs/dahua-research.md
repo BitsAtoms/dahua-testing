@@ -910,6 +910,35 @@ slowly moving centre. Because the re-entry run ended tracks promptly, this
 is most likely the person remaining in view; the operator could not confirm
 the timing.
 
-Open points: CPU cost of main-stream decoding for five cameras, whether the
-sub-stream carries the same IVS frames, and verification on the
-`HDBW7459Z-Z-PV-X` and `HDBW5459Z-ZHE-PV-PRO` models.
+### Resource cost and stream choice
+
+Measured on the development PC (Intel Core i9-12900F, 24 logical
+processors), 40-second steady-state windows, probe process only:
+
+```text
+main stream  about 7 % of one core, about 440 MiB working set,
+             no GPU engine activity; only d3d11.dll among graphics modules
+sub stream   about 0.1 % of one core, about 48 MiB working set
+```
+
+For five Dahua cameras on the main stream this extrapolates to roughly a
+third of one core and about 2.2 GiB of memory. The final PC must confirm it
+in the capacity test.
+
+On connection, the sub-stream session delivered a short burst of IVS frames
+whose ONVIF `UtcTime` was 44 s old (frame sequence `-1`, the track from the
+previous main-stream run) and then no target frames. It is therefore not
+usable as-is. On the main stream, the ONVIF `UtcTime` matched the arrival
+time within the XML's one-second resolution. Decision: the live lane uses
+the main stream and must discard frames whose `UtcTime` predates the
+connection by more than a small tolerance.
+
+Some type 4 frames are much larger (about 158 KB). They carry ONVIF human
+body and face analytics (`bd:HumanBody` clothing colours and categories,
+`fc:HumanFace` age, gender, glasses, mask, hat) and a `tt:Image` element,
+i.e. HumanTrait-like attributes and an image inside the stream. This could
+later let one real-time connection replace the separate picture
+subscription and CGI stream; it is not evaluated yet.
+
+Open points: verification on the `HDBW7459Z-Z-PV-X` and
+`HDBW5459Z-ZHE-PV-PRO` models.

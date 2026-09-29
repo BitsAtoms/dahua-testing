@@ -104,9 +104,11 @@ no sirve para el mapa en vivo.
   visita nueva recibe un track nuevo. El número de track en vivo es el mismo
   `ObjectID` del `HumanTrait`, así que la posición en vivo y las fotos se
   unen directamente. Evidencia en `docs/dahua-research.md`.
-- [ ] Medir el coste de CPU de leer estos datos (hoy obliga a descodificar el
-  vídeo 4K) y probar si el stream secundario trae los mismos datos. Con
-  5 cámaras, esto decide si el canal es viable tal cual.
+- [x] Medir el coste de CPU (2026-09-29). Con el stream principal, unos 7 %
+  de un núcleo y unos 440 MiB de memoria por cámara, sin usar la GPU. Para
+  5 cámaras, un tercio de núcleo y unos 2,2 GiB: viable. El stream secundario
+  solo entregó datos viejos al conectar, así que se usa el principal. El
+  canal en vivo debe descartar datos con hora anterior a la conexión.
 - Los planes B (metadatos ONVIF por RTSP, conteo por región o pasar las
   Dahua por Frigate) ya no hacen falta para la 213. Quedan de reserva por si
   otro modelo no ofrece el canal IVS.
@@ -120,8 +122,8 @@ no sirve para el mapa en vivo.
   modelo y el firmware reales).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
-modelo Dahua. Ya está tomada para el modelo HDBW7859Z-Z4-PV-X (canal IVS);
-falta confirmar el coste de CPU y los otros dos modelos.
+modelo Dahua. Ya está tomada para el modelo HDBW7859Z-Z4-PV-X (canal IVS
+por el stream principal); faltan los otros dos modelos, que no bloquean.
 
 ### Fase 3 — Frigate para las cámaras no Dahua `[ ]`
 
@@ -210,7 +212,7 @@ dejar todo listo para seguir en el PC final.
    `docs/guia.md`.
 2. [x] Fase 2: prueba del canal IVS con la Dahua 213. Funciona; ver la
    fase 2 y `docs/dahua-research.md`.
-2b. [ ] Fase 2: medir el coste de CPU (stream principal y secundario).
+2b. [x] Fase 2: medir el coste de CPU. Es bajo con el stream principal.
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.
