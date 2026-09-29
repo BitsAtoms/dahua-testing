@@ -73,6 +73,29 @@ The ignored output database is
 `runtime/tracking-engine/tracking.sqlite3`. Derived records and processed
 message IDs use the same seven-day retention period as the ingestion modules.
 
-The next milestone is a controlled physical handoff test followed by exposing
-active tracks and candidates through the local API. Visual identity is a later,
-independent scoring layer.
+## Presences and occupancy
+
+`tracking_engine/presence.py` turns local tracks into *presences*, the unit
+that occupancy counts. Sources fragment one person into several tracks: the
+Dahua test camera closed and re-opened the track of a seated person every 1-6
+minutes at the same image position. The rules are source-neutral and
+deterministic:
+
+- a track joins a live presence of the same camera when its first centre is
+  within `join_distance` (0.15, normalized) of the presence's latest centre;
+- a presence counts after `confirm_seconds` (3 s) of observed track time;
+- a confirmed presence keeps counting for `hold_seconds` (20 s) after its
+  last track;
+- a space covered by several cameras counts the maximum over them.
+
+Replaying 26 recorded minutes of one seated person gave the right count in
+93.4 % of seconds, against 78-83 % when counting raw tracks. The defaults are
+provisional until calibrated with group visits after final camera placement;
+joining by proximity can merge two people standing very close.
+
+Each local track stores `first_geometry_json` (schema version 6) so a new
+track can be joined where it appeared. Rows created before that version fall
+back to their latest geometry. The Space Mapper monitor computes occupancy
+from the last 15 minutes of tracks on every refresh.
+
+Visual identity remains a later, independent scoring layer.

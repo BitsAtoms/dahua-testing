@@ -1,5 +1,12 @@
 # Visual tracking roadmap
 
+> **Status 2026-09-28: optional track.** The system-level plan is the root
+> [`ROADMAP.md`](../../ROADMAP.md). On the final PC, Frigate (Docker, CPU)
+> detects and tracks the non-Dahua cameras. The in-house GPU detector/tracker
+> below is phase 8 there and resumes only if measurements show Frigate is
+> insufficient in quality or CPU capacity. Evidence gathered here remains
+> valid, and the retained recordings are regression tests.
+
 This is the durable source of truth for anonymous local and cross-camera
 tracking. Detailed historical measurements are kept in
 [VALIDATION_HISTORY.md](VALIDATION_HISTORY.md), not in this file.
@@ -16,7 +23,8 @@ validation, `[ ]` not implemented.
 - Do not merge without passing tests, the phase exit criterion, clean ignored
   runtime data and explicit user authorization.
 
-Current branch: `codex/rfdetr-medium-detector`.
+Last active branch: `codex/rfdetr-medium-detector`, merged into `main` at
+`e6f00f5`. No branch is currently active for this track.
 
 Current decision: stop designing another frame-to-frame tracker. Roboflow
 BoT-SORT and Deep SORT Realtime are reproducible providers but fail the

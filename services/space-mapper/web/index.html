@@ -48,6 +48,10 @@
     .track-dot.excluded,.track-dot.contaminated { fill:#2b1010; stroke:#ff6b6b; }
     .track-dot.provisional { fill:#2b250d; stroke:var(--warn); }
     .track-label { fill:#e9fbff; font-size:12px; paint-order:stroke; stroke:#080a0b; stroke-width:4px; stroke-linejoin:round; pointer-events:none; }
+    .occupancy-badge { fill:var(--accent); font-size:34px; font-weight:700; paint-order:stroke; stroke:#080a0b; stroke-width:6px; stroke-linejoin:round; pointer-events:none; }
+    .occupancy-badge.empty { fill:var(--muted); }
+    .occupancy-row { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:4px 0; }
+    .occupancy-row strong { color:var(--accent); }
     .monitor-summary { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .metric { border:1px solid var(--line); padding:9px; }
     .metric strong { display:block; color:var(--cyan); font-size:18px; }
@@ -218,7 +222,8 @@ async function fetchMonitor(){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     monitorState=await response.json();
     const active=monitorState.tracks.filter(track=>track.status==='active').length;
-    $('status').textContent=`MONITOR · ${active} ACTIVOS · ${monitorState.tracks.length} RECIENTES`;
+    const people=monitorState.occupancy?.total ?? 0;
+    $('status').textContent=`MONITOR · ${people} PERSONAS · ${active} TRACKS ACTIVOS · ${monitorState.tracks.length} RECIENTES`;
     $('status').classList.remove('dirty');
     renderMonitor();
   }catch(error){
@@ -249,6 +254,14 @@ function renderMonitor(){
   const layer=$('monitorLayer'); layer.replaceChildren();
   if(!monitorMode||!monitorState)return;
   const positions=new Map(),tracksById=new Map();
+  // Occupancy counts presences (joined camera tracks), not raw tracks.
+  for(const space of model.spaces){
+    const count=monitorState.occupancy?.spaces?.[space.id]?.count ?? 0;
+    const c=centroid(space.polygon);
+    const badge=svgEl('text',{x:c.x*W,y:c.y*H+40,class:'occupancy-badge'+(count?'':' empty'),'text-anchor':'middle'});
+    badge.textContent=`${count} ${count===1?'persona':'personas'}`;
+    layer.append(badge);
+  }
   monitorState.tracks.forEach((track,index)=>{positions.set(track.track_id,trackPosition(track,index));tracksById.set(track.track_id,track)});
   for(const candidate of monitorState.candidates){
     const a=positions.get(candidate.origin_track_id),b=positions.get(candidate.destination_track_id);
@@ -283,7 +296,22 @@ function renderMonitorPanel(tracksById){
   const summary=document.createElement('div'); summary.className='monitor-summary';
   const active=monitorState.tracks.filter(track=>track.status==='active').length;
   const rejected=monitorState.tracks.filter(track=>['excluded','contaminated'].includes(track.track_eligibility?.state)).length;
-  summary.append(metric('ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('NO VÁLIDOS',rejected),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); live.append(summary);
+  const occupancy=monitorState.occupancy;
+  summary.append(metric('PERSONAS',occupancy?.total ?? 0),metric('TRACKS ACTIVOS',active),metric('RECIENTES',monitorState.tracks.length),metric('NO VÁLIDOS',rejected),metric('CANDIDATOS',monitorState.candidates.length),metric('VENTANA',`${monitorState.recent_seconds}s`)); live.append(summary);
+  live.append(sectionTitle('Ocupación por sala'));
+  const occupancyList=document.createElement('div');
+  for(const space of model.spaces){
+    const entry=occupancy?.spaces?.[space.id];
+    const row=document.createElement('div'); row.className='occupancy-row';
+    const name=document.createElement('span'); name.textContent=space.name;
+    const value=document.createElement('strong'); value.textContent=entry?.count ?? 0;
+    const cameras=entry?Object.entries(entry.by_camera).map(([camera,count])=>`${camera}: ${count}`).join(' · '):'';
+    if(cameras) row.title=`Por cámara (se usa el máximo): ${cameras}`;
+    row.append(name,value); occupancyList.append(row);
+  }
+  if(occupancy?.unmapped_presences){ const row=document.createElement('div'); row.className='occupancy-row'; row.textContent=`Cámaras sin sala asignada: ${occupancy.unmapped_presences}`; occupancyList.append(row); }
+  if(occupancy?.rule){ const rule=document.createElement('div'); rule.className='hint'; rule.textContent=`Regla provisional: unir ≤${occupancy.rule.join_distance} · confirmar ${occupancy.rule.confirm_seconds}s · mantener ${occupancy.rule.hold_seconds}s`; occupancyList.append(rule); }
+  live.append(occupancyList);
   live.append(sectionTitle('Tracks locales'));
   const trackList=document.createElement('div');trackList.className='list';
   for(const track of monitorState.tracks.slice(0,30)){

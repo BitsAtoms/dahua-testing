@@ -295,3 +295,139 @@ console. Failure to attach is non-fatal and `HumanTrait` capture continues
 normally. Because the existing picture subscription uses
 `EVENT_IVS_ALL`, the first three occurrences of any non-`HumanTrait` analyzer
 event code are also reported for capability discovery.
+
+## Live IVS stream probe
+
+`HumanTrait` arrives when the camera-local track ends, so it cannot drive a
+live map. The Web 5.0 live view nevertheless draws moving target boxes, which
+Dahua carries as private IVS frames inside the real-time stream. The separate,
+read-only `dahua-ivs-probe.exe` tests whether that data is reachable:
+
+```text
+NetSDK CLIENT_RealPlayEx (raw private stream, no window)
+ -> PlaySDK PLAY_InputData / PLAY_Play (no window)
+ -> PLAY_SetIVSCallBack
+ -> ivs-frames.jsonl + summary.json
+```
+
+It is built with the collector by the commands above. PlaySDK (`play.dll`)
+ships without an import library in this SDK package, so the probe loads it at
+runtime and fails loudly if a required export is missing. It never changes
+camera configuration and does not replace the collector.
+
+At login it records the model and firmware reported by the camera itself
+(`DH_DEVSTATE_SOFTWARE`), so each capability result is tied to the real
+device. The serial number is not recorded.
+
+Run from the repository root:
+
+```cmd
+experiments\dahua-netsdk\build\dahua-ivs-probe.exe .env experiments\dahua-netsdk\output --stream main
+```
+
+Options:
+
+```text
+--stream main|sub   real-time stream to open (default main)
+--seconds N         stop automatically after N seconds (default: press Enter)
+--stdout            collector mode: stream TRACK_EX_B0 records to stdout
+--stall-seconds N   collector mode: exit 2 after N s without video (default 20)
+```
+
+Controlled protocol, one person only, about 100 seconds
+(`--seconds 100` stops automatically):
+
+1. 0–20 s: nobody in view (baseline of rule/OSD frames).
+2. 20–80 s: enter, cross the view slowly, stop about 5 s facing the camera,
+   then leave the view completely.
+3. 80–100 s: nobody in view again.
+
+Each run creates `output/ivs-probe/<UTC>_<stream>/`:
+
+```text
+ivs-frames.jsonl  one line per IVS callback: arrival time, IVS type, length,
+                  frame sequence and payload (text for JSON, hex otherwise)
+summary.json      camera model/firmware, SDK versions, video bytes and
+                  per-type counts, sizes and first/last arrival times
+```
+
+The shipped PlaySDK header documents the IVS types and states that
+`IVSINFOTYPE_TRACK` carries `SP_IVS_OBJ_EX` objects and `IVSINFOTYPE_TRACK_EX_B0`
+carries `SP_IVS_COMMON_OBJ` objects, but it does not define those structures.
+Binary payloads are therefore preserved raw and must be decoded against the
+controlled walk (for example, a box that moves with the person), not guessed.
+
+Interpretation:
+
+- IVS frames of a track type or JSON whose count and content change while the
+  person is present: a live position lane is available; decode it next.
+- Only rule, OSD or motion frames: the stream carries private data but no
+  targets; check the camera's overlay settings with the owner before changing
+  anything.
+- No IVS frames at all: fall back to ONVIF metadata or regional counting as
+  described in the root `ROADMAP.md`.
+
+Summarize a session, optionally against a CGI attach capture recorded at the
+same time with `tests\dahua-events\capture-cgi.ps1`:
+
+```powershell
+python experiments\dahua-netsdk\collector\analyze_ivs_probe.py `
+  experiments\dahua-netsdk\output\ivs-probe\<session> `
+  --cgi-log tests\dahua-events\output\<capture>.log
+```
+
+It prints presence intervals, each camera-local track ID with its time span
+and horizontal movement, and whether that ID produced a CGI `HumanTrait`
+event. The decoding it relies on (`collector/dahua_collector/ivs.py`) is the
+empirical layout confirmed on `dahua_213` on 2026-09-29; results for that
+model are in `docs/dahua-research.md`.
+
+Add `--lifecycle` to replay the recorded targets through the collector's
+live lane (`collector/dahua_collector/live_lane.py`) and print the
+`new`/`end` messages it would publish.
+
+Main-stream decoding measured about 7 % of one core on the development PC.
+The sub-stream only replayed stale IVS frames at connection, so the live
+lane uses the main stream.
+
+## Live lane (default on; `--no-live-lane` disables it)
+
+`live.py` starts `dahua-ivs-probe.exe - --stdout` as a second
+native child. In that mode the probe forwards only `TRACK_EX_B0` records as
+`ivs_frame=` lines, writes no files, stops when stdin closes and exits with
+code 2 if no video arrives for 20 s (`--stall-seconds`); the collector then
+ends the lane's open tracks and restarts the child with backoff.
+
+`DahuaLiveLane` (`collector/dahua_collector/live_lane.py`) turns the targets
+into `track_update.v1` messages on the same JSONL, outbox and MQTT topic as
+the HumanTrait projections:
+
+- `new` after three targets of one camera-local `ObjectID` (about 0.3 s);
+  single-frame targets, which the camera does not keep either, are dropped;
+- `update` at most every 0.5 s per track;
+- `end` when the CGI HumanTrait for that `ObjectID` arrives, because the
+  camera publishes it when it closes its own track (0.41 s after the last
+  live target in the measured case); otherwise after 10 s without targets,
+  since a seated person produced 2.4 and 3.6 s gaps under the same
+  `ObjectID`; and on collector stop or camera disconnect.
+
+PC receipt time is the timeline. Frames with frame sequence `-1` are
+replayed at connection and are dropped and counted. Late targets of a
+finalized `ObjectID` are ignored for 5 s. An `ObjectID` that reappears after
+its track ended starts a new `track_id` (suffix `:2`, ...), because ended
+tracks are never reopened downstream. One raw record per new track is kept in
+`ivs-new-track-samples.jsonl` for audit.
+
+HumanTrait photos join the live track. When the finalized observation's
+camera-local `ObjectID` matches an active or recently ended live track, its
+`track_update.v1` snapshot reuses the live `track_id` and `live` lifecycle,
+carries no geometry (the track keeps its last live position) and is stamped
+with the track's first PC sighting, so the tracking engine merges the photos
+into one ended track without extending or reordering it. The camera's own
+time is kept in `quality.source_observed_at`. Without a matching live track,
+for example if the lane child is down, the previous `finalized_only`
+snapshot is published unchanged.
+
+When testing against a running broker, set `TRACK_MQTT_TOPIC` to a test
+topic (for example `tracking/test/track-updates`) and `TRACK_OUTBOX_ROOT` to
+a scratch directory so test messages never reach the receiver.

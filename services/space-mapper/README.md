@@ -30,6 +30,8 @@ The editor supports:
 Use `[ MONITOR ]` in the header to switch from editing to the operational 2D
 view. It refreshes once per second and displays:
 
+- **people per space and in total**, counted as presences (consecutive camera
+  tracks of one person joined; see `services/tracking-engine/README.md`);
 - active and recently received camera-local tracks;
 - the source-neutral eligibility state and reason for each track, with
   provisional tracks in amber and excluded/contaminated tracks in red;

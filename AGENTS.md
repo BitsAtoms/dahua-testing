@@ -4,9 +4,11 @@
 
 This repository contains experiments and implementation work for a multi-camera spatial monitoring system.
 
-The immediate task is to integrate Dahua AI cameras programmatically, starting with a `DH-IPC-HDBW7459Z-Z-PV-X`, and later normalize Dahua, Hikvision, Eufy, and Frigate events into a common tracking backend.
+Dahua, Hikvision, Eufy and Frigate events are normalized into a common tracking backend. The Dahua NetSDK proof of concept is complete.
 
-The long-term UI concept is a "Batcomputer" style real-time 2D map of office/showroom spaces, with estimated occupancy, camera handoffs, event history, and associated snapshots.
+The goal is a "Batcomputer" style real-time 2D map of office/showroom spaces, with estimated occupancy, camera handoffs, event history, and associated snapshots. It must run on one final Windows PC and become operational from a single launch.
+
+The system-level source of truth is the root `ROADMAP.md`. The owner-facing concept guide is `docs/guia.md`.
 
 Before doing Dahua work, read:
 
@@ -24,38 +26,50 @@ Treat that file as the current research baseline.
 
 ---
 
-## First priority
+## Working with the project owner
 
-Do not start by modifying the main Digital Twin backend.
+The owner is not a computer-vision specialist and has asked for a careful,
+ordered, didactic process:
 
-The current milestone is an isolated Dahua NetSDK proof of concept.
-
-Preferred location:
-
-```text
-experiments/dahua-netsdk/
-```
-
-The experiment should prove this data path:
-
-```text
-Dahua camera
- -> NetSDK login
- -> intelligent event subscription
- -> HumanTrait / Video Metadata event
- -> metadata fields
- -> image buffer(s)
- -> save JPEG(s)
-```
-
-Only after this path is proven should it be integrated into the main application.
+- Reply in Spanish. Keep code, identifiers and technical module READMEs in
+  English; owner-facing documents (`ROADMAP.md`, `README.md`, `docs/guia.md`)
+  are in Spanish.
+- Advance one small, explained step at a time. Before a step, say what it is,
+  why it is needed and where it fits in the architecture, in plain language.
+- Ask for decisions that belong to the owner instead of deciding silently.
+- Keep `docs/guia.md` short: only key concepts, explained in depth where they
+  really matter. It is not a reference manual.
+- Prefer existing, maintained tools over new in-house components.
 
 ---
 
-## Camera currently under test
+## Deployment target
+
+The final system runs on one Windows 11 PC (AMD Ryzen 7 9850X3D, 64 GB RAM,
+about 4 TB disk, two AMD RX 9070 XT). The exact camera inventory and the
+operating decisions are recorded in `ROADMAP.md`. Key constraints:
+
+- Dahua cameras use the native Dahua collector (NetSDK + CGI) on Windows.
+- Non-Dahua cameras go through Frigate in Docker. Frigate detects on CPU
+  because Docker on Windows cannot use the AMD GPUs.
+- A GPU-based in-house detector/tracker is optional and only resumes when
+  measurements show Frigate is insufficient
+  (`experiments/visual-reid/ROADMAP.md`).
+- One dedicated Windows user with automatic sign-in starts the whole stack.
+  The UI is shown only on the local screen; services bind to localhost.
+- Retention is seven days for all collected data; Frigate keeps event clips
+  only.
+
+Anything measured in image space (thresholds, masks, travel times, model
+choice) is calibrated only after final camera placement. Current recordings
+are regression tests, not calibration data.
+
+---
+
+## Reference test camera
 
 ```text
-Model: DH-IPC-HDBW7459Z-Z-PV-X
+Model: DH-IPC-HDBW7859Z-Z4-PV-X   (camera_id dahua_213)
 Host:  192.168.1.XXX
 RTSP:  554
 ```
@@ -264,7 +278,7 @@ Browser inspection found `blob:` URLs for displayed images. These are browser-lo
 
 Do not attempt to use those `blob:` URLs in backend code.
 
-The next task is to obtain equivalent image data from NetSDK callbacks or another documented Dahua API.
+Equivalent native image data is now obtained through `CLIENT_RealLoadPictureEx`; see `docs/dahua-research.md`.
 
 ---
 
@@ -342,6 +356,10 @@ Keep experiments scoped to technical validation.
 
 Do not expose camera credentials, raw authentication headers, cookies, or session tokens in committed files or logs.
 
+The GitHub repository is public. Never commit site data: real IP addresses,
+RTSP URLs, credentials, recordings, snapshots, embeddings, real floor plans or
+local configuration. Use placeholders such as `192.168.1.XXX` in documentation.
+
 ---
 
 ## Coding expectations
@@ -356,12 +374,33 @@ Do not expose camera credentials, raw authentication headers, cookies, or sessio
 - Add a README to each experiment describing setup and run commands.
 - Do not refactor unrelated project code while proving the NetSDK path.
 
+## Operational notes (learned on the development PC)
+
+- A local Mosquitto broker is usually running. Any test that runs a collector
+  or adapter must set `TRACK_MQTT_TOPIC=tracking/test/track-updates` and a
+  scratch `TRACK_OUTBOX_ROOT`, or its messages reach the real receiver.
+- Frigate runs in Docker and its configuration lives outside this repository,
+  in the owner's `frigate-runtime/config` folder. It is site data: never
+  commit it. Change it through the Frigate UI or with the owner's explicit
+  agreement. A setting toggled at runtime in the Frigate UI may not be saved
+  in `config.yml`; check `/api/config/raw` before assuming it persists.
+- Per-camera probe settings go in ignored `.env.<camera_id>` files. Read secret
+  files only through code that uses them; never print their values.
+- Camera clocks can be wrong (one test camera was 26.9 days behind). Use PC
+  receipt time as the primary timeline and keep camera time as evidence.
+- The development PC is not the final PC (RTX 3050 here, two AMD RX 9070 XT
+  there). Do not report AMD GPU results from this machine.
+- Owner-visible docs are in Spanish. When a script writes Windows paths into
+  Markdown, check that sequences such as `\r` were not turned into control
+  characters.
+
 ## Roadmap and Git workflow
 
-Use the nearest experiment or service roadmap as the durable source of truth
-for ongoing work. At the start of a resumed task, read that roadmap together
-with this file and Git status. Keep it updated when implementation evidence
-changes a phase, checkpoint, risk or next step.
+The root `ROADMAP.md` is the durable source of truth for the whole system.
+Experiment roadmaps such as `experiments/visual-reid/ROADMAP.md` hold detail
+for their own track only. At the start of a resumed task, read `ROADMAP.md`,
+this file and Git status. Keep the roadmap updated when implementation
+evidence changes a phase, checkpoint, risk or next step.
 
 When completing a meaningful checkpoint, tell the user:
 
@@ -389,23 +428,28 @@ Recommend merging to `main` only at a solid checkpoint where:
 Do not merge automatically. Present the checkpoint and recommendation to the
 user, and wait for explicit authorization before merging to `main`.
 
+Pushing to the public `origin` also requires explicit user confirmation.
+Before any push, scan the outgoing diff for site data and credentials.
+
 ---
 
-## Definition of done for the current milestone
+## Completed milestone: Dahua NetSDK proof of concept
 
-The Dahua NetSDK experiment is successful when all of the following are proven on the real camera:
+All criteria were proven on the real camera; evidence is in
+`docs/dahua-research.md`.
 
 ```text
-[ ] SDK loads successfully on Windows
-[ ] camera login succeeds
-[ ] intelligent event subscription succeeds
-[ ] HumanTrait / relevant metadata event is received
-[ ] local track ID is printed
-[ ] face/body relation is recoverable
-[ ] image buffer is received
-[ ] at least one native Dahua snapshot is saved as a valid JPEG
-[ ] event and JPEG can be correlated to the same detection
-[ ] unsubscribe/logout/cleanup works without crash
+[x] SDK loads successfully on Windows
+[x] camera login succeeds
+[x] intelligent event subscription succeeds
+[x] HumanTrait / relevant metadata event is received
+[x] local track ID is printed (recovered from CGI ObjectID via GroupID)
+[x] face/body relation is recoverable
+[x] image buffer is received
+[x] at least one native Dahua snapshot is saved as a valid JPEG
+[x] event and JPEG can be correlated to the same detection
+[x] unsubscribe/logout/cleanup works without crash
 ```
 
-Do not start the production tracking engine until this milestone is complete or explicitly abandoned in favor of a different ingestion mechanism.
+Known limit: on the tested firmware `HumanTrait` is published when the
+camera-local track ends, so it cannot drive live positions on the map.

@@ -19,7 +19,9 @@ Do not assume that one camera-local track ID is a persistent identity across app
 
 ## Camera currently under test
 
-- Model: `DH-IPC-HDBW7459Z-Z-PV-X`
+- Model: `DH-IPC-HDBW7859Z-Z4-PV-X` (`camera_id` `dahua_213`). Corrected by
+  the owner on 2026-09-29; earlier revisions of these notes listed
+  `DH-IPC-HDBW7459Z-Z-PV-X`. All findings below were obtained on this camera.
 - Test IP: `192.168.1.XXX`
 - RTSP port: `554`
 - Main stream example:
@@ -647,6 +649,7 @@ Confirmed:
 [YES] programmatic retrieval of native Dahua AI snapshots
 [YES] NetSDK image callback test
 [YES] live CGI + NetSDK hybrid correlation
+[YES] live per-frame target positions via NetSDK + PlaySDK IVS (2026-09-29)
 [PENDING] multi-camera normalized collector
 [PENDING] cross-camera ReID
 ```
@@ -820,3 +823,180 @@ future collector artifacts. The multicamera supervisor applies this policy at
 startup and once per hour to its entire output root. No size ceiling currently
 removes younger data. The standalone retention command remains a dry-run unless
 the operator explicitly supplies `--apply`.
+
+---
+
+## Confirmed live IVS stream findings (2026-09-29)
+
+Tested on `dahua_213` with the read-only `dahua-ivs-probe`
+(`experiments/dahua-netsdk/README.md`). The camera reported
+`DH-IPC-HDBW7859Z-Z4-PV-X`, firmware `3.146.0000000.55.R`; NetSDK
+`36191182`, PlaySDK `34477846`, main stream.
+
+Data path:
+
+```text
+CLIENT_RealPlayEx (raw private stream, no window)
+ -> CLIENT_SetRealDataCallBackEx2 (REALDATA_FLAG_RAW_DATA)
+ -> PLAY_InputData / PLAY_Play (no window)
+ -> PLAY_SetIVSCallBack
+```
+
+Three IVS types arrived:
+
+```text
+type 5 RAWDATA (JSON)  camera status (focus, depth of field) and the active
+                       analysis configuration (VideoAnalyseModule/Rule:
+                       ObjectDetect region, HumanTrait rule "VM-1")
+type 4                 ONVIF tt:MetadataStream XML per video frame:
+                       tt:Object ObjectId, BoundingBox, CenterOfGravity,
+                       coordinates 0..8191
+type 7 TRACK_EX_B0     2272-byte binary record per target
+```
+
+Although the PlaySDK enum names type 4 `IVSINFOTYPE_LIGHT`, its payload on
+this firmware is ONVIF analytics XML. Target frames arrived at about 10 Hz
+only while a person was in view.
+
+The PlaySDK headers do not define the type 7 structure. The following layout
+is empirical and was confirmed against two independent sources in the same
+run:
+
+```text
+offset 36   uint32  camera-local track ID
+offset 50   uint8   state; 1 on the first frame of 6 of 7 tracks, then 2
+offset 528  4x u16  centre x, centre y, half width, half height (0..8191)
+```
+
+- The box equals the ONVIF XML box whenever both formats are emitted for the
+  same frame sequence (113 of 114 such frames on `dahua_213`). The two
+  formats are not always emitted for the same frames.
+- The track ID equals the CGI `HumanTrait` body `ObjectID` for every visit
+  that produced an event (4860, 4861, 4863, 4864, 4865, 4866). The face
+  events used `1000000 + ObjectID` with `BelongID = ObjectID`, as before.
+- The ONVIF `ObjectId` is a per-frame slot index (`0`, and `1` for a second
+  concurrent target), not the track ID.
+- One ONVIF object variant uses fractional coordinates and a `Human` class
+  with likelihood 0.9. Its coordinate space is not yet identified.
+
+### Controlled re-entry test
+
+One person, cued by the operator: enter and cross, leave completely, return
+and cross the other way, leave. A CGI attach capture ran in parallel.
+
+```text
+6.1-10.5 s   tracks 4860, 4861, 4862  (person getting into position)
+31.0-37.1 s  track 4863  centre_x 584 -> 3704   HumanTrait GroupID 502 (+face)
+37.6-41.3 s  track 4864  centre_x 2032 -> 7832  HumanTrait GroupID 504 (+face)
+41.3-55.1 s  no targets                          (outside the view)
+55.1-55.5 s  track 4865                          HumanTrait GroupID 506
+55.6-78.0 s  track 4866  centre_x 7696 -> 472   HumanTrait GroupID 507 (+face)
+78.0-120 s   no targets                          (outside the view)
+```
+
+Conclusions for this model and firmware:
+
+```text
+[YES] live per-frame target positions through NetSDK + PlaySDK
+[YES] target frames stop within about 1 s after the person leaves
+[YES] a new visit receives a new camera-local track ID
+[YES] live track ID == CGI HumanTrait ObjectID (joins live positions to the
+      native photos through GroupID)
+[YES] crossings still fragment into consecutive local tracks, as with
+      HumanTrait alone
+[NO]  explicit end-of-track message; a track ends when its ID stops arriving
+```
+
+The first 100-second run kept one track (4854) from 21 to 100 s with a
+slowly moving centre. Because the re-entry run ended tracks promptly, this
+is most likely the person remaining in view; the operator could not confirm
+the timing.
+
+### Resource cost and stream choice
+
+Measured on the development PC (Intel Core i9-12900F, 24 logical
+processors), 40-second steady-state windows, probe process only:
+
+```text
+main stream  about 7 % of one core, about 440 MiB working set,
+             no GPU engine activity; only d3d11.dll among graphics modules
+sub stream   about 0.1 % of one core, about 48 MiB working set
+```
+
+For five Dahua cameras on the main stream this extrapolates to roughly a
+third of one core and about 2.2 GiB of memory. The final PC must confirm it
+in the capacity test.
+
+On connection, the sub-stream session delivered a short burst of IVS frames
+whose ONVIF `UtcTime` was 44 s old (frame sequence `-1`, the track from the
+previous main-stream run) and then no target frames. It is therefore not
+usable as-is. On the main stream, the ONVIF `UtcTime` matched the arrival
+time within the XML's one-second resolution. Decision: the live lane uses
+the main stream and must discard frames whose `UtcTime` predates the
+connection by more than a small tolerance.
+
+Some type 4 frames are much larger (about 158 KB). They carry ONVIF human
+body and face analytics (`bd:HumanBody` clothing colours and categories,
+`fc:HumanFace` age, gender, glasses, mask, hat) and a `tt:Image` element,
+i.e. HumanTrait-like attributes and an image inside the stream. This could
+later let one real-time connection replace the separate picture
+subscription and CGI stream; it is not evaluated yet.
+
+### Second model: `dahua_212` (2026-09-29)
+
+The camera reported `DH-IPC-HDBW7459Z-Z-PV-X`, firmware `3.146.0000000.55.R`
+(same firmware as `dahua_213`) and the same `HumanTrait` rule `VM-1`. A
+120-second main-stream run with a parallel CGI capture had two people in an
+uncontrolled pattern (the operator seated, entering and leaving twice; a
+second person crossing the background twice). Identity mapping between
+people and tracks was not inferred.
+
+```text
+TRACK_EX_B0 record size           2272 bytes (same layout)
+record box == ONVIF box            58 of 58 frames carrying both formats
+live track IDs                     21, 22, 23, 25, 26, 27, 28
+CGI HumanTrait ObjectID match      6 of 6 tracks that ended during capture
+                                   (27 was still in view when capture stopped)
+face events                        1000000 + ObjectID, BelongID = ObjectID
+```
+
+The live IVS lane therefore works identically on the `HDBW7459Z-Z-PV-X`.
+
+**Camera clock skew.** The median difference between PC receipt time and the
+camera's ONVIF `UtcTime` was 0.7 s on `dahua_213` but 2,326,559 s (26.9
+days) on `dahua_212`; its CGI `RealUTC` values were equally shifted. Camera
+clocks cannot be trusted by default. The collector must use PC receipt time
+as the primary timeline, keep camera time as evidence, estimate a per-camera
+offset and report skew as a health problem. Camera time synchronization
+(NTP) is an operating requirement.
+
+### Long static presence (2026-09-29)
+
+With the live lane running under the supervisor on `dahua_212`, the operator
+sat at a desk in view from 15:32:33 to about 15:59 (26 minutes, believed
+alone; other people may have passed in the background). Findings:
+
+- The camera does **not** keep one track for a static person. It closed the
+  operator's track with a HumanTrait (photos included) every 1 to 6 minutes
+  and re-detected the same person under a new `ObjectID` seconds later, often
+  with overlapping or very short tracks. HumanTrait closure therefore means
+  "the camera ended this track", not "the person left".
+- Silences inside one `ObjectID` reached 15.4 s while the person stayed.
+- About 1,340 of 1,550 seconds of track time were at the same image position
+  (centre x 0.10-0.15, y 0.53-0.63); a few short tracks appeared elsewhere
+  (narrow partial boxes, or someone passing).
+
+Counting live tracks per second in that window gave the right count (1) in
+83 % of seconds, 0 in 15.7 % (gaps up to 49 s) and 2 in 1.3 %. An offline
+simulation of a presence layer that joins tracks at the same position
+(centre distance up to 0.15-0.2), requires 3 s of track time before counting
+and holds a presence for 15-30 s after its last track, gave 1 in 92.9-93.5 %
+of seconds, 0 in 0.7-3.5 % and 2 in 3.0-6.4 %. There is no ground truth for
+background passers, so these figures are indicative, not calibration.
+
+Consequence: per-track lifecycle timeouts cannot solve static presence. The
+live lane stays a faithful mirror of the camera's tracks; continuity for
+counting belongs to a source-neutral presence layer in the occupancy stage,
+to be calibrated with group visits after final camera placement.
+
+Open points: verification on the `HDBW5459Z-ZHE-PV-PRO` model.

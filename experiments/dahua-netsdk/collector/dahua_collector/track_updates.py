@@ -3,19 +3,33 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 import re
 from typing import Any
 
 
 _REVISION_RE = re.compile(r":r(?P<revision>[1-9]\d*)$")
 
+# (track_id, first_seen, last_seen) of a live-lane track, PC POSIX seconds.
+LiveTrackRef = tuple[str, float, float]
 
-def observation_to_track_update(observation: dict[str, Any]) -> dict[str, Any]:
+
+def observation_to_track_update(
+    observation: dict[str, Any],
+    live_track: LiveTrackRef | None = None,
+) -> dict[str, Any]:
     """Convert one Dahua ``observation.v1`` revision to ``track_update.v1``.
 
     HumanTrait is a finalized capture on the tested camera, so it is exposed as
     a ``snapshot`` rather than pretending to be a live lifecycle update. Raw
     provider structures deliberately remain in the observation stream.
+
+    When the live lane holds a track with the same camera-local ``ObjectID``,
+    the snapshot joins that track instead of creating a separate ended one:
+    it reuses the live ``track_id`` and ``live`` lifecycle, carries no
+    geometry (the live track keeps its last position) and is timestamped at
+    the track's first PC sighting so it never extends or reorders the track.
+    The camera's own time stays in ``quality.source_observed_at`` as evidence.
     """
     observation_id = _required_string(observation, "observation_id")
     observation_message_id = _required_string(observation, "message_id")
@@ -35,19 +49,29 @@ def observation_to_track_update(observation: dict[str, Any]) -> dict[str, Any]:
 
     quality = deepcopy(observation.get("quality") or {})
     quality["source_lifecycle"] = "finalized_only"
+    track_id = observation_id
+    observed_at = observation.get("observed_at")
+    geometry = deepcopy(observation.get("geometry"))
+    if live_track is not None:
+        track_id, first_seen, _ = live_track
+        quality["source_lifecycle"] = "live"
+        quality["joined_live_track"] = True
+        quality["source_observed_at"] = observed_at
+        observed_at = datetime.fromtimestamp(first_seen, timezone.utc).isoformat()
+        geometry = None
 
     return {
         "schema_version": "track_update.v1",
         "message_id": f"track-update:{observation_message_id}",
-        "track_id": observation_id,
+        "track_id": track_id,
         "source": source,
         "camera_id": camera_id,
         "phase": "snapshot",
         "sequence": sequence,
-        "observed_at": observation.get("observed_at"),
+        "observed_at": observed_at,
         "published_at": published_at,
         "subject": deepcopy(observation.get("subject") or {}),
-        "geometry": deepcopy(observation.get("geometry")),
+        "geometry": geometry,
         "zones": deepcopy(
             observation.get("zones") or {"current": [], "entered": []}
         ),
