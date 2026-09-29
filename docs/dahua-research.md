@@ -19,7 +19,9 @@ Do not assume that one camera-local track ID is a persistent identity across app
 
 ## Camera currently under test
 
-- Model: `DH-IPC-HDBW7459Z-Z-PV-X`
+- Model: `DH-IPC-HDBW7859Z-Z4-PV-X` (`camera_id` `dahua_213`). Corrected by
+  the owner on 2026-09-29; earlier revisions of these notes listed
+  `DH-IPC-HDBW7459Z-Z-PV-X`. All findings below were obtained on this camera.
 - Test IP: `192.168.1.XXX`
 - RTSP port: `554`
 - Main stream example:

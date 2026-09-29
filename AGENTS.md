@@ -69,7 +69,7 @@ are regression tests, not calibration data.
 ## Reference test camera
 
 ```text
-Model: DH-IPC-HDBW7459Z-Z-PV-X
+Model: DH-IPC-HDBW7859Z-Z4-PV-X   (camera_id dahua_213)
 Host:  192.168.1.XXX
 RTSP:  554
 ```

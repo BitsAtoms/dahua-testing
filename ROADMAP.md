@@ -29,9 +29,9 @@ cámaras.
 
 | Marca | Modelo | Cant. | Entrada al sistema | Quién detecta |
 |---|---|---:|---|---|
-| Dahua | DH-IPC-HDBW7459Z-Z-PV-X | 2 | Colector Dahua (NetSDK + CGI) | La cámara |
-| Dahua | DH-IPC-HDBW7859Z-Z4-PV-X | 1 | Colector Dahua (capacidades a verificar) | La cámara |
-| Dahua | DH-IPC-HDBW7859Z-Z4-PV-X-Black | 1 | Colector Dahua (capacidades a verificar) | La cámara |
+| Dahua | DH-IPC-HDBW7859Z-Z4-PV-X | 1 | Colector Dahua (NetSDK + CGI); es la cámara de pruebas 213 | La cámara |
+| Dahua | DH-IPC-HDBW7859Z-Z4-PV-X-Black | 1 | Colector Dahua (mismo modelo que la 213, a confirmar por firmware) | La cámara |
+| Dahua | DH-IPC-HDBW7459Z-Z-PV-X | 2 | Colector Dahua (capacidades a verificar) | La cámara |
 | Dahua | DH-IPC-HDBW5459Z-ZHE-PV-PRO-Black | 1 | Colector Dahua (capacidades a verificar) | La cámara |
 | Hikvision | iDS-2CD7186G0-IZS (DeepinView) | 1 | Frigate | El PC (CPU). La cámara tiene IA propia, aprovechable más adelante |
 | Eufy | S350 | 1 | Frigate, RTSP directo sin HomeBase | El PC (CPU) |
@@ -104,9 +104,10 @@ no sirve para el mapa en vivo.
 - [ ] Si nada funciona: las Dahua también pasan por Frigate para la posición
   en vivo, y `HumanTrait` queda como enriquecimiento (caras, atributos,
   fotos).
-- [ ] Verificar qué ofrecen los modelos HDBW7859Z-Z4-PV-X y
+- [ ] Verificar qué ofrecen los modelos HDBW7459Z-Z-PV-X y
   HDBW5459Z-ZHE-PV-PRO (Video Metadata, `HumanTrait`, IVS), que aún no se
-  han probado. El sufijo `-Black` suele indicar solo el color de la carcasa:
+  han probado. Todo lo validado hasta ahora se obtuvo con la 213
+  (HDBW7859Z-Z4-PV-X). El sufijo `-Black` suele indicar solo el color de la carcasa:
   basta probar una cámara por modelo, siempre que el firmware coincida.
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
