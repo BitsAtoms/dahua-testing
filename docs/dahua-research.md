@@ -868,7 +868,9 @@ offset 50   uint8   state; 1 on the first frame of 6 of 7 tracks, then 2
 offset 528  4x u16  centre x, centre y, half width, half height (0..8191)
 ```
 
-- The box equals the ONVIF XML box for the same frame.
+- The box equals the ONVIF XML box whenever both formats are emitted for the
+  same frame sequence (113 of 114 such frames on `dahua_213`). The two
+  formats are not always emitted for the same frames.
 - The track ID equals the CGI `HumanTrait` body `ObjectID` for every visit
   that produced an event (4860, 4861, 4863, 4864, 4865, 4866). The face
   events used `1000000 + ObjectID` with `BelongID = ObjectID`, as before.
@@ -940,5 +942,32 @@ i.e. HumanTrait-like attributes and an image inside the stream. This could
 later let one real-time connection replace the separate picture
 subscription and CGI stream; it is not evaluated yet.
 
-Open points: verification on the `HDBW7459Z-Z-PV-X` and
-`HDBW5459Z-ZHE-PV-PRO` models.
+### Second model: `dahua_212` (2026-09-29)
+
+The camera reported `DH-IPC-HDBW7459Z-Z-PV-X`, firmware `3.146.0000000.55.R`
+(same firmware as `dahua_213`) and the same `HumanTrait` rule `VM-1`. A
+120-second main-stream run with a parallel CGI capture had two people in an
+uncontrolled pattern (the operator seated, entering and leaving twice; a
+second person crossing the background twice). Identity mapping between
+people and tracks was not inferred.
+
+```text
+TRACK_EX_B0 record size           2272 bytes (same layout)
+record box == ONVIF box            58 of 58 frames carrying both formats
+live track IDs                     21, 22, 23, 25, 26, 27, 28
+CGI HumanTrait ObjectID match      6 of 6 tracks that ended during capture
+                                   (27 was still in view when capture stopped)
+face events                        1000000 + ObjectID, BelongID = ObjectID
+```
+
+The live IVS lane therefore works identically on the `HDBW7459Z-Z-PV-X`.
+
+**Camera clock skew.** The median difference between PC receipt time and the
+camera's ONVIF `UtcTime` was 0.7 s on `dahua_213` but 2,326,559 s (26.9
+days) on `dahua_212`; its CGI `RealUTC` values were equally shifted. Camera
+clocks cannot be trusted by default. The collector must use PC receipt time
+as the primary timeline, keep camera time as evidence, estimate a per-camera
+offset and report skew as a health problem. Camera time synchronization
+(NTP) is an operating requirement.
+
+Open points: verification on the `HDBW5459Z-ZHE-PV-PRO` model.

@@ -23,8 +23,9 @@ offset type    meaning
 528    4x u16  centre x, centre y, half width, half height (0..8191)
 ====== ======= ==========================================================
 
-Other models or firmware must be verified with the probe before relying on
-this layout. The state byte is recorded but not interpreted: a track starts
+The same layout was confirmed on ``dahua_212`` (DH-IPC-HDBW7459Z-Z-PV-X, same
+firmware). Other models or firmware must be verified with the probe before
+relying on this layout. The state byte is recorded but not interpreted: a track starts
 when a new ID appears and ends when its ID stops arriving.
 """
 

@@ -112,18 +112,20 @@ no sirve para el mapa en vivo.
 - Los planes B (metadatos ONVIF por RTSP, conteo por región o pasar las
   Dahua por Frigate) ya no hacen falta para la 213. Quedan de reserva por si
   otro modelo no ofrece el canal IVS.
-- [ ] Verificar qué ofrecen los modelos HDBW7459Z-Z-PV-X y
-  HDBW5459Z-ZHE-PV-PRO (Video Metadata, `HumanTrait`, IVS), que aún no se
-  han probado con este sistema. Todo lo validado hasta ahora se obtuvo con
-  la 213 (HDBW7859Z-Z4-PV-X). El sufijo `-Black` suele indicar solo el color
-  de la carcasa, así que basta probar una cámara por modelo, siempre que el
-  firmware coincida. No bloquea: se hace cuando estén conectadas, con el
-  mismo programa de prueba (unos 5 minutos por modelo, que además informa el
-  modelo y el firmware reales).
+- [~] Verificar los otros modelos. **HDBW7459Z-Z-PV-X: verificado** con la
+  212 el 2026-09-29 (mismo firmware, mismo formato y mismos `ObjectID` que
+  las fotos). Falta el HDBW5459Z-ZHE-PV-PRO, que no bloquea: se prueba
+  cuando esté conectado, con el mismo programa. El sufijo `-Black` suele
+  indicar solo el color de la carcasa.
+- [ ] **Hora de las cámaras.** La 212 tiene el reloj atrasado casi 27 días.
+  El sistema usará la hora del PC como referencia y avisará del desfase de
+  cada cámara, pero todas deben sincronizar su hora por NTP (configuración
+  del propietario en cada cámara).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
-modelo Dahua. Ya está tomada para el modelo HDBW7859Z-Z4-PV-X (canal IVS
-por el stream principal); faltan los otros dos modelos, que no bloquean.
+modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
+(canal IVS por el stream principal); falta el HDBW5459Z-ZHE-PV-PRO, que no
+bloquea.
 
 ### Fase 3 — Frigate para las cámaras no Dahua `[ ]`
 
