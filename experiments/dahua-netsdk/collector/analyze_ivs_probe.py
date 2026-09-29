@@ -124,7 +124,9 @@ def main() -> int:
     parser.add_argument("--gap", type=float, default=1.0,
                         help="seconds without targets that split presence (default 1.0)")
     parser.add_argument("--lifecycle", action="store_true",
-                        help="replay targets through the collector's live lane")
+                        help="replay targets through the collector's live lane "
+                             "(silence fallback only: the CGI capture has no receipt "
+                             "times to replay HumanTrait finalization)")
     args = parser.parse_args()
 
     summary, frames = load_session(args.session)

@@ -216,10 +216,13 @@ dejar todo listo para seguir en el PC final.
 2. [x] Fase 2: prueba del canal IVS con la Dahua 213. Funciona; ver la
    fase 2 y `docs/dahua-research.md`.
 2b. [x] Fase 2: medir el coste de CPU. Es bajo con el stream principal.
-2c. [~] Canal en vivo de las Dahua dentro del colector. La lógica que
-    convierte posiciones en avisos `new`/`update`/`end` está hecha y probada
-    con las grabaciones. Falta conectarla al programa nativo, unir las fotos
-    por `ObjectID` y probarla en vivo.
+2c. [~] Canal en vivo de las Dahua dentro del colector (`live.py --live-lane`).
+    Hecho y probado en vivo con la 212: el programa nativo envía las
+    posiciones al colector, que publica `new`/`update`/`end`. Un track se
+    publica tras 3 datos, termina cuando la cámara envía su `HumanTrait` (o
+    tras 10 s de silencio) y una persona sentada ya no se corta. Falta unir
+    las fotos al track en vivo por `ObjectID` (hasta entonces queda
+    desactivado por defecto) y la prueba caminando con el monitor.
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.

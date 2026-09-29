@@ -330,6 +330,8 @@ Options:
 ```text
 --stream main|sub   real-time stream to open (default main)
 --seconds N         stop automatically after N seconds (default: press Enter)
+--stdout            collector mode: stream TRACK_EX_B0 records to stdout
+--stall-seconds N   collector mode: exit 2 after N s without video (default 20)
 ```
 
 Controlled protocol, one person only, about 100 seconds
@@ -388,21 +390,37 @@ Main-stream decoding measured about 7 % of one core on the development PC.
 The sub-stream only replayed stale IVS frames at connection, so the live
 lane uses the main stream.
 
-## Live lane (in progress)
+## Live lane (experimental, `--live-lane`)
 
-`DahuaLiveLane` turns live targets into `track_update.v1` messages:
+`live.py --live-lane` starts `dahua-ivs-probe.exe - --stdout` as a second
+native child. In that mode the probe forwards only `TRACK_EX_B0` records as
+`ivs_frame=` lines, writes no files, stops when stdin closes and exits with
+code 2 if no video arrives for 20 s (`--stall-seconds`); the collector then
+ends the lane's open tracks and restarts the child with backoff.
 
-- `new` on the first target of a camera-local `ObjectID`;
+`DahuaLiveLane` (`collector/dahua_collector/live_lane.py`) turns the targets
+into `track_update.v1` messages on the same JSONL, outbox and MQTT topic as
+the HumanTrait projections:
+
+- `new` after three targets of one camera-local `ObjectID` (about 0.3 s);
+  single-frame targets, which the camera does not keep either, are dropped;
 - `update` at most every 0.5 s per track;
-- `end` after 2 s without targets (recorded intra-track gaps: median 0.1 s,
-  p99 0.2 s, maximum 1.0 s), or when the collector stops or the camera
-  disconnects.
+- `end` when the CGI HumanTrait for that `ObjectID` arrives, because the
+  camera publishes it when it closes its own track (0.41 s after the last
+  live target in the measured case); otherwise after 10 s without targets,
+  since a seated person produced 2.4 and 3.6 s gaps under the same
+  `ObjectID`; and on collector stop or camera disconnect.
 
 PC receipt time is the timeline. Frames with frame sequence `-1` are
-replayed at connection and are dropped and counted. An `ObjectID` that
-reappears after its track ended starts a new `track_id` (suffix `:2`, ...),
-because ended tracks are never reopened downstream. Recently ended tracks
-remain joinable for five minutes so the finalized HumanTrait photos can be
-attached by `ObjectID`. Wiring into `live.py` is the next step. The payload is capped per callback
-(256 KiB) and in total (512 MiB), and the in-memory queue is bounded. Drops
-and write errors are counted in `summary.json` rather than hidden.
+replayed at connection and are dropped and counted. Late targets of a
+finalized `ObjectID` are ignored for 5 s. An `ObjectID` that reappears after
+its track ended starts a new `track_id` (suffix `:2`, ...), because ended
+tracks are never reopened downstream. One raw record per new track is kept in
+`ivs-new-track-samples.jsonl` for audit.
+
+The flag stays off by default until the HumanTrait photos are attached to
+the live track by `ObjectID`; enabling it earlier would show each visit twice.
+
+When testing against a running broker, set `TRACK_MQTT_TOPIC` to a test
+topic (for example `tracking/test/track-updates`) and `TRACK_OUTBOX_ROOT` to
+a scratch directory so test messages never reach the receiver.

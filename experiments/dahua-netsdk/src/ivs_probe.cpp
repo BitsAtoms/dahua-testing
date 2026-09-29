@@ -46,8 +46,26 @@ constexpr std::size_t kMaxQueuedRecords = 10000;
 constexpr std::uint64_t kMaxWrittenPayloadBytes = 512ull * 1024 * 1024;
 constexpr DWORD kPlayBufferBytes = 3 * 1024 * 1024;
 constexpr DWORD kStreamRealtime = 0;  // STREAME_REALTIME in PlaySDK play.h
+constexpr LONG kTrackRecordType = 7;  // IVSINFOTYPE_TRACK_EX_B0: live targets
 
 std::mutex g_console_mutex;
+
+// Stop request shared by the stdin reader, the timer and the stall watchdog.
+// Global so a detached stdin reader never outlives the state it touches.
+std::mutex g_stop_mutex;
+std::condition_variable g_stop_condition;
+bool g_stop_requested = false;
+int g_exit_code = 0;
+
+void request_stop(int exit_code) {
+    {
+        std::lock_guard<std::mutex> lock(g_stop_mutex);
+        if (g_stop_requested) return;
+        g_stop_requested = true;
+        g_exit_code = exit_code;
+    }
+    g_stop_condition.notify_all();
+}
 
 // ---------------------------------------------------------------------------
 // Small helpers (kept local so the existing collector stays untouched).
@@ -340,12 +358,18 @@ struct TypeStats {
 
 class IvsWriter {
 public:
+    // File mode stores every frame for offline analysis. Stream mode writes
+    // one "ivs_frame=" line per record to stdout for the Python collector;
+    // it is not stored here, so the file-size cap does not apply.
     explicit IvsWriter(const fs::path& path)
         : output_(path, std::ios::binary), worker_(&IvsWriter::run, this) {
         if (!output_) {
             throw std::runtime_error("Cannot create " + path.string());
         }
     }
+
+    struct StdoutTag {};
+    explicit IvsWriter(StdoutTag) : to_stdout_(true), worker_(&IvsWriter::run, this) {}
 
     ~IvsWriter() { stop(); }
 
@@ -407,6 +431,17 @@ private:
              << ",\"frame_sequence\":" << record.frame_sequence
              << ",\"truncated\":" << (record.truncated ? "true" : "false");
 
+        if (to_stdout_) {
+            line << ",\"encoding\":\"hex\",\"payload\":\"" << to_hex(record.payload) << "\"}";
+            std::lock_guard<std::mutex> lock(g_console_mutex);
+            std::cout << "ivs_frame=" << line.str() << '\n' << std::flush;
+            if (!std::cout) {
+                ++write_errors_;
+                std::cout.clear();
+            }
+            return;
+        }
+
         if (written_payload_bytes_ + record.payload.size() > kMaxWrittenPayloadBytes) {
             ++payload_limit_hits_;
             line << ",\"encoding\":\"omitted\",\"payload\":null}";
@@ -430,6 +465,7 @@ private:
     }
 
     std::ofstream output_;
+    bool to_stdout_{false};
     std::mutex mutex_;
     std::condition_variable condition_;
     std::queue<IvsRecord> queue_;
@@ -448,6 +484,7 @@ struct ProbeContext {
     PlaySdk* play{};
     LONG port{-1};
     IvsWriter* writer{};
+    bool stream_track_records_only{};  // collector mode forwards type 7 only
     std::chrono::steady_clock::time_point started_at{};
     std::atomic<std::uint64_t> video_bytes{0};
     std::atomic<std::uint64_t> video_packets{0};
@@ -520,6 +557,9 @@ void __stdcall on_ivs(char* buffer, LONG type, LONG length, LONG frame_sequence,
                   << std::fixed << std::setprecision(1) << record.elapsed_ms / 1000.0
                   << "s\n" << std::flush;
     }
+    if (context->stream_track_records_only && type != kTrackRecordType) {
+        return;  // counted in the statistics above, but not forwarded
+    }
     context->writer->enqueue(std::move(record));
 }
 
@@ -538,6 +578,8 @@ struct Options {
     fs::path output_root{"experiments/dahua-netsdk/output"};
     std::string stream{"main"};
     int seconds{0};
+    bool to_stdout{false};  // collector mode: stream type 7 records, no files
+    int stall_seconds{20};  // collector mode: exit 2 if no video arrives
 };
 
 Options parse_options(int argc, char** argv) {
@@ -549,6 +591,10 @@ Options parse_options(int argc, char** argv) {
             options.stream = argv[++i];
         } else if (arg == "--seconds" && i + 1 < argc) {
             options.seconds = std::stoi(argv[++i]);
+        } else if (arg == "--stdout") {
+            options.to_stdout = true;
+        } else if (arg == "--stall-seconds" && i + 1 < argc) {
+            options.stall_seconds = std::stoi(argv[++i]);
         } else if (arg.rfind("--", 0) == 0) {
             throw std::runtime_error("Unknown option: " + arg);
         } else {
@@ -557,7 +603,11 @@ Options parse_options(int argc, char** argv) {
     }
     if (positional.size() > 2) {
         throw std::runtime_error(
-            "Usage: dahua-ivs-probe [ENV_FILE|-] [OUTPUT_DIR] [--stream main|sub] [--seconds N]");
+            "Usage: dahua-ivs-probe [ENV_FILE|-] [OUTPUT_DIR] [--stream main|sub] [--seconds N]"
+            " [--stdout [--stall-seconds N]]");
+    }
+    if (options.stall_seconds < 0) {
+        throw std::runtime_error("--stall-seconds must be zero (disabled) or positive");
     }
     if (!positional.empty()) options.env_path = positional[0];
     if (positional.size() > 1) options.output_root = positional[1];
@@ -708,10 +758,15 @@ int main(int argc, char** argv) {
         }
 
         const auto started_wall = std::chrono::system_clock::now();
-        const fs::path session_dir = options.output_root / "ivs-probe" /
-                                     (compact_utc_stamp(started_wall) + "_" + options.stream);
-        fs::create_directories(session_dir);
-        writer = std::make_unique<IvsWriter>(session_dir / "ivs-frames.jsonl");
+        fs::path session_dir;
+        if (options.to_stdout) {
+            writer = std::make_unique<IvsWriter>(IvsWriter::StdoutTag{});
+        } else {
+            session_dir = options.output_root / "ivs-probe" /
+                          (compact_utc_stamp(started_wall) + "_" + options.stream);
+            fs::create_directories(session_dir);
+            writer = std::make_unique<IvsWriter>(session_dir / "ivs-frames.jsonl");
+        }
 
         std::cout << "NetSDK version=" << CLIENT_GetSDKVersion()
                   << " PlaySDK version=" << play.get_sdk_version() << '\n'
@@ -719,12 +774,15 @@ int main(int argc, char** argv) {
                   << static_cast<int>(login_out.stuDeviceInfo.nChanNum) << '\n'
                   << "camera_model=" << model << '\n'
                   << "camera_detail_model=" << detail_model << '\n'
-                  << "camera_firmware=" << firmware << '\n'
-                  << "session_dir=" << fs::absolute(session_dir).string() << '\n'
-                  << std::flush;
+                  << "camera_firmware=" << firmware << '\n';
+        if (!options.to_stdout) {
+            std::cout << "session_dir=" << fs::absolute(session_dir).string() << '\n';
+        }
+        std::cout << std::flush;
 
         context.play = &play;
         context.writer = writer.get();
+        context.stream_track_records_only = options.to_stdout;
         context.started_at = std::chrono::steady_clock::now();
 
         if (!play.get_free_port(&context.port)) {
@@ -783,12 +841,36 @@ int main(int argc, char** argv) {
                   << '\n' << std::flush;
 
         status_running = true;
-        status_thread = std::thread([&]() {
+        const bool collector_mode = options.to_stdout;
+        const int stall_seconds = options.stall_seconds;
+        status_thread = std::thread([&, collector_mode, stall_seconds]() {
+            // Collector mode reports rarely and watches for a frozen stream:
+            // if no video arrives for stall_seconds it exits with code 2 so
+            // the collector restarts it instead of silently losing the lane.
+            const auto status_every = std::chrono::seconds(collector_mode ? 30 : 2);
+            auto next_status = std::chrono::steady_clock::now() + status_every;
+            std::uint64_t last_video_bytes = context.video_bytes;
+            auto last_progress = std::chrono::steady_clock::now();
             while (status_running) {
-                for (int i = 0; i < 20 && status_running; ++i) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                const auto now = std::chrono::steady_clock::now();
+                const std::uint64_t video_bytes = context.video_bytes;
+                if (video_bytes != last_video_bytes) {
+                    last_video_bytes = video_bytes;
+                    last_progress = now;
                 }
-                if (!status_running) break;
+                if (collector_mode && stall_seconds > 0 &&
+                    now - last_progress >= std::chrono::seconds(stall_seconds)) {
+                    {
+                        std::lock_guard<std::mutex> lock(g_console_mutex);
+                        std::cout << "stream_stalled seconds=" << stall_seconds << '\n'
+                                  << std::flush;
+                    }
+                    request_stop(2);
+                    break;
+                }
+                if (now < next_status) continue;
+                next_status = now + status_every;
                 std::ostringstream line;
                 line << "status t=" << std::fixed << std::setprecision(0)
                      << context.elapsed_ms() / 1000.0 << "s video_kib="
@@ -810,10 +892,23 @@ int main(int argc, char** argv) {
         });
 
         if (options.seconds > 0) {
-            std::this_thread::sleep_for(std::chrono::seconds(options.seconds));
+            std::unique_lock<std::mutex> lock(g_stop_mutex);
+            g_stop_condition.wait_for(lock, std::chrono::seconds(options.seconds),
+                                      [] { return g_stop_requested; });
         } else {
-            std::string ignored;
-            std::getline(std::cin, ignored);
+            // Enter or a closed stdin (the collector exiting) both stop cleanly.
+            std::thread([] {
+                std::string ignored;
+                std::getline(std::cin, ignored);
+                request_stop(0);
+            }).detach();
+            std::unique_lock<std::mutex> lock(g_stop_mutex);
+            g_stop_condition.wait(lock, [] { return g_stop_requested; });
+        }
+        int exit_code = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_stop_mutex);
+            exit_code = g_exit_code;
         }
 
         // Stop input first so no callback races the summary.
@@ -823,14 +918,24 @@ int main(int argc, char** argv) {
         real_handle = 0;
         const auto ended_wall = std::chrono::system_clock::now();
         cleanup();
-        write_summary(session_dir / "summary.json", header.str(), context, *writer, ended_wall);
+        if (!options.to_stdout) {
+            write_summary(session_dir / "summary.json", header.str(), context, *writer,
+                          ended_wall);
+        }
         play.unload();
 
         std::cout << "ivs_frames=" << context.ivs_frames
                   << " video_kib=" << context.video_bytes / 1024
-                  << " summary=" << fs::absolute(session_dir / "summary.json").string() << '\n'
-                  << "Clean shutdown completed.\n";
-        return 0;
+                  << " dropped=" << writer->dropped()
+                  << " write_errors=" << writer->write_errors();
+        if (!options.to_stdout) {
+            std::cout << " summary=" << fs::absolute(session_dir / "summary.json").string();
+        }
+        std::cout << '\n'
+                  << (exit_code == 0 ? "Clean shutdown completed.\n"
+                                     : "Stopped after stream stall.\n")
+                  << std::flush;
+        return exit_code;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         cleanup();

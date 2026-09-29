@@ -24,6 +24,7 @@ sys.path.insert(0, str(TRACK_TRANSPORT_ROOT))
 
 from dahua_collector.adapters import CgiHumanTraitStreamParser, load_netsdk_event
 from dahua_collector.correlation import DahuaEventCorrelator
+from dahua_collector.live_lane import DahuaLiveLane, target_from_probe_line
 from dahua_collector.sinks import EventSink, JsonlEventSink
 from dahua_collector.track_updates import observation_to_track_update
 from track_transport import MqttOutboxPublisher, OutboxStore
@@ -31,6 +32,16 @@ from track_transport import MqttOutboxPublisher, OutboxStore
 
 _EVENT_FILE_RE = re.compile(r"^event_json=(?P<path>.+)$")
 _LIVE_TRACK_RE = re.compile(r"^live_track_update=(?P<payload>\{.+\})$")
+_IVS_STATUS_PREFIXES = (
+    "camera_model=",
+    "camera_firmware=",
+    "Login succeeded",
+    "Camera reconnected",
+    "stream_stalled",
+    "Stopped after",
+    "Clean shutdown",
+)
+_LANE_EXPIRE_INTERVAL_SECONDS = 0.5
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -181,6 +192,86 @@ def netsdk_worker(
         messages.put(("error", f"NetSDK process exited with code {return_code}"))
 
 
+def ivs_worker(
+    executable: Path,
+    config: dict[str, str],
+    messages: queue.Queue[tuple[str, Any]],
+    stop: threading.Event,
+    process_holder: list[subprocess.Popen[str]],
+) -> None:
+    """Keep the live IVS child running and forward its targets.
+
+    The child exits with code 2 when the video stream stalls; any unexpected
+    exit ends the lane's open tracks and restarts the child with backoff.
+    """
+    creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    child_environment = os.environ.copy()
+    for key in ("DAHUA_HOST", "DAHUA_PORT", "DAHUA_USER", "DAHUA_PASSWORD"):
+        child_environment[key] = require(config, key)
+    retry_seconds = 1.0
+    while not stop.is_set():
+        started = time.monotonic()
+        process = subprocess.Popen(
+            [str(executable), "-", "--stdout"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            creationflags=creation_flags,
+            env=child_environment,
+        )
+        process_holder[:] = [process]
+        assert process.stdout is not None
+        for original in process.stdout:
+            line = original.rstrip("\r\n")
+            try:
+                parsed = target_from_probe_line(line)
+            except (ValueError, KeyError) as error:
+                messages.put(("warning", f"IVS lane: {error}"))
+                continue
+            if parsed is not None:
+                messages.put(("ivs-target", parsed))
+            elif line.startswith("Camera disconnected"):
+                messages.put(("ivs-disconnected", line))
+            elif line.startswith(_IVS_STATUS_PREFIXES):
+                messages.put(("ivs-log", line))
+            elif "failed" in line:
+                messages.put(("warning", f"IVS lane: {line}"))
+        return_code = process.wait()
+        messages.put(("ivs-disconnected", f"IVS lane exited with code {return_code}"))
+        if stop.is_set():
+            return
+        if time.monotonic() - started > 60:
+            retry_seconds = 1.0
+        messages.put(
+            ("warning", f"IVS lane exited with code {return_code}; "
+                        f"restarting in {retry_seconds:.0f}s")
+        )
+        stop.wait(retry_seconds)
+        retry_seconds = min(retry_seconds * 2, 30.0)
+
+
+def publish_live(
+    track_output: EventSink,
+    track_publisher: MqttOutboxPublisher,
+    updates: list[dict[str, Any]],
+) -> None:
+    for update in updates:
+        track_output.publish(update)
+        track_publisher.publish(update)
+        if update["phase"] in {"new", "end"}:
+            reason = update["quality"].get("end_reason")
+            print(
+                f"ivs: live_track phase={update['phase']} "
+                f"local_track_id={update['subject']['local_track_id']}"
+                + (f" reason={reason}" if reason else ""),
+                flush=True,
+            )
+
+
 def stop_netsdk(process_holder: list[subprocess.Popen[str]]) -> None:
     if not process_holder:
         return
@@ -261,6 +352,19 @@ def main() -> int:
     )
     parser.add_argument("--ttl-seconds", type=float, default=10.0)
     parser.add_argument(
+        "--live-lane",
+        action="store_true",
+        help=(
+            "publish live positions from the camera's IVS stream "
+            "(experimental: HumanTrait photos are not yet joined to live tracks)"
+        ),
+    )
+    parser.add_argument(
+        "--ivs-exe",
+        type=Path,
+        default=Path("experiments/dahua-netsdk/build/dahua-ivs-probe.exe"),
+    )
+    parser.add_argument(
         "--control-stdin",
         action="store_true",
         help="stop cleanly when the supervisor writes to or closes stdin",
@@ -272,6 +376,8 @@ def main() -> int:
     camera_id = args.camera_id or config.get("DAHUA_CAMERA_ID") or f"dahua_{host.replace('.', '_')}"
     if not args.sdk_exe.is_file():
         raise FileNotFoundError(f"NetSDK executable not found: {args.sdk_exe}")
+    if args.live_lane and not args.ivs_exe.is_file():
+        raise FileNotFoundError(f"IVS executable not found: {args.ivs_exe}")
 
     session = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     session_root = (args.output_root / camera_id / session).resolve()
@@ -281,6 +387,7 @@ def main() -> int:
     normalized_path = session_root / "normalized-events.jsonl"
     track_updates_path = session_root / "track-updates.jsonl"
     live_tracks_path = session_root / "live-track-updates.jsonl"
+    ivs_samples_path = session_root / "ivs-new-track-samples.jsonl"
 
     track_host = config.get("TRACK_MQTT_HOST") or require(
         config, "FRIGATE_MQTT_HOST"
@@ -311,7 +418,9 @@ def main() -> int:
     stop = threading.Event()
     shutdown = threading.Event()
     process_holder: list[subprocess.Popen[str]] = []
+    ivs_process_holder: list[subprocess.Popen[str]] = []
     correlator = DahuaEventCorrelator(ttl_seconds=args.ttl_seconds)
+    lane = DahuaLiveLane(camera_id, session) if args.live_lane else None
     threads = [
         threading.Thread(
             target=cgi_worker,
@@ -326,6 +435,15 @@ def main() -> int:
             daemon=True,
         ),
     ]
+    if lane is not None:
+        threads.append(
+            threading.Thread(
+                target=ivs_worker,
+                args=(args.ivs_exe.resolve(), config, messages, stop, ivs_process_holder),
+                name="dahua-ivs",
+                daemon=True,
+            )
+        )
     for thread in threads:
         thread.start()
 
@@ -351,8 +469,10 @@ def main() -> int:
             JsonlEventSink(normalized_path) as output,
             JsonlEventSink(track_updates_path) as track_output,
             JsonlEventSink(live_tracks_path) as live_tracks,
+            JsonlEventSink(ivs_samples_path) as ivs_samples,
         ):
             live_track_announced = False
+            last_lane_expire = 0.0
             while not shutdown.is_set():
                 try:
                     kind, payload = messages.get(timeout=0.5)
@@ -363,9 +483,41 @@ def main() -> int:
                         track_publisher,
                         correlator.expire(),
                     )
+                    kind, payload = None, None
+
+                # Under continuous target traffic the queue is never empty, so
+                # silent tracks are expired on a clock rather than on idle.
+                now = time.time()
+                if lane is not None and now - last_lane_expire >= _LANE_EXPIRE_INTERVAL_SECONDS:
+                    publish_live(track_output, track_publisher, lane.expire(now))
+                    last_lane_expire = now
+                if kind is None:
                     continue
 
-                if kind == "cgi":
+                if kind == "ivs-target" and lane is not None:
+                    target, frame = payload
+                    updates = lane.ingest(target)
+                    for update in updates:
+                        if update["phase"] == "new":
+                            # One raw record per track keeps an audit sample
+                            # without storing every 10 Hz frame.
+                            ivs_samples.publish({"track_id": update["track_id"], "frame": frame})
+                    publish_live(track_output, track_publisher, updates)
+                elif kind == "ivs-disconnected" and lane is not None:
+                    print(f"ivs: {payload}", flush=True)
+                    publish_live(
+                        track_output, track_publisher, lane.close("camera_disconnected")
+                    )
+                elif kind == "ivs-log":
+                    print(f"ivs: {payload}", flush=True)
+                elif kind == "cgi":
+                    object_id = payload.get("object_id")
+                    if lane is not None and isinstance(object_id, int):
+                        # HumanTrait is published when the camera closes its
+                        # own track: the authoritative end of the live track.
+                        publish_live(
+                            track_output, track_publisher, lane.finalize(object_id, time.time())
+                        )
                     write_normalized(
                         output,
                         track_output,
@@ -400,6 +552,11 @@ def main() -> int:
         print("Stopping collector...", flush=True)
     finally:
         stop.set()
+        if lane is not None:
+            # End open live tracks before the transport stops; the sink appends.
+            with JsonlEventSink(track_updates_path) as track_output:
+                publish_live(track_output, track_publisher, lane.close("collector_stopped"))
+            stop_netsdk(ivs_process_holder)
         stop_netsdk(process_holder)
         track_publisher.stop()
         print("collector_stopped", flush=True)
