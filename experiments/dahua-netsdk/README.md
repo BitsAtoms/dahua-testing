@@ -390,9 +390,9 @@ Main-stream decoding measured about 7 % of one core on the development PC.
 The sub-stream only replayed stale IVS frames at connection, so the live
 lane uses the main stream.
 
-## Live lane (experimental, `--live-lane`)
+## Live lane (default on; `--no-live-lane` disables it)
 
-`live.py --live-lane` starts `dahua-ivs-probe.exe - --stdout` as a second
+`live.py` starts `dahua-ivs-probe.exe - --stdout` as a second
 native child. In that mode the probe forwards only `TRACK_EX_B0` records as
 `ivs_frame=` lines, writes no files, stops when stdin closes and exits with
 code 2 if no video arrives for 20 s (`--stall-seconds`); the collector then
@@ -418,8 +418,15 @@ its track ended starts a new `track_id` (suffix `:2`, ...), because ended
 tracks are never reopened downstream. One raw record per new track is kept in
 `ivs-new-track-samples.jsonl` for audit.
 
-The flag stays off by default until the HumanTrait photos are attached to
-the live track by `ObjectID`; enabling it earlier would show each visit twice.
+HumanTrait photos join the live track. When the finalized observation's
+camera-local `ObjectID` matches an active or recently ended live track, its
+`track_update.v1` snapshot reuses the live `track_id` and `live` lifecycle,
+carries no geometry (the track keeps its last live position) and is stamped
+with the track's first PC sighting, so the tracking engine merges the photos
+into one ended track without extending or reordering it. The camera's own
+time is kept in `quality.source_observed_at`. Without a matching live track,
+for example if the lane child is down, the previous `finalized_only`
+snapshot is published unchanged.
 
 When testing against a running broker, set `TRACK_MQTT_TOPIC` to a test
 topic (for example `tracking/test/track-updates`) and `TRACK_OUTBOX_ROOT` to

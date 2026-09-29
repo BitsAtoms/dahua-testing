@@ -292,18 +292,30 @@ def stop_netsdk(process_holder: list[subprocess.Popen[str]]) -> None:
             process.wait(timeout=5)
 
 
+def live_track_for(
+    lane: DahuaLiveLane | None, event: dict[str, Any]
+) -> tuple[str, float, float] | None:
+    """Find the live-lane track that shares this HumanTrait's ObjectID."""
+    local_track_id = event["subject"].get("local_track_id")
+    if lane is None or not isinstance(local_track_id, str) or not local_track_id.isdigit():
+        return None
+    return lane.track_for_object(int(local_track_id))
+
+
 def write_normalized(
     output: EventSink,
     track_output: EventSink,
     track_publisher: MqttOutboxPublisher,
     events: list[dict[str, Any]],
+    lane: DahuaLiveLane | None = None,
 ) -> None:
     for event in events:
         event["timing"]["collector_published_at"] = datetime.now(
             timezone.utc
         ).isoformat()
         output.publish(event)
-        track_update = observation_to_track_update(event)
+        live_track = live_track_for(lane, event)
+        track_update = observation_to_track_update(event, live_track)
         track_output.publish(track_update)
         track_publisher.publish(track_update)
         media = ",".join(item["role"] for item in event["media"])
@@ -331,7 +343,8 @@ def write_normalized(
             f"track={event['subject']['local_track_id']} "
             f"group={event['source_data']['group_id']} "
             f"status={event['quality']['status']} "
-            f"media={media or 'none'}",
+            f"media={media or 'none'} "
+            f"live_track={'joined' if live_track else 'none'}",
             flush=True,
         )
 
@@ -353,10 +366,11 @@ def main() -> int:
     parser.add_argument("--ttl-seconds", type=float, default=10.0)
     parser.add_argument(
         "--live-lane",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help=(
-            "publish live positions from the camera's IVS stream "
-            "(experimental: HumanTrait photos are not yet joined to live tracks)"
+            "publish live positions from the camera's IVS stream and attach "
+            "HumanTrait photos to them by ObjectID (default: on)"
         ),
     )
     parser.add_argument(
@@ -482,6 +496,7 @@ def main() -> int:
                         track_output,
                         track_publisher,
                         correlator.expire(),
+                        lane=lane,
                     )
                     kind, payload = None, None
 
@@ -523,6 +538,7 @@ def main() -> int:
                         track_output,
                         track_publisher,
                         correlator.ingest_cgi(camera_id, payload),
+                        lane=lane,
                     )
                 elif kind == "netsdk":
                     write_normalized(
@@ -530,6 +546,7 @@ def main() -> int:
                         track_output,
                         track_publisher,
                         correlator.ingest_netsdk(camera_id, payload),
+                        lane=lane,
                     )
                 elif kind == "live-track":
                     payload["camera_id"] = camera_id
