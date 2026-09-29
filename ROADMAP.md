@@ -97,8 +97,9 @@ son correctos y la transición aparece en el mapa.
 El evento `HumanTrait` llega cuando la persona ya se fue, así que por sí solo
 no sirve para el mapa en vivo.
 
-- [ ] Probar los datos IVS por fotograma del SDK (`PLAY_SetIVSCallBack`) con
-  la Dahua 213.
+- [~] Probar los datos IVS por fotograma del SDK (`PLAY_SetIVSCallBack`) con
+  la Dahua 213. El programa `dahua-ivs-probe` ya está escrito, compila y pasa
+  las pruebas sin cámara. Falta la prueba controlada.
 - [ ] Si no funciona: probar un perfil ONVIF con metadatos y el conteo por
   región (`EVENT_IVS_MAN_NUM_DETECTION`).
 - [ ] Si nada funciona: las Dahua también pasan por Frigate para la posición
@@ -106,9 +107,12 @@ no sirve para el mapa en vivo.
   fotos).
 - [ ] Verificar qué ofrecen los modelos HDBW7459Z-Z-PV-X y
   HDBW5459Z-ZHE-PV-PRO (Video Metadata, `HumanTrait`, IVS), que aún no se
-  han probado. Todo lo validado hasta ahora se obtuvo con la 213
-  (HDBW7859Z-Z4-PV-X). El sufijo `-Black` suele indicar solo el color de la carcasa:
-  basta probar una cámara por modelo, siempre que el firmware coincida.
+  han probado con este sistema. Todo lo validado hasta ahora se obtuvo con
+  la 213 (HDBW7859Z-Z4-PV-X). El sufijo `-Black` suele indicar solo el color
+  de la carcasa, así que basta probar una cámara por modelo, siempre que el
+  firmware coincida. No bloquea: se hace cuando estén conectadas, con el
+  mismo programa de prueba (unos 5 minutos por modelo, que además informa el
+  modelo y el firmware reales).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
 modelo Dahua.
@@ -197,8 +201,8 @@ dejar todo listo para seguir en el PC final.
 
 1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
    `docs/guia.md`.
-2. [ ] Fase 2: prueba del canal IVS con la Dahua 213 (hacen falta unos 10
-   minutos de prueba controlada del propietario).
+2. [~] Fase 2: prueba del canal IVS con la Dahua 213. El programa está
+   listo; faltan unos 10 minutos de prueba controlada del propietario.
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.

@@ -295,3 +295,76 @@ console. Failure to attach is non-fatal and `HumanTrait` capture continues
 normally. Because the existing picture subscription uses
 `EVENT_IVS_ALL`, the first three occurrences of any non-`HumanTrait` analyzer
 event code are also reported for capability discovery.
+
+## Live IVS stream probe
+
+`HumanTrait` arrives when the camera-local track ends, so it cannot drive a
+live map. The Web 5.0 live view nevertheless draws moving target boxes, which
+Dahua carries as private IVS frames inside the real-time stream. The separate,
+read-only `dahua-ivs-probe.exe` tests whether that data is reachable:
+
+```text
+NetSDK CLIENT_RealPlayEx (raw private stream, no window)
+ -> PlaySDK PLAY_InputData / PLAY_Play (no window)
+ -> PLAY_SetIVSCallBack
+ -> ivs-frames.jsonl + summary.json
+```
+
+It is built with the collector by the commands above. PlaySDK (`play.dll`)
+ships without an import library in this SDK package, so the probe loads it at
+runtime and fails loudly if a required export is missing. It never changes
+camera configuration and does not replace the collector.
+
+At login it records the model and firmware reported by the camera itself
+(`DH_DEVSTATE_SOFTWARE`), so each capability result is tied to the real
+device. The serial number is not recorded.
+
+Run from the repository root:
+
+```cmd
+experiments\dahua-netsdk\build\dahua-ivs-probe.exe .env experiments\dahua-netsdk\output --stream main
+```
+
+Options:
+
+```text
+--stream main|sub   real-time stream to open (default main)
+--seconds N         stop automatically after N seconds (default: press Enter)
+```
+
+Controlled protocol, one person only:
+
+1. Start the probe with nobody in view and wait about one minute.
+2. Enter, walk across the view, stop for a few seconds and face the camera.
+3. Leave the view completely and wait about one minute.
+4. Press Enter.
+
+Each run creates `output/ivs-probe/<UTC>_<stream>/`:
+
+```text
+ivs-frames.jsonl  one line per IVS callback: arrival time, IVS type, length,
+                  frame sequence and payload (text for JSON, hex otherwise)
+summary.json      camera model/firmware, SDK versions, video bytes and
+                  per-type counts, sizes and first/last arrival times
+```
+
+The shipped PlaySDK header documents the IVS types and states that
+`IVSINFOTYPE_TRACK` carries `SP_IVS_OBJ_EX` objects and `IVSINFOTYPE_TRACK_EX_B0`
+carries `SP_IVS_COMMON_OBJ` objects, but it does not define those structures.
+Binary payloads are therefore preserved raw and must be decoded against the
+controlled walk (for example, a box that moves with the person), not guessed.
+
+Interpretation:
+
+- IVS frames of a track type or JSON whose count and content change while the
+  person is present: a live position lane is available; decode it next.
+- Only rule, OSD or motion frames: the stream carries private data but no
+  targets; check the camera's overlay settings with the owner before changing
+  anything.
+- No IVS frames at all: fall back to ONVIF metadata or regional counting as
+  described in the root `ROADMAP.md`.
+
+Main-stream decoding is CPU-intensive on high-resolution models; use
+`--stream sub` if the probe PC struggles. The payload is capped per callback
+(256 KiB) and in total (512 MiB), and the in-memory queue is bounded. Drops
+and write errors are counted in `summary.json` rather than hidden.
