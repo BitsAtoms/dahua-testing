@@ -365,6 +365,21 @@ Interpretation:
 - No IVS frames at all: fall back to ONVIF metadata or regional counting as
   described in the root `ROADMAP.md`.
 
+Summarize a session, optionally against a CGI attach capture recorded at the
+same time with `tests\dahua-events\capture-cgi.ps1`:
+
+```powershell
+python experiments\dahua-netsdk\collector\analyze_ivs_probe.py `
+  experiments\dahua-netsdk\output\ivs-probe\<session> `
+  --cgi-log tests\dahua-events\output\<capture>.log
+```
+
+It prints presence intervals, each camera-local track ID with its time span
+and horizontal movement, and whether that ID produced a CGI `HumanTrait`
+event. The decoding it relies on (`collector/dahua_collector/ivs.py`) is the
+empirical layout confirmed on `dahua_213` on 2026-09-29; results for that
+model are in `docs/dahua-research.md`.
+
 Main-stream decoding is CPU-intensive on high-resolution models; use
 `--stream sub` if the probe PC struggles. The payload is capped per callback
 (256 KiB) and in total (512 MiB), and the in-memory queue is bounded. Drops

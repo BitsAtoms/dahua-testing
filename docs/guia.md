@@ -97,14 +97,17 @@ No todas las fuentes avisan en el mismo momento:
 
 - **Frigate** avisa en vivo: `new` cuando aparece alguien, `update` mientras
   se mueve y `end` cuando desaparece.
-- **Dahua** (el evento `HumanTrait`) avisa **al final**, cuando la persona ya
-  se fue, pero con las mejores fotos de cuerpo, cara y contexto.
+- **Dahua** tiene dos canales:
+  - **en vivo** (datos "IVS" dentro del vídeo): unas 10 veces por segundo
+    dice dónde está cada persona, con un número de track;
+  - **al final** (evento `HumanTrait`): cuando la persona ya se fue, envía
+    las mejores fotos de cuerpo, cara y contexto.
 
-Para un mapa en tiempo real, un aviso que llega 20–30 segundos tarde no
-sirve como posición. Sí sirve como evidencia de calidad. La fase 2 del roadmap
-comprueba si las Dahua pueden dar también posiciones en vivo (los datos
-"IVS" que su propia web usa para dibujar recuadros). De eso depende que 5 de
-las 7 cámaras necesiten que el PC haga detección o no.
+Para el mapa en tiempo real se usa el canal en vivo; un aviso que llega
+20–30 segundos tarde no sirve como posición. El canal del final aporta la
+evidencia de calidad. Los dos comparten el mismo número de track (`ObjectID`),
+así que las fotos se pegan al track correcto sin adivinar. Gracias a esto,
+las 5 Dahua no necesitan que el PC haga detección.
 
 ---
 

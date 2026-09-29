@@ -92,19 +92,24 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 Salida: en una prueba controlada con 1–2 personas y dos salas, los conteos
 son correctos y la transición aparece en el mapa.
 
-### Fase 2 — Posición en vivo de las Dahua `[ ]`
+### Fase 2 — Posición en vivo de las Dahua `[~]`
 
 El evento `HumanTrait` llega cuando la persona ya se fue, así que por sí solo
 no sirve para el mapa en vivo.
 
-- [~] Probar los datos IVS por fotograma del SDK (`PLAY_SetIVSCallBack`) con
-  la Dahua 213. El programa `dahua-ivs-probe` ya está escrito, compila y pasa
-  las pruebas sin cámara. Falta la prueba controlada.
-- [ ] Si no funciona: probar un perfil ONVIF con metadatos y el conteo por
-  región (`EVENT_IVS_MAN_NUM_DETECTION`).
-- [ ] Si nada funciona: las Dahua también pasan por Frigate para la posición
-  en vivo, y `HumanTrait` queda como enriquecimiento (caras, atributos,
-  fotos).
+- [x] Probar los datos IVS por fotograma del SDK (`PLAY_SetIVSCallBack`) con
+  la Dahua 213 (2026-09-29). **Funciona:** la cámara envía unas 10 veces por
+  segundo la posición de cada persona en formato ONVIF estándar. Los datos
+  dejan de llegar en menos de un segundo cuando la persona sale, y cada
+  visita nueva recibe un track nuevo. El número de track en vivo es el mismo
+  `ObjectID` del `HumanTrait`, así que la posición en vivo y las fotos se
+  unen directamente. Evidencia en `docs/dahua-research.md`.
+- [ ] Medir el coste de CPU de leer estos datos (hoy obliga a descodificar el
+  vídeo 4K) y probar si el stream secundario trae los mismos datos. Con
+  5 cámaras, esto decide si el canal es viable tal cual.
+- Los planes B (metadatos ONVIF por RTSP, conteo por región o pasar las
+  Dahua por Frigate) ya no hacen falta para la 213. Quedan de reserva por si
+  otro modelo no ofrece el canal IVS.
 - [ ] Verificar qué ofrecen los modelos HDBW7459Z-Z-PV-X y
   HDBW5459Z-ZHE-PV-PRO (Video Metadata, `HumanTrait`, IVS), que aún no se
   han probado con este sistema. Todo lo validado hasta ahora se obtuvo con
@@ -115,7 +120,8 @@ no sirve para el mapa en vivo.
   modelo y el firmware reales).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
-modelo Dahua.
+modelo Dahua. Ya está tomada para el modelo HDBW7859Z-Z4-PV-X (canal IVS);
+falta confirmar el coste de CPU y los otros dos modelos.
 
 ### Fase 3 — Frigate para las cámaras no Dahua `[ ]`
 
@@ -193,6 +199,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-28 | Retención de 7 días; Frigate graba solo clips de eventos | Decisión del propietario |
 | 2026-09-28 | Mapa solo en la pantalla local; usuario con inicio automático | Decisión del propietario |
 | 2026-09-28 | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se mide y se informa, pero no bloquea | Para contar, la fragmentación secuencial no cambia la ocupación; los errores que la rompen son los duplicados y las fusiones (ver `docs/guia.md`, sección 3) |
+| 2026-09-29 | Las Dahua dan su posición en vivo por el canal IVS (NetSDK + PlaySDK); `HumanTrait` queda como enriquecimiento con fotos, unido por `ObjectID` | Probado en la 213 con dos pruebas controladas; evita detectar en el PC para 5 de las 7 cámaras, pendiente de medir el coste de CPU |
 
 ## Trabajo actual
 
@@ -201,8 +208,9 @@ dejar todo listo para seguir en el PC final.
 
 1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
    `docs/guia.md`.
-2. [~] Fase 2: prueba del canal IVS con la Dahua 213. El programa está
-   listo; falta una prueba controlada de unos 2 minutos con el propietario.
+2. [x] Fase 2: prueba del canal IVS con la Dahua 213. Funciona; ver la
+   fase 2 y `docs/dahua-research.md`.
+2b. [ ] Fase 2: medir el coste de CPU (stream principal y secundario).
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.

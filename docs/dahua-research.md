@@ -649,6 +649,7 @@ Confirmed:
 [YES] programmatic retrieval of native Dahua AI snapshots
 [YES] NetSDK image callback test
 [YES] live CGI + NetSDK hybrid correlation
+[YES] live per-frame target positions via NetSDK + PlaySDK IVS (2026-09-29)
 [PENDING] multi-camera normalized collector
 [PENDING] cross-camera ReID
 ```
@@ -822,3 +823,93 @@ future collector artifacts. The multicamera supervisor applies this policy at
 startup and once per hour to its entire output root. No size ceiling currently
 removes younger data. The standalone retention command remains a dry-run unless
 the operator explicitly supplies `--apply`.
+
+---
+
+## Confirmed live IVS stream findings (2026-09-29)
+
+Tested on `dahua_213` with the read-only `dahua-ivs-probe`
+(`experiments/dahua-netsdk/README.md`). The camera reported
+`DH-IPC-HDBW7859Z-Z4-PV-X`, firmware `3.146.0000000.55.R`; NetSDK
+`36191182`, PlaySDK `34477846`, main stream.
+
+Data path:
+
+```text
+CLIENT_RealPlayEx (raw private stream, no window)
+ -> CLIENT_SetRealDataCallBackEx2 (REALDATA_FLAG_RAW_DATA)
+ -> PLAY_InputData / PLAY_Play (no window)
+ -> PLAY_SetIVSCallBack
+```
+
+Three IVS types arrived:
+
+```text
+type 5 RAWDATA (JSON)  camera status (focus, depth of field) and the active
+                       analysis configuration (VideoAnalyseModule/Rule:
+                       ObjectDetect region, HumanTrait rule "VM-1")
+type 4                 ONVIF tt:MetadataStream XML per video frame:
+                       tt:Object ObjectId, BoundingBox, CenterOfGravity,
+                       coordinates 0..8191
+type 7 TRACK_EX_B0     2272-byte binary record per target
+```
+
+Although the PlaySDK enum names type 4 `IVSINFOTYPE_LIGHT`, its payload on
+this firmware is ONVIF analytics XML. Target frames arrived at about 10 Hz
+only while a person was in view.
+
+The PlaySDK headers do not define the type 7 structure. The following layout
+is empirical and was confirmed against two independent sources in the same
+run:
+
+```text
+offset 36   uint32  camera-local track ID
+offset 50   uint8   state; 1 on the first frame of 6 of 7 tracks, then 2
+offset 528  4x u16  centre x, centre y, half width, half height (0..8191)
+```
+
+- The box equals the ONVIF XML box for the same frame.
+- The track ID equals the CGI `HumanTrait` body `ObjectID` for every visit
+  that produced an event (4860, 4861, 4863, 4864, 4865, 4866). The face
+  events used `1000000 + ObjectID` with `BelongID = ObjectID`, as before.
+- The ONVIF `ObjectId` is a per-frame slot index (`0`, and `1` for a second
+  concurrent target), not the track ID.
+- One ONVIF object variant uses fractional coordinates and a `Human` class
+  with likelihood 0.9. Its coordinate space is not yet identified.
+
+### Controlled re-entry test
+
+One person, cued by the operator: enter and cross, leave completely, return
+and cross the other way, leave. A CGI attach capture ran in parallel.
+
+```text
+6.1-10.5 s   tracks 4860, 4861, 4862  (person getting into position)
+31.0-37.1 s  track 4863  centre_x 584 -> 3704   HumanTrait GroupID 502 (+face)
+37.6-41.3 s  track 4864  centre_x 2032 -> 7832  HumanTrait GroupID 504 (+face)
+41.3-55.1 s  no targets                          (outside the view)
+55.1-55.5 s  track 4865                          HumanTrait GroupID 506
+55.6-78.0 s  track 4866  centre_x 7696 -> 472   HumanTrait GroupID 507 (+face)
+78.0-120 s   no targets                          (outside the view)
+```
+
+Conclusions for this model and firmware:
+
+```text
+[YES] live per-frame target positions through NetSDK + PlaySDK
+[YES] target frames stop within about 1 s after the person leaves
+[YES] a new visit receives a new camera-local track ID
+[YES] live track ID == CGI HumanTrait ObjectID (joins live positions to the
+      native photos through GroupID)
+[YES] crossings still fragment into consecutive local tracks, as with
+      HumanTrait alone
+[NO]  explicit end-of-track message; a track ends when its ID stops arriving
+```
+
+The first 100-second run kept one track (4854) from 21 to 100 s with a
+slowly moving centre. Because the re-entry run ended tracks promptly, this
+is most likely the person remaining in view; the operator could not confirm
+the timing.
+
+Open points: CPU cost of main-stream decoding for five cameras, whether the
+sub-stream carries the same IVS frames, and verification on the
+`HDBW7459Z-Z-PV-X` and `HDBW5459Z-ZHE-PV-PRO` models.
