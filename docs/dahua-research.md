@@ -970,4 +970,33 @@ as the primary timeline, keep camera time as evidence, estimate a per-camera
 offset and report skew as a health problem. Camera time synchronization
 (NTP) is an operating requirement.
 
+### Long static presence (2026-09-29)
+
+With the live lane running under the supervisor on `dahua_212`, the operator
+sat at a desk in view from 15:32:33 to about 15:59 (26 minutes, believed
+alone; other people may have passed in the background). Findings:
+
+- The camera does **not** keep one track for a static person. It closed the
+  operator's track with a HumanTrait (photos included) every 1 to 6 minutes
+  and re-detected the same person under a new `ObjectID` seconds later, often
+  with overlapping or very short tracks. HumanTrait closure therefore means
+  "the camera ended this track", not "the person left".
+- Silences inside one `ObjectID` reached 15.4 s while the person stayed.
+- About 1,340 of 1,550 seconds of track time were at the same image position
+  (centre x 0.10-0.15, y 0.53-0.63); a few short tracks appeared elsewhere
+  (narrow partial boxes, or someone passing).
+
+Counting live tracks per second in that window gave the right count (1) in
+83 % of seconds, 0 in 15.7 % (gaps up to 49 s) and 2 in 1.3 %. An offline
+simulation of a presence layer that joins tracks at the same position
+(centre distance up to 0.15-0.2), requires 3 s of track time before counting
+and holds a presence for 15-30 s after its last track, gave 1 in 92.9-93.5 %
+of seconds, 0 in 0.7-3.5 % and 2 in 3.0-6.4 %. There is no ground truth for
+background passers, so these figures are indicative, not calibration.
+
+Consequence: per-track lifecycle timeouts cannot solve static presence. The
+live lane stays a faithful mirror of the camera's tracks; continuity for
+counting belongs to a source-neutral presence layer in the occupancy stage,
+to be calibrated with group visits after final camera placement.
+
 Open points: verification on the `HDBW5459Z-ZHE-PV-PRO` model.

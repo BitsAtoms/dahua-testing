@@ -86,8 +86,17 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 - [x] Monitor 2D en vivo y sesiones de validación etiquetadas.
 - [ ] **Ocupación por sala y total**, calculada en el tracking engine y
   mostrada en el mapa. Es el núcleo del MVP.
+- [ ] **Capa de presencia**, común a todas las fuentes. Una persona puede
+  generar varios tracks seguidos: la cámara los corta cada pocos minutos
+  aunque la persona siga quieta en el mismo sitio. La presencia une los tracks
+  del mismo lugar, exige unos segundos de track antes de contar y se mantiene
+  unos segundos después del último. En una simulación con 26 minutos reales de
+  la 212, el conteo correcto pasa del 83 % al 93 % del tiempo. Los parámetros
+  se calibran con visitas en grupo después de colocar las cámaras (en grupos,
+  unir por cercanía puede fusionar a dos personas que están muy juntas).
 - [ ] Regla para cámaras que ven la misma sala, para no contar dos veces a
   la misma persona.
+- [ ] Una cámara desconectada deja su sala en estado "desconocido", no a 0.
 
 Salida: en una prueba controlada con 1–2 personas y dos salas, los conteos
 son correctos y la transición aparece en el mapa.
