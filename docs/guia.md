@@ -86,7 +86,26 @@ Los errores que sí rompen el conteo son otros dos:
   Mezcla identidades sin que nadie lo note.
 
 Por eso el criterio para aceptar el tracking es "conteo correcto y cero
-fusiones". La fragmentación se mide y se informa, pero no bloquea: se
+fusiones".
+
+### Track y presencia
+
+Hay un caso más extremo. Con una persona **quieta** (sentada o conversando),
+la cámara Dahua cierra su track cada pocos minutos, como si se hubiera ido, y
+enseguida la vuelve a detectar con otro número. En una prueba de 26 minutos
+con una persona sentada, contar tracks tal cual daba "1 persona" solo el 83 %
+del tiempo.
+
+Por eso el sistema distingue:
+
+- **Track:** lo que dice una cámara ("este número, en esta posición").
+- **Presencia:** lo que contamos ("aquí hay una persona"). Une los tracks que
+  aparecen en el mismo sitio, solo cuenta tras unos segundos, para ignorar
+  detecciones sueltas, y se mantiene unos segundos después del último track
+  para cubrir los cortes de la cámara.
+
+Con presencias, la misma prueba da el conteo correcto el 93 % del tiempo. La
+ocupación de cada sala es el número de presencias. La fragmentación se mide y se informa, pero no bloquea: se
 repara más arriba, uniendo fragmentos con tiempo, geometría y apariencia.
 
 ---

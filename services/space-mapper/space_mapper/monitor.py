@@ -6,7 +6,19 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sqlite3
+import sys
 from typing import Any
+
+TRACKING_ENGINE_ROOT = Path(__file__).resolve().parents[2] / "tracking-engine"
+if str(TRACKING_ENGINE_ROOT) not in sys.path:
+    sys.path.insert(0, str(TRACKING_ENGINE_ROOT))
+
+from tracking_engine.presence import PresenceParams, occupancy, span_from_track  # noqa: E402
+
+# Tracks older than this cannot affect current occupancy: visits stay below
+# ten minutes per space and a presence is released hold_seconds after its
+# last track.
+OCCUPANCY_LOOKBACK_SECONDS = 900
 
 
 def load_adaptive_media(
@@ -102,6 +114,7 @@ def monitor_snapshot(
         }
         track_ids = recent_ids | referenced
         tracks = _load_tracks(connection, track_ids, camera_spaces, current)
+        current_occupancy = occupancy_snapshot(connection, camera_spaces, current)
     except sqlite3.Error:
         return _empty(current, "tracking_database_unavailable")
     finally:
@@ -116,7 +129,53 @@ def monitor_snapshot(
         "status": "ok",
         "tracks": tracks,
         "candidates": projected_candidates,
+        "occupancy": current_occupancy,
     }
+
+
+def occupancy_snapshot(
+    connection: sqlite3.Connection,
+    camera_spaces: dict[str, str | None],
+    now: datetime,
+    params: PresenceParams = PresenceParams(),
+) -> dict[str, Any]:
+    """Count presences per space from recent local tracks (see presence.py)."""
+    cutoff_us = round(
+        (now - timedelta(seconds=OCCUPANCY_LOOKBACK_SECONDS)).timestamp() * 1_000_000
+    )
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(local_tracks)")
+    }
+    def optional(column: str, fallback: str = "NULL") -> str:
+        # Older tracking databases lack some columns; a legacy schema must not
+        # break the monitor.
+        return column if column in columns else f"{fallback} AS {column}"
+
+    spans = []
+    for row in connection.execute(
+        f"""
+        SELECT track_id, camera_id, status, first_observed_at, last_observed_at,
+               {optional("geometry_json")}, {optional("first_geometry_json")},
+               {optional("attributes_json", "'{}'")}
+        FROM local_tracks
+        WHERE status = 'active' OR last_received_us >= ?
+        """,
+        (cutoff_us,),
+    ):
+        track = {
+            "track_id": row[0],
+            "camera_id": row[1],
+            "status": row[2],
+            "first_observed_at": row[3],
+            "last_observed_at": row[4],
+            "geometry": json.loads(row[5]) if row[5] else None,
+            "first_geometry": json.loads(row[6]) if row[6] else None,
+            "attributes": json.loads(row[7]) if row[7] else {},
+        }
+        span = span_from_track(track)
+        if span is not None:
+            spans.append(span)
+    return occupancy(spans, camera_spaces, now.timestamp(), params)
 
 
 def validation_snapshot(
@@ -292,4 +351,5 @@ def _empty(now: datetime, status: str) -> dict[str, Any]:
         "status": status,
         "tracks": [],
         "candidates": [],
+        "occupancy": None,
     }

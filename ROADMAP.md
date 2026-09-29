@@ -84,9 +84,13 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 - [x] Candidatos de handoff por topología y tiempo, con la evidencia visual
   en un canal separado.
 - [x] Monitor 2D en vivo y sesiones de validación etiquetadas.
-- [ ] **Ocupación por sala y total**, calculada en el tracking engine y
-  mostrada en el mapa. Es el núcleo del MVP.
-- [ ] **Capa de presencia**, común a todas las fuentes. Una persona puede
+- [~] **Ocupación por sala y total**, calculada con presencias y mostrada en
+  el monitor (contador por sala y total). Es el núcleo del MVP. Falta la
+  prueba en vivo con el stack reiniciado.
+- [~] **Capa de presencia v1** (`tracking_engine/presence.py`), común a todas
+  las fuentes: unir por cercanía (0,15), confirmar a los 3 s y mantener 20 s.
+  Con la sesión real de 26 minutos da el conteo correcto el 93,4 % del tiempo,
+  frente al 78–83 % de contar tracks. Una persona puede
   generar varios tracks seguidos: la cámara los corta cada pocos minutos
   aunque la persona siga quieta en el mismo sitio. La presencia une los tracks
   del mismo lugar, exige unos segundos de track antes de contar y se mantiene
@@ -234,7 +238,10 @@ dejar todo listo para seguir en el PC final.
     queda con un único track por visita (comprobado con un test que usa el
     motor real). Falta la prueba caminando con el monitor, que también
     verificará en vivo el cierre por `HumanTrait`.
-3. [ ] Fase 1: ocupación por sala.
+3. [~] Fase 1: ocupación por sala v1 (presencias por posición y tiempo).
+   Implementada y probada con la grabación; falta la prueba en vivo. La v2
+   añadirá la apariencia (cuerpo y, si el propietario lo decide, cara) para
+   los casos dudosos.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.
 6. [ ] Fase 5: instalación y guía para el PC final.

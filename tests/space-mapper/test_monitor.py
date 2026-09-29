@@ -87,6 +87,59 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(len(report["tracks"]), 2)
         self.assertEqual(report["candidates"][0]["visual_ranking"], 0.72)
 
+    def test_snapshot_reports_occupancy_per_space(self) -> None:
+        now = datetime(2026, 9, 29, 13, 40, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            tracking = Path(directory) / "tracking.sqlite3"
+            connection = sqlite3.connect(tracking)
+            connection.execute(
+                """
+                CREATE TABLE local_tracks (
+                    track_id TEXT, source_type TEXT, camera_id TEXT,
+                    local_track_id TEXT, subject_type TEXT, status TEXT,
+                    first_observed_at TEXT, last_observed_at TEXT, ended_at TEXT,
+                    last_received_at TEXT, last_received_us INTEGER,
+                    last_phase TEXT, media_json TEXT, geometry_json TEXT,
+                    first_geometry_json TEXT, attributes_json TEXT
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE handoff_candidates (
+                    candidate_id TEXT, origin_track_id TEXT,
+                    destination_track_id TEXT, origin_space_id TEXT,
+                    destination_space_id TEXT, gap_seconds REAL, score REAL,
+                    observed_at TEXT, observed_us INTEGER
+                )
+                """
+            )
+            seat = json.dumps({"center": {"x": 0.12, "y": 0.6}})
+            rows = [
+                # Two consecutive camera tracks of one seated person.
+                ("t1", "ended", "2026-09-29T13:35:00+00:00", "2026-09-29T13:39:50+00:00"),
+                ("t2", "active", "2026-09-29T13:39:55+00:00", "2026-09-29T13:39:59+00:00"),
+            ]
+            for track_id, status, first, last in rows:
+                connection.execute(
+                    "INSERT INTO local_tracks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (track_id, "dahua", "dahua_212", track_id, "person", status, first, last,
+                     None, last, round(datetime.fromisoformat(last).timestamp() * 1_000_000),
+                     "update", "[]", seat, seat, "{}"),
+                )
+            connection.commit()
+            connection.close()
+
+            snapshot = monitor_snapshot(tracking, Path(directory) / "none.sqlite3",
+                                        {"dahua_212": "space_2"}, now=now)
+
+        self.assertEqual(snapshot["status"], "ok")
+        occupancy = snapshot["occupancy"]
+        self.assertEqual(occupancy["total"], 1)
+        self.assertEqual(occupancy["spaces"]["space_2"]["count"], 1)
+        self.assertEqual(occupancy["spaces"]["space_2"]["presences"][0]["tracks"], 2)
+        self.assertEqual(occupancy["rule"]["hold_seconds"], 20.0)
+
     @staticmethod
     def _tracking_fixture(path: Path, timestamp: str, timestamp_us: int) -> None:
         connection = sqlite3.connect(path)

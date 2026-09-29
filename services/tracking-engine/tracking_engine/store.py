@@ -12,7 +12,7 @@ from typing import Any
 
 RETENTION_DAYS = 7
 STALE_TRACK_SECONDS = 120
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 LOCAL_TRACK_PROJECTION_VERSION = "2"
 LOCAL_TRACK_PROJECTION_KEY = "local_track_projection.version"
 
@@ -84,6 +84,7 @@ class TrackingStore:
                     first_observed_at, last_observed_at, ended_at,
                     first_received_at, last_received_at, last_received_us,
                     last_phase, max_sequence, confidence, geometry_json,
+                    first_geometry_json,
                     zones_json, attributes_json, media_json, quality_status
                 ) VALUES (
                     :track_id, :source_type, :source_instance_id, :camera_id,
@@ -92,6 +93,7 @@ class TrackingStore:
                     :first_observed_at, :last_observed_at, :ended_at,
                     :first_received_at, :last_received_at, :last_received_us,
                     :last_phase, :max_sequence, :confidence, :geometry_json,
+                    :first_geometry_json,
                     :zones_json, :attributes_json, :media_json, :quality_status
                 )
                 ON CONFLICT(track_id) DO UPDATE SET
@@ -107,6 +109,7 @@ class TrackingStore:
                     max_sequence=excluded.max_sequence,
                     confidence=excluded.confidence,
                     geometry_json=excluded.geometry_json,
+                    first_geometry_json=excluded.first_geometry_json,
                     zones_json=excluded.zones_json,
                     attributes_json=excluded.attributes_json,
                     media_json=excluded.media_json,
@@ -132,8 +135,9 @@ class TrackingStore:
         if row is None:
             return None
         result = dict(row)
-        for field in ("geometry", "zones", "attributes", "media"):
-            result[field] = json.loads(result.pop(f"{field}_json"))
+        for field in ("geometry", "first_geometry", "zones", "attributes", "media"):
+            raw = result.pop(f"{field}_json")
+            result[field] = json.loads(raw) if raw is not None else None
         return result
 
     def list_tracks(
@@ -475,6 +479,18 @@ class TrackingStore:
                 """
             )
             self._connection.commit()
+            version = 5
+        if version == 5:
+            # Where a track first appeared, used to join consecutive tracks of
+            # one static person into a presence. Older rows keep NULL and
+            # readers fall back to the latest geometry.
+            self._connection.executescript(
+                """
+                ALTER TABLE local_tracks ADD COLUMN first_geometry_json TEXT;
+                PRAGMA user_version=6;
+                """
+            )
+            self._connection.commit()
 
 
 def _project_state(
@@ -534,6 +550,9 @@ def _project_state(
         geometry_json = str(current["geometry_json"])
     else:
         geometry_json = _json(geometry)
+    first_geometry_json = current["first_geometry_json"] if current else None
+    if first_geometry_json is None and geometry is not None:
+        first_geometry_json = _json(geometry)
 
     old_attributes = json.loads(current["attributes_json"]) if current else {}
     attributes = {**old_attributes, **update["attributes"]}
@@ -589,6 +608,7 @@ def _project_state(
         ),
         "confidence": confidence,
         "geometry_json": geometry_json,
+        "first_geometry_json": first_geometry_json,
         "zones_json": zones_json,
         "attributes_json": _json(attributes),
         "media_json": _json(media),
