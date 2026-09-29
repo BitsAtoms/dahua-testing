@@ -29,6 +29,7 @@ from dahua_collector.ivs import (
     parse_track_record,
     presence_segments,
 )
+from dahua_collector.live_lane import DahuaLiveLane, LiveTarget
 
 
 def load_session(session: Path) -> tuple[dict, list[dict]]:
@@ -85,12 +86,45 @@ def cgi_human_trait_ids(log: Path, started_at: str) -> dict[int, dict]:
     return result
 
 
+def replay_lifecycle(frames: list[dict], session_id: str) -> None:
+    """Replay recorded targets through the live lane using PC receipt time."""
+    lane = DahuaLiveLane("replay", session_id, clock=lambda: 0.0)
+    counts: dict[str, int] = {}
+    started = None
+    for frame in frames:
+        received = datetime.fromisoformat(frame["received_at"].replace("Z", "+00:00")).timestamp()
+        started = received if started is None else started
+        for message in lane.expire(received):
+            report_lifecycle(message, started, counts)
+        if frame["type"] != TRACK_RECORD_TYPE or frame["encoding"] != "hex":
+            continue
+        record = parse_track_record(bytes.fromhex(frame["payload"]))
+        target = LiveTarget(record.track_id, record.box, received, frame["frame_sequence"])
+        for message in lane.ingest(target):
+            report_lifecycle(message, started, counts)
+    for message in lane.close("replay_finished"):
+        report_lifecycle(message, started, counts)
+    print(f"lifecycle_messages={json.dumps(counts, sort_keys=True)} "
+          f"replayed_frames_dropped={lane.stats.replayed_frames_dropped}")
+
+
+def report_lifecycle(message: dict, started: float | None, counts: dict[str, int]) -> None:
+    counts[message["phase"]] = counts.get(message["phase"], 0) + 1
+    if message["phase"] in {"new", "end"}:
+        observed = datetime.fromisoformat(message["observed_at"]).timestamp()
+        reason = message["quality"].get("end_reason", "")
+        print(f"  {message['phase']:<3} object={message['subject']['local_track_id']} "
+              f"at={observed - (started or observed):.1f}s {reason}".rstrip())
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("session", type=Path, help="probe session directory")
     parser.add_argument("--cgi-log", type=Path, help="simultaneous CGI attach capture")
     parser.add_argument("--gap", type=float, default=1.0,
                         help="seconds without targets that split presence (default 1.0)")
+    parser.add_argument("--lifecycle", action="store_true",
+                        help="replay targets through the collector's live lane")
     args = parser.parse_args()
 
     summary, frames = load_session(args.session)
@@ -110,6 +144,9 @@ def main() -> int:
         print(f"track {track_id}: {span['first']:.1f}-{span['last']:.1f}s "
               f"frames={span['frames']} centre_x {span['first_center_x']}->"
               f"{span['last_center_x']} {linked}".rstrip())
+    if args.lifecycle:
+        print("live lane replay:")
+        replay_lifecycle(frames, args.session.name)
     return 0
 
 

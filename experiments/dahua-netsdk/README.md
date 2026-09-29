@@ -380,7 +380,29 @@ event. The decoding it relies on (`collector/dahua_collector/ivs.py`) is the
 empirical layout confirmed on `dahua_213` on 2026-09-29; results for that
 model are in `docs/dahua-research.md`.
 
-Main-stream decoding is CPU-intensive on high-resolution models; use
-`--stream sub` if the probe PC struggles. The payload is capped per callback
+Add `--lifecycle` to replay the recorded targets through the collector's
+live lane (`collector/dahua_collector/live_lane.py`) and print the
+`new`/`end` messages it would publish.
+
+Main-stream decoding measured about 7 % of one core on the development PC.
+The sub-stream only replayed stale IVS frames at connection, so the live
+lane uses the main stream.
+
+## Live lane (in progress)
+
+`DahuaLiveLane` turns live targets into `track_update.v1` messages:
+
+- `new` on the first target of a camera-local `ObjectID`;
+- `update` at most every 0.5 s per track;
+- `end` after 2 s without targets (recorded intra-track gaps: median 0.1 s,
+  p99 0.2 s, maximum 1.0 s), or when the collector stops or the camera
+  disconnects.
+
+PC receipt time is the timeline. Frames with frame sequence `-1` are
+replayed at connection and are dropped and counted. An `ObjectID` that
+reappears after its track ended starts a new `track_id` (suffix `:2`, ...),
+because ended tracks are never reopened downstream. Recently ended tracks
+remain joinable for five minutes so the finalized HumanTrait photos can be
+attached by `ObjectID`. Wiring into `live.py` is the next step. The payload is capped per callback
 (256 KiB) and in total (512 MiB), and the in-memory queue is bounded. Drops
 and write errors are counted in `summary.json` rather than hidden.

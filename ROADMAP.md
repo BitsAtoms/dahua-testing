@@ -117,10 +117,11 @@ no sirve para el mapa en vivo.
   las fotos). Falta el HDBW5459Z-ZHE-PV-PRO, que no bloquea: se prueba
   cuando esté conectado, con el mismo programa. El sufijo `-Black` suele
   indicar solo el color de la carcasa.
-- [ ] **Hora de las cámaras.** La 212 tiene el reloj atrasado casi 27 días.
-  El sistema usará la hora del PC como referencia y avisará del desfase de
-  cada cámara, pero todas deben sincronizar su hora por NTP (configuración
-  del propietario en cada cámara).
+- [~] **Hora de las cámaras.** La 212 tenía el reloj atrasado casi 27 días.
+  El propietario activó NTP (`pool.ntp.org`) y ahora el desfase es de 0,67 s
+  (2026-09-29). El sistema usa la hora del PC como referencia y avisará del
+  desfase de cada cámara. Hay que revisar el NTP de cada cámara al
+  instalarla.
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
 modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
@@ -215,6 +216,10 @@ dejar todo listo para seguir en el PC final.
 2. [x] Fase 2: prueba del canal IVS con la Dahua 213. Funciona; ver la
    fase 2 y `docs/dahua-research.md`.
 2b. [x] Fase 2: medir el coste de CPU. Es bajo con el stream principal.
+2c. [~] Canal en vivo de las Dahua dentro del colector. La lógica que
+    convierte posiciones en avisos `new`/`update`/`end` está hecha y probada
+    con las grabaciones. Falta conectarla al programa nativo, unir las fotos
+    por `ObjectID` y probarla en vivo.
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.
