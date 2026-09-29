@@ -101,6 +101,15 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 - [ ] Regla para cámaras que ven la misma sala, para no contar dos veces a
   la misma persona.
 - [ ] Una cámara desconectada deja su sala en estado "desconocido", no a 0.
+- [ ] **Ocupación v2: apariencia.** Evidencia actual (2026-09-29): en un paseo
+  de la 212 a Reuniones, el sistema propuso los handoffs con buena coincidencia
+  de tiempo (0,82–1,0), pero la cara no se pudo comparar nunca (Reuniones no
+  obtuvo ninguna) y el cuerpo dio 0,02–0,44: no concluyente. Mejoras previstas:
+  comparar presencias en vez de tracks (reuniendo los mejores recortes de
+  varios tracks), buscar caras en las puertas al colocar las cámaras y calibrar
+  con sesiones etiquetadas. Decisión del propietario: usar cara y cuerpo solo
+  para no contar dos veces, nunca para identificar; revisión de privacidad
+  antes de usarlo con visitantes.
 
 Salida: en una prueba controlada con 1–2 personas y dos salas, los conteos
 son correctos y la transición aparece en el mapa.
@@ -152,6 +161,18 @@ bloquea.
   las patrullas desactivados (la imagen tiene que quedar fija).
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
   opcional, después del MVP.
+- [ ] **Robot de Recepción, detección automática.** Frigate lo mantiene como
+  "persona" hasta 64 minutos, y un track que empezó en una persona real se
+  quedó pegado al robot 42 minutos. Como el robot cambia de sitio, una máscara
+  no sirve. Solución: la clasificación de objetos de Frigate 0.17 (modelo
+  sobre `person`, tipo *attribute*, clases `persona` y `robot`), entrenada en
+  su web. El adaptador ya la traduce a "excluido" con
+  `FRIGATE_TRACK_CLASSIFICATION_POLICY` y la ocupación ignora los excluidos.
+  Hay que vigilar el caso de un track que empieza en una persona y pasa al
+  robot.
+- [ ] Detector de Frigate: pasar del detector de CPU básico (TFLite, que la
+  documentación de Frigate no recomienda) a OpenVINO en CPU, y medir si cambian
+  los falsos positivos.
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
