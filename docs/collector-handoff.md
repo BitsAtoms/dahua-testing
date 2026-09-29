@@ -1,5 +1,11 @@
 # Dahua collector: estado y continuación
 
+> **Histórico (2026-09-04).** Se conserva como registro. El estado actual y
+> los siguientes pasos están en [`ROADMAP.md`](../ROADMAP.md). Desde entonces
+> se resolvieron varias de estas tareas: el canal de posiciones en vivo (IVS),
+> el receptor con outbox, la separación de estados NetSDK y CGI, y el adaptador
+> de Frigate.
+
 Fecha del handoff: 2026-09-04.
 
 ## Estado alcanzado

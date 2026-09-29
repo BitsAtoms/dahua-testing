@@ -84,9 +84,9 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 - [x] Candidatos de handoff por topología y tiempo, con la evidencia visual
   en un canal separado.
 - [x] Monitor 2D en vivo y sesiones de validación etiquetadas.
-- [~] **Ocupación por sala y total**, calculada con presencias y mostrada en
-  el monitor (contador por sala y total). Es el núcleo del MVP. Falta la
-  prueba en vivo con el stack reiniciado.
+- [x] **Ocupación por sala y total**, calculada con presencias y mostrada en
+  el monitor (contador por sala y total). Es el núcleo del MVP. Validada en
+  vivo con una persona el 2026-09-29; falta una prueba con varias personas.
 - [~] **Capa de presencia v1** (`tracking_engine/presence.py`), común a todas
   las fuentes: unir por cercanía (0,15), confirmar a los 3 s y mantener 20 s.
   Con la sesión real de 26 minutos da el conteo correcto el 93,4 % del tiempo,
@@ -247,27 +247,58 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 
 ## Trabajo actual
 
-Rama: `codex/final-pc-readiness`. Cubre, paso a paso, las fases 1 a 5 hasta
-dejar todo listo para seguir en el PC final.
+Rama `codex/final-pc-readiness` (desde `main` en `e6f00f5`), cerrada el
+2026-09-29 como punto de control para mergear a `main`.
 
 1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
    `docs/guia.md`.
-2. [x] Fase 2: prueba del canal IVS con la Dahua 213. Funciona; ver la
-   fase 2 y `docs/dahua-research.md`.
-2b. [x] Fase 2: medir el coste de CPU. Es bajo con el stream principal.
-2c. [~] Canal en vivo de las Dahua dentro del colector, **activado por
-    defecto**. Probado en vivo con la 212: el programa nativo envía las
-    posiciones y el colector publica `new`/`update`/`end`. Un track se
-    publica tras 3 datos, termina cuando la cámara envía su `HumanTrait` (o
-    tras 10 s de silencio) y una persona sentada ya no se corta. Las fotos del
-    `HumanTrait` se unen al track en vivo por `ObjectID`: el motor de tracking
-    queda con un único track por visita (comprobado con un test que usa el
-    motor real). Falta la prueba caminando con el monitor, que también
-    verificará en vivo el cierre por `HumanTrait`.
-3. [~] Fase 1: ocupación por sala v1 (presencias por posición y tiempo).
-   Implementada y probada con la grabación; falta la prueba en vivo. La v2
-   añadirá la apariencia (cuerpo y, si el propietario lo decide, cara) para
-   los casos dudosos.
-4. [ ] Fase 3: inventario y Frigate versionado.
-5. [ ] Fase 4: un solo arranque.
-6. [ ] Fase 5: instalación y guía para el PC final.
+2. [x] Fase 2: canal IVS en vivo validado en la 213 (HDBW7859Z-Z4-PV-X) y en
+   la 212 (HDBW7459Z-Z-PV-X); coste de CPU bajo con el stream principal.
+3. [x] Canal en vivo dentro del colector, activado por defecto. En la caminata
+   con la 212, 7 de los 9 tracks cerrados los cerró la propia cámara con su
+   `HumanTrait` (0,2–1,3 s después del último dato) y todas las fotos se
+   unieron al track en vivo: ningún track suelto de solo fotos.
+4. [x] Ocupación v1 con presencias: 93,4 % de conteo correcto en la sesión
+   real de 26 minutos. En vivo, el propietario confirmó que contaba bien.
+5. [x] Robot de Recepción excluido automáticamente mediante la clasificación
+   de Frigate (`person_validity`).
+6. [ ] Fase 3: configuración de Frigate versionada como plantilla, detector
+   OpenVINO e inventario de cámaras.
+7. [ ] Fase 4: un solo arranque.
+8. [ ] Fase 5: instalación y guía para el PC final.
+
+## Cómo retomar en una sesión nueva
+
+1. Leer `AGENTS.md`, este roadmap y `git status`. `docs/guia.md` explica los
+   conceptos, y `docs/dahua-research.md` la evidencia de las cámaras Dahua.
+2. Qué hay en marcha en este PC de desarrollo:
+   - Docker con Frigate 0.17.2 y Mosquitto. La configuración de Frigate está
+     **fuera del repositorio**, en la carpeta `frigate-runtime/config` del
+     propietario, y es un dato del sitio: no se sube.
+   - El supervisor: `python services\local-supervisor\run.py`.
+3. Configuración local, que Git ignora:
+   - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
+   - `.env.dahua_212`: datos de la 212 para el programa de prueba;
+   - `experiments/dahua-netsdk/cameras.local.json`: 213 y 212;
+   - `runtime/space-mapper/space-map.json`: la 212 está en "Espacio 2", donde
+     antes estaba la 213. Hay una copia del mapa anterior en
+     `runtime/space-mapper/space-map.backup-20260929T152009.json`.
+4. Estado de las cámaras de prueba: la 213 está desconectada y en su lugar
+   está la 212. Cuando vuelva la 213, hay que añadirla otra vez al mapa. La
+   212 tiene NTP (`pool.ntp.org`).
+5. Pruebas contra el broker en marcha: usar siempre
+   `TRACK_MQTT_TOPIC=tracking/test/track-updates` y un `TRACK_OUTBOX_ROOT`
+   temporal, para no mezclar mensajes de prueba con el receptor.
+6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
+   XT). No se da por validado nada de GPU AMD desde aquí.
+
+Siguiente paso, la fase 3, en este orden:
+
+1. Llevar la configuración de Frigate al repositorio como **plantilla sin
+   datos del sitio** (cámaras, URLs y máscaras como ejemplos o variables).
+2. Cambiar el detector de Frigate a **OpenVINO en CPU** y medir CPU y falsos
+   positivos frente al detector actual.
+3. Inventario de las 7 cámaras en un archivo local, con un ejemplo versionado.
+
+Pendiente del propietario: la revisión de privacidad antes de usar la
+comparación facial (ocupación v2) con visitantes.

@@ -374,6 +374,26 @@ local configuration. Use placeholders such as `192.168.1.XXX` in documentation.
 - Add a README to each experiment describing setup and run commands.
 - Do not refactor unrelated project code while proving the NetSDK path.
 
+## Operational notes (learned on the development PC)
+
+- A local Mosquitto broker is usually running. Any test that runs a collector
+  or adapter must set `TRACK_MQTT_TOPIC=tracking/test/track-updates` and a
+  scratch `TRACK_OUTBOX_ROOT`, or its messages reach the real receiver.
+- Frigate runs in Docker and its configuration lives outside this repository,
+  in the owner's `frigate-runtime/config` folder. It is site data: never
+  commit it. Change it through the Frigate UI or with the owner's explicit
+  agreement. A setting toggled at runtime in the Frigate UI may not be saved
+  in `config.yml`; check `/api/config/raw` before assuming it persists.
+- Per-camera probe settings go in ignored `.env.<camera_id>` files. Read secret
+  files only through code that uses them; never print their values.
+- Camera clocks can be wrong (one test camera was 26.9 days behind). Use PC
+  receipt time as the primary timeline and keep camera time as evidence.
+- The development PC is not the final PC (RTX 3050 here, two AMD RX 9070 XT
+  there). Do not report AMD GPU results from this machine.
+- Owner-visible docs are in Spanish. When a script writes Windows paths into
+  Markdown, check that sequences such as `\r` were not turned into control
+  characters.
+
 ## Roadmap and Git workflow
 
 The root `ROADMAP.md` is the durable source of truth for the whole system.
