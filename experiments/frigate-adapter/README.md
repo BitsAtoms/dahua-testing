@@ -77,6 +77,17 @@ Do not configure this variable until the referenced Frigate model exists and
 has been evaluated on held-out local sessions. Without a policy, existing
 behavior remains compatible and tracks are marked eligible by source policy.
 
+Validated live on 2026-09-29 with Frigate 0.17.2 and the `person_validity`
+attribute model (classes `valid_person` and `robot`, 142 training images).
+With the policy
+`{"person_validity":{"valid_person":"eligible","robot":"excluded"}}`, the
+Reception robot's track started as `provisional` and became `excluded` on
+the first classification (score 0.987). The tracking engine stored the
+label, model, score and reason, and the occupancy stopped counting it. Keep
+one classification model per object label enabled so their results cannot
+contradict each other, and make sure the model's `enabled` state is saved in
+the Frigate configuration so it survives a Frigate restart.
+
 Install the small client dependency and start the runner:
 
 ```powershell

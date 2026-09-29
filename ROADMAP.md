@@ -161,7 +161,12 @@ bloquea.
   las patrullas desactivados (la imagen tiene que quedar fija).
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
   opcional, después del MVP.
-- [ ] **Robot de Recepción, detección automática.** Frigate lo mantiene como
+- [~] **Robot de Recepción, detección automática.** Validado en vivo el
+  2026-09-29: el modelo `person_validity` de Frigate clasificó el robot
+  (confianza 0,987), su track pasó a "excluido" y Recepción volvió a 0.
+  Pendiente: que el modelo quede activado de forma persistente en Frigate,
+  vigilar el caso de un track que empieza en una persona y pasa al robot, y
+  reentrenar con las posiciones definitivas de las cámaras. Frigate lo mantiene como
   "persona" hasta 64 minutos, y un track que empezó en una persona real se
   quedó pegado al robot 42 minutos. Como el robot cambia de sitio, una máscara
   no sirve. Solución: la clasificación de objetos de Frigate 0.17 (modelo
