@@ -332,12 +332,13 @@ Options:
 --seconds N         stop automatically after N seconds (default: press Enter)
 ```
 
-Controlled protocol, one person only:
+Controlled protocol, one person only, about 100 seconds
+(`--seconds 100` stops automatically):
 
-1. Start the probe with nobody in view and wait about one minute.
-2. Enter, walk across the view, stop for a few seconds and face the camera.
-3. Leave the view completely and wait about one minute.
-4. Press Enter.
+1. 0–20 s: nobody in view (baseline of rule/OSD frames).
+2. 20–80 s: enter, cross the view slowly, stop about 5 s facing the camera,
+   then leave the view completely.
+3. 80–100 s: nobody in view again.
 
 Each run creates `output/ivs-probe/<UTC>_<stream>/`:
 

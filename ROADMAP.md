@@ -202,7 +202,7 @@ dejar todo listo para seguir en el PC final.
 1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
    `docs/guia.md`.
 2. [~] Fase 2: prueba del canal IVS con la Dahua 213. El programa está
-   listo; faltan unos 10 minutos de prueba controlada del propietario.
+   listo; falta una prueba controlada de unos 2 minutos con el propietario.
 3. [ ] Fase 1: ocupación por sala.
 4. [ ] Fase 3: inventario y Frigate versionado.
 5. [ ] Fase 4: un solo arranque.
