@@ -271,13 +271,24 @@ Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 - [ ] El supervisor levanta Docker además de los servicios propios, en orden,
   y espera a que cada pieza esté sana. Si Frigate usa el detector con GPU, el
   programa detector arranca **antes** que Frigate, y si ese programa se
-  reinicia, hay que reiniciar Frigate después. Probado el 2026-09-30: tras
-  una caída del programa, Frigate no se recupera solo (las cámaras quedan
-  atascadas) hasta que se reinicia.
+  reinicia, hay que reiniciar Frigate después. Probado el 2026-09-30 en los
+  dos sentidos:
+  - si el programa se cae con Frigate en marcha, las cámaras quedan atascadas;
+  - si Frigate arranca sin el programa, queda **ciego sin que se note**: las
+    cámaras parecen sanas, pero el detector devuelve siempre "cero personas"
+    (`Model not ready`), porque solo comprueba el modelo al arrancar. Cuando
+    el programa vuelve, Frigate no se recupera solo.
+
+  En los dos casos basta con reiniciar Frigate con el programa ya en marcha:
+  en 13 s vuelve a detectar. Como Docker arranca Frigate en cuanto se
+  enciende, el supervisor lo reinicia una vez cuando el programa está listo.
 - [ ] Panel de salud: estado de cada cámara y servicio, y retraso del
-  pipeline. Para Frigate, dos señales de atasco del detector: `process_fps`
-  muy por debajo de `camera_fps`, con `skipped_fps` cerca de los fps de la
-  cámara, y un tiempo por imagen absurdo o congelado.
+  pipeline. Para Frigate, tres señales del detector:
+  - **atascado:** `process_fps` muy por debajo de `camera_fps`, con
+    `skipped_fps` cerca de los fps de la cámara;
+  - **ciego:** tiempo por imagen por debajo de 1 ms, o `Model not ready` en el
+    log, aunque las cámaras parezcan sanas;
+  - **roto:** tiempo por imagen absurdo o congelado.
 - [ ] Arranque automático: inicio de sesión automático, tarea al iniciar la
   sesión y navegador en modo kiosco.
 - [ ] Recuperación ante cámara caída, reinicio de Docker y corte de luz.
@@ -348,13 +359,15 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-30 | Modelo recomendado para el detector de Frigate en la GPU: RF-DETR M, con YOLOv9 M como alternativa; D-FINE M descartado | Comparación a través de Frigate con las grabaciones de prueba; la elección final se hace en el PC final tras colocar las cámaras |
 | 2026-09-30 | Las licencias de los modelos (por ejemplo, GPL-3.0 de YOLOv9) no limitan la elección: se busca la mejor detección | Decisión del propietario: el sistema es una demo interna de capacidades y no se comercializa |
 | 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
+| 2026-09-30 | Fase 4: el supervisor arranca también Docker Desktop, y este PC de desarrollo vuelve al detector con GPU | Decisión del propietario: el supervisor controla el orden completo, y probar con la GPU da más indicios de que funcionará en el PC final |
+| 2026-09-30 | El arranque completo (inicio de sesión automático, tarea al iniciar la sesión y modo kiosco) se prueba primero en este PC | Decisión del propietario: al encender el PC no hay que hacer nada más; el PC final usará el mismo inicio de sesión automático de Windows |
 
 ## Trabajo actual
 
 Fase 3 cerrada el 2026-09-30: la rama `codex/frigate-stack-template` está
 mergeada en `main` (`d95be09`), y `main` está subido a GitHub después de
 revisar todos los parches (sin IP, contraseñas, grabaciones ni configuración
-local). La próxima rama es para la fase 4.
+local). La fase 4 está en marcha en la rama `codex/single-startup`.
 
 1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
    datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
@@ -381,6 +394,16 @@ local). La próxima rama es para la fase 4.
 7. [x] **3.5 Eufy S350:** sin seguimiento automático ni patrullas (confirmado
    por el propietario, 2026-09-30).
 8. [ ] Fase 4: un solo arranque.
+   - [x] **4.0 Frigate sin su programa detector** (2026-09-30): queda ciego
+     y no se recupera solo; reiniciarlo con el programa en marcha lo arregla
+     en 13 s.
+   - [ ] **4.1** El supervisor arranca Docker Desktop, Mosquitto, el programa
+     detector y Frigate, en ese orden y esperando a cada uno.
+   - [ ] **4.2** Panel de salud.
+   - [ ] **4.3** Inicio de sesión automático, tarea al iniciar la sesión y
+     modo kiosco, probados en este PC.
+   - [ ] **4.4** Recuperación ante cámara caída, reinicio de Docker y corte de
+     luz.
 9. [ ] Fase 5: instalación y guía para el PC final.
 
 ## Cómo retomar en una sesión nueva
@@ -399,13 +422,14 @@ local). La próxima rama es para la fase 4.
      `config.pre-template-20260930.yaml`: se puede borrar a partir del
      2026-10-07. El volumen viejo `frigate-adapter_frigate-mqtt-data` también
      se puede borrar entonces.
-   - El detector de Frigate en este PC es OpenVINO en la CPU (decisión del
-     propietario, 2026-09-30, hasta la fase 4). El detector con GPU está
-     probado pero apagado. Para volver a usarlo: arrancar
-     `experiments\frigate-zmq-detector\run_detector.ps1` en una ventana
-     propia, cambiar `detectors`/`model` en el *Configuration editor* según
-     `experiments/frigate-zmq-detector/README.md` y reiniciar Frigate. El
-     modelo ya está en `frigate-runtime/config/model_cache`.
+   - El detector de Frigate en este PC vuelve a ser el de la GPU desde el
+     2026-09-30 (RF-DETR Medium, detector `zmq`, decisión del propietario para
+     la fase 4). Hasta que lo arranque el supervisor (4.1), hay que arrancar
+     `experiments\frigate-zmq-detector\run_detector.ps1` a mano **antes** que
+     Frigate. Si no, Frigate queda ciego: hay que reiniciarlo con
+     `docker restart frigate`. Para volver a OpenVINO, se restauran los
+     bloques `detectors`/`model` de `deploy/docker/frigate/config.template.yml`
+     en el *Configuration editor*.
    - El supervisor: `python services\local-supervisor\run.py`.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
@@ -425,9 +449,9 @@ local). La próxima rama es para la fase 4.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: la fase 4, un solo arranque, en una rama nueva. Primer punto:
-que el supervisor levante Docker, el programa detector con GPU y Frigate, en
-ese orden, y reinicie Frigate si el programa detector se reinicia.
+Siguiente paso: 4.1, que el supervisor levante Docker Desktop, Mosquitto, el
+programa detector con GPU y Frigate, en ese orden, y reinicie Frigate cuando
+arrancó antes que el programa o cuando el programa se reinicia.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

@@ -111,15 +111,36 @@ Observed on 2026-09-30 by stopping the client while Frigate was running:
 3. `docker restart frigate`, with the client already running, recovered fully
    within a minute; a person in Recepción was detected at score 0.985.
 
-Not tested: Frigate starting while the client is down.
+Observed on 2026-09-30 by restarting Frigate while the client was down, then
+starting the client:
+
+1. Frigate starts normally and looks healthy in `/api/stats`: `process_fps`
+   equals `camera_fps`, `skipped_fps` is 0 and the container is `healthy`.
+   But every detection logs `zmq_ipc WARNING : Model not ready, returning zero
+   detections` (about 580 times per minute with two cameras), and the
+   detector's `inference_speed` is about 0.5 ms. Frigate is blind.
+2. The client was started 3.5 minutes later and loaded the model on its own.
+   Four minutes after that, Frigate was still blind: `ZmqIpcDetector` checks
+   the model only once, in its constructor (`_initialize_model`), and
+   `detect_raw` returns zeros while `_model_ready` is false. The watchdog does
+   not intervene because nothing is stuck.
+3. `docker restart frigate`, with the client running, logged `Model
+   rfdetr-medium-320-frigate.onnx is ready` 13 s after the restart and no more
+   `Model not ready` lines. `inference_speed` was 26-53 ms. For about one
+   minute after the restart, cameras skipped some frames while the detector
+   caught up; then `skipped_fps` was 0.
 
 Consequences for the single startup (roadmap phase 4):
 
-- Start the client before Frigate.
+- Start the client before Frigate. If Frigate started first (Docker's restart
+  policy starts it with the engine), restart it once the client is ready.
 - If the client restarts, restart Frigate after it.
-- Health signals: `process_fps` far below `camera_fps` with `skipped_fps`
-  close to the camera frame rate, and a detector `inference_speed` that is
-  absurd or no longer changes.
+- Health signals, all needed:
+  - stalled: `process_fps` far below `camera_fps` with `skipped_fps` close to
+    the camera frame rate;
+  - blind: `inference_speed` below 1 ms, or `Model not ready` in the log,
+    while `process_fps` looks normal;
+  - broken: an `inference_speed` that is absurd or no longer changes.
 
 OpenVINO on CPU remains the fallback.
 
