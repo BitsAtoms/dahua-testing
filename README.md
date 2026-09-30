@@ -38,6 +38,7 @@ Supervisor: arranca y vigila todas las piezas
 | Tracking engine | `services/tracking-engine/` |
 | Mapa, editor y monitor | `services/space-mapper/` |
 | Supervisor del stack | `services/local-supervisor/` |
+| Detector de Frigate en la GPU, fuera de Docker (en prueba) | `experiments/frigate-zmq-detector/` |
 | Evidencia visual y benchmarks de visión | `experiments/visual-reid/` |
 | Prueba de GPU en Windows | `experiments/windows-onnx-gpu/` |
 | SDK oficial de Dahua (sin modificar) | `NetSDK/` |

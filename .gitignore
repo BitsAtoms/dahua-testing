@@ -22,3 +22,7 @@ experiments/windows-onnx-gpu/.venv/
 experiments/windows-onnx-gpu/output/
 experiments/visual-reid/adaptive-capture.local.json
 services/local-supervisor/local-stack.json
+experiments/frigate-zmq-detector/.venv/
+experiments/frigate-zmq-detector/vendor/
+experiments/frigate-zmq-detector/models/
+experiments/frigate-zmq-detector/output/

@@ -211,23 +211,42 @@ bloquea.
      uno genérico con ONNX Runtime (`frigate-nvr/apple-silicon-detector`,
      MIT), hecho para Mac y no documentado para Windows. En Windows puede usar
      DirectML o MIGraphX (AMD); su preparación está en
-     `experiments/windows-onnx-gpu`. En este PC se prueba el mecanismo con la
-     RTX 3050; el rendimiento con las RX se mide en el PC final (fase 6).
+     `experiments/windows-onnx-gpu`. **Mecanismo validado en este PC el
+     2026-09-30** (`experiments/frigate-zmq-detector`), con RF-DETR Medium a
+     320×320 en la RTX 3050 (DirectML, sin ninguna operación en la CPU):
+     37 ms por imagen vistos por Frigate (13 ms de modelo, 8 ms de viaje
+     desde Docker), y detectar pasa a costar un 6 % de un núcleo frente al
+     41–104 % de antes. Frigate registró personas con confianza 0,79–0,99. El
+     rendimiento con las RX se mide en el PC final (fase 6).
 
-  En ambas vías se comparan MobileNet (el modelo actual), YOLOv9 y D-FINE:
-  consumo y personas perdidas o inventadas en las grabaciones de prueba. El
-  modelo definitivo se elige después de colocar las cámaras. El
-  reconocimiento facial y la búsqueda semántica no mejoran la detección: se
-  ejecutan sobre personas ya detectadas.
+  Hallazgos que condicionan la elección del modelo:
+  - Frigate no aplica la normalización de color que espera RF-DETR, y puntúa
+    sus detecciones de otra forma que el banco de pruebas de
+    `experiments/visual-reid`. Por eso la exportación para Frigate lleva la
+    normalización dentro, y la calidad se mide a través del propio Frigate,
+    re-emitiendo las grabaciones de prueba como cámaras virtuales.
+  - YOLOv9 tiene licencia GPL-3.0; RF-DETR y D-FINE, Apache-2.0.
+
+  Se comparan MobileNet (el modelo actual), RF-DETR, D-FINE y, si la licencia
+  sirve, YOLOv9: consumo y personas perdidas o inventadas. El modelo
+  definitivo se elige después de colocar las cámaras. El reconocimiento
+  facial y la búsqueda semántica no mejoran la detección: se ejecutan sobre
+  personas ya detectadas.
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
 ### Fase 4 — Un solo arranque y operación `[ ]`
 
 - [ ] El supervisor levanta Docker además de los servicios propios, en orden,
-  y espera a que cada pieza esté sana.
+  y espera a que cada pieza esté sana. Si Frigate usa el detector con GPU, el
+  programa detector arranca **antes** que Frigate, y si ese programa se
+  reinicia, hay que reiniciar Frigate después. Probado el 2026-09-30: tras
+  una caída del programa, Frigate no se recupera solo (las cámaras quedan
+  atascadas) hasta que se reinicia.
 - [ ] Panel de salud: estado de cada cámara y servicio, y retraso del
-  pipeline.
+  pipeline. Para Frigate, dos señales de atasco del detector: `process_fps`
+  muy por debajo de `camera_fps`, con `skipped_fps` cerca de los fps de la
+  cámara, y un tiempo por imagen absurdo o congelado.
 - [ ] Arranque automático: inicio de sesión automático, tarea al iniciar la
   sesión y navegador en modo kiosco.
 - [ ] Recuperación ante cámara caída, reinicio de Docker y corte de luz.
@@ -309,15 +328,21 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 3. [x] **3.3a Detector OpenVINO en la CPU** (respaldo), activo en este PC
    desde el 2026-09-30: responde en la mitad de tiempo, pero gasta unas 2,5
    veces más CPU que TFLite con la misma carga.
-4. [ ] **3.3b Detector externo con GPU** en este PC (RTX 3050): que Frigate
-   detecte a través del programa nativo de Windows. Después, comparar
-   MobileNet, YOLOv9 y D-FINE.
-5. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
+4. [x] **3.3b Detector externo con GPU** en este PC (RTX 3050), validado el
+   2026-09-30 con RF-DETR Medium: Frigate detecta a través del programa
+   nativo de Windows, y detectar pasa a costar un 6 % de un núcleo. Probada
+   también la caída del programa: exige reiniciar Frigate. En este PC el
+   programa lo arranca a mano `experiments/frigate-zmq-detector/run_detector.ps1`
+   hasta la fase 4.
+5. [ ] **3.3c Comparar modelos a través de Frigate**, re-emitiendo las
+   grabaciones de prueba como cámaras virtuales: MobileNet, RF-DETR, D-FINE
+   (y YOLOv9 si su licencia sirve).
+6. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
    versionado. Hay que aclarar qué cámara es `puerta_planeta`, que no figura en
    el inventario y ahora está en Frigate solo para ver.
-6. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
-7. [ ] Fase 4: un solo arranque.
-8. [ ] Fase 5: instalación y guía para el PC final.
+7. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
+8. [ ] Fase 4: un solo arranque.
+9. [ ] Fase 5: instalación y guía para el PC final.
 
 ## Cómo retomar en una sesión nueva
 
@@ -353,8 +378,8 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: el 3.3b de "Trabajo actual", el detector externo con GPU en
-este PC. Después, el inventario (3.4).
+Siguiente paso: el 3.3c de "Trabajo actual", comparar modelos a través de
+Frigate con las grabaciones de prueba. Después, el inventario (3.4).
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.
