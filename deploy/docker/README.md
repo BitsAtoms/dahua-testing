@@ -85,8 +85,15 @@ URLs were never written to the file.
   Frigate treats the file as an old configuration and rewrites it.
 - **Face recognition off** until the owner's privacy review allows face
   comparison with visitors.
-- **TFLite CPU detector** until OpenVINO on CPU is measured against it (next
-  roadmap step).
+- **OpenVINO on CPU** with the bundled SSDLite MobileNet v2. Measured on the
+  development PC (Intel i9-12900F) on 2026-09-30, five minutes each at the same
+  load (about 13 detections per second): 6.1 ms per inference versus 11.3 ms
+  for Frigate's default TFLite detector, but about 1.0 CPU core versus 0.4.
+  Frigate compiles the CPU model with OpenVINO's latency defaults and exposes
+  no thread setting. It is kept because OpenVINO is Frigate's recommended CPU
+  runtime for the larger ONNX models (YOLOv9, D-FINE), and it is the fallback
+  for a GPU detector outside Docker. Repeat the measurement on the final AMD
+  CPU.
 
 ## Checks
 
@@ -159,3 +166,7 @@ seven-day retention.
 - go2rtc logs `can't add track ... audio, sendonly` for the Hikvision main
   stream: it is the camera's two-way audio channel and does not affect video
   or clips.
+- go2rtc warnings print the full source URL, credentials included, in
+  `docker logs frigate` and in the Frigate UI (Logs → go2rtc). Frigate's own
+  log lines mask them. Never paste go2rtc logs anywhere, and mask
+  `rtsp://user:password@` when filtering logs in scripts.

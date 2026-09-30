@@ -48,9 +48,11 @@ son la Dahua 213, la Hikvision de Recepción y la Eufy de Reuniones.
   propios → mapa en pantalla completa.
 - El mapa solo se ve en la pantalla del PC final; nada se expone a la red.
 - Retención de 7 días para todo. Frigate guarda solo clips de eventos.
-- Frigate detecta con la CPU, porque Docker en Windows no puede usar las RX.
-  Las GPU quedan para ReID y, solo si se mide que hace falta, para un
-  detector propio.
+- Frigate corre en Docker, que en Windows no puede usar las RX: decodifica
+  el vídeo en la CPU. Su detector puede pasar a una RX mediante el detector
+  externo de Frigate (tipo `zmq`), con un programa nativo de Windows; está en
+  prueba y OpenVINO en la CPU queda como respaldo. La otra GPU queda para
+  ReID.
 
 ## Qué depende de la posición final de las cámaras
 
@@ -194,14 +196,29 @@ bloquea.
   `FRIGATE_TRACK_CLASSIFICATION_POLICY` y la ocupación ignora los excluidos.
   Hay que vigilar el caso de un track que empieza en una persona y pasa al
   robot.
-- [ ] Detector de Frigate: pasar del detector de CPU básico (TFLite, que la
-  documentación de Frigate no recomienda) a OpenVINO en CPU. El propietario
-  quiere detectar mejor a las personas (2026-09-30), así que se comparan
-  MobileNet (el modelo actual), YOLOv9 y D-FINE, todos en la CPU: consumo por
-  cámara y personas perdidas o inventadas en las grabaciones de prueba. El
-  modelo definitivo se elige después de colocar las cámaras. El reconocimiento
-  facial y la búsqueda semántica no mejoran la detección: se ejecutan sobre
-  personas ya detectadas.
+- [ ] Detector de Frigate. El propietario quiere detectar mejor a las
+  personas y aprovechar las GPU (2026-09-30). Dos vías, en este orden:
+  1. **Respaldo en la CPU:** pasar del detector de CPU básico (TFLite, que la
+     documentación de Frigate no recomienda) a OpenVINO en la CPU. Hecho el
+     2026-09-30. Medido en este PC (i9-12900F) con la misma carga, unas 13
+     detecciones por segundo: 6,1 ms por imagen frente a 11,3 ms, pero 1 núcleo
+     de CPU frente a 0,4. Frigate configura OpenVINO para responder rápido y
+     no deja ajustarlo. Se mantiene porque es el motor que Frigate recomienda
+     para los modelos grandes en la CPU. Hay que repetir la medición en el
+     Ryzen del PC final.
+  2. **GPU:** Frigate 0.17 puede enviar las imágenes a un detector externo
+     (tipo `zmq`), un programa fuera de Docker. El equipo de Frigate publica
+     uno genérico con ONNX Runtime (`frigate-nvr/apple-silicon-detector`,
+     MIT), hecho para Mac y no documentado para Windows. En Windows puede usar
+     DirectML o MIGraphX (AMD); su preparación está en
+     `experiments/windows-onnx-gpu`. En este PC se prueba el mecanismo con la
+     RTX 3050; el rendimiento con las RX se mide en el PC final (fase 6).
+
+  En ambas vías se comparan MobileNet (el modelo actual), YOLOv9 y D-FINE:
+  consumo y personas perdidas o inventadas en las grabaciones de prueba. El
+  modelo definitivo se elige después de colocar las cámaras. El
+  reconocimiento facial y la búsqueda semántica no mejoran la detección: se
+  ejecutan sobre personas ya detectadas.
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
@@ -235,6 +252,9 @@ Salida: clonar, instalar y pasar la verificación en el PC final.
   futuras, con grabaciones re-emitidas por RTSP): CPU, RAM, disco y retrasos
   p50/p95/p99.
 - [ ] Prueba prolongada de 24–72 h con cámaras virtuales.
+- [ ] Detector de Frigate en una RX 9070 XT (detector externo `zmq` con
+  MIGraphX o DirectML): tiempo por imagen, CPU liberada y comportamiento si el
+  programa externo se cae (respaldo en la CPU).
 - [ ] Si se usa la GPU: verificar que funciona desde el arranque automático.
 
 ### Fase 7 — Colocación de cámaras y aceptación `[ ]`
@@ -270,6 +290,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-29 | Las Dahua dan su posición en vivo por el canal IVS (NetSDK + PlaySDK); `HumanTrait` queda como enriquecimiento con fotos, unido por `ObjectID` | Probado en la 213 con dos pruebas controladas; evita detectar en el PC para 5 de las 7 cámaras, pendiente de medir el coste de CPU |
 | 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Medido en la Hikvision 4K: unos 4 GB por hora con gente (unos 290 GB por semana con 10 h diarias) |
 | 2026-09-30 | `puerta_planeta` queda solo para ver, sin detección ni clips | Decisión del propietario: no se procesa, pero quiere verla en Frigate |
+| 2026-09-30 | Detector de Frigate: OpenVINO en la CPU como respaldo, y prueba de la GPU con el detector externo de Frigate (`zmq`) y un programa nativo de Windows | Decisión del propietario: aprovechar las RX 9070 XT sin sacar Frigate de Docker. Docker en Windows no da acceso a las GPU AMD; la versión ROCm de Frigate necesita Linux |
 | 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 
 ## Trabajo actual
@@ -285,14 +306,18 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
    están en `deploy/docker/.env`. Frigate sigue usando su carpeta
    (`frigate-runtime`, con el modelo del robot), y la cola de MQTT se copió al
    volumen nuevo. `puerta_planeta` queda solo para ver.
-3. [ ] **3.3 Detector OpenVINO en CPU**, comparando MobileNet, YOLOv9 y
-   D-FINE: consumo de CPU y personas perdidas o inventadas.
-4. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
+3. [x] **3.3a Detector OpenVINO en la CPU** (respaldo), activo en este PC
+   desde el 2026-09-30: responde en la mitad de tiempo, pero gasta unas 2,5
+   veces más CPU que TFLite con la misma carga.
+4. [ ] **3.3b Detector externo con GPU** en este PC (RTX 3050): que Frigate
+   detecte a través del programa nativo de Windows. Después, comparar
+   MobileNet, YOLOv9 y D-FINE.
+5. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
    versionado. Hay que aclarar qué cámara es `puerta_planeta`, que no figura en
    el inventario y ahora está en Frigate solo para ver.
-5. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
-6. [ ] Fase 4: un solo arranque.
-7. [ ] Fase 5: instalación y guía para el PC final.
+6. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
+7. [ ] Fase 4: un solo arranque.
+8. [ ] Fase 5: instalación y guía para el PC final.
 
 ## Cómo retomar en una sesión nueva
 
@@ -328,8 +353,8 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: el 3.3 de "Trabajo actual", el detector OpenVINO en la CPU con
-la comparación de modelos. Después, el inventario (3.4).
+Siguiente paso: el 3.3b de "Trabajo actual", el detector externo con GPU en
+este PC. Después, el inventario (3.4).
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

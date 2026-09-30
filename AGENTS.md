@@ -50,8 +50,10 @@ about 4 TB disk, two AMD RX 9070 XT). The exact camera inventory and the
 operating decisions are recorded in `ROADMAP.md`. Key constraints:
 
 - Dahua cameras use the native Dahua collector (NetSDK + CGI) on Windows.
-- Non-Dahua cameras go through Frigate in Docker. Frigate detects on CPU
-  because Docker on Windows cannot use the AMD GPUs.
+- Non-Dahua cameras go through Frigate in Docker. Docker on Windows cannot
+  use the AMD GPUs, so Frigate decodes on CPU. Its object detector may run on
+  an RX through Frigate's external `zmq` detector and a native Windows ONNX
+  Runtime client (under evaluation); OpenVINO on CPU is the fallback.
 - A GPU-based in-house detector/tracker is optional and only resumes when
   measurements show Frigate is insufficient
   (`experiments/visual-reid/ROADMAP.md`).

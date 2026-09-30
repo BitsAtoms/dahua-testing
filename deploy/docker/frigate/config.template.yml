@@ -16,12 +16,22 @@ mqtt:
   port: 1883
   topic_prefix: frigate
 
-# Detector (roadmap phase 3). The TFLite CPU detector is Frigate's default and
-# is kept until OpenVINO on CPU has been measured against it.
+# Detector (roadmap phase 3): OpenVINO on CPU with the SSDLite MobileNet v2
+# model bundled in the image. It replaces Frigate's default TFLite CPU
+# detector, which the Frigate documentation does not recommend, and remains
+# the fallback if a GPU detector outside Docker is adopted later.
 detectors:
-  cpu:
-    type: cpu
-    num_threads: 3
+  ov:
+    type: openvino
+    device: CPU
+
+model:
+  width: 300
+  height: 300
+  input_tensor: nhwc
+  input_pixel_format: bgr
+  path: /openvino-model/ssdlite_mobilenet_v2.xml
+  labelmap_path: /openvino-model/coco_91cl_bkgr.txt
 
 objects:
   track:
