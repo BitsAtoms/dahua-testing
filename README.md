@@ -31,6 +31,7 @@ Supervisor: arranca y vigila todas las piezas
 |---|---|
 | Colector Dahua (C++ NetSDK + Python) | `experiments/dahua-netsdk/` |
 | Frigate y Mosquitto en Docker (plantilla sin datos del sitio) | `deploy/docker/` |
+| Inventario de cámaras (ejemplo) y lectura de modelo, firmware y hora | `deploy/camera-inventory.example.json`, `deploy/tools/` |
 | Adaptador de Frigate | `experiments/frigate-adapter/` |
 | Contratos de mensajes | `contracts/` |
 | Transporte durable (outbox MQTT) | `services/track-transport/` |

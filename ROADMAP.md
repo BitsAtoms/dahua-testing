@@ -38,8 +38,11 @@ cámaras.
 | A definir | No Dahua | 1–2 | Frigate | El PC (CPU) |
 
 En total son 7 cámaras y está previsto llegar a 9. Hay una segunda Hikvision
-en el portero eléctrico, que no se incorpora. Las cámaras de prueba actuales
-son la Dahua 213, la Hikvision de Recepción y la Eufy de Reuniones.
+en el portero eléctrico, un terminal de control de acceso DS-K1T502DBFWX-C
+(`puerta_planeta`), que no se procesa: solo se ve en Frigate. Las cámaras de
+prueba actuales son las Dahua 212 y 213, la Hikvision de Recepción y la Eufy
+de Reuniones. El detalle de cada una (modelo, firmware y cómo entra al
+sistema) está en el inventario local `deploy/camera-inventory.local.json`.
 
 **Operación:**
 
@@ -145,7 +148,9 @@ no sirve para el mapa en vivo.
   El propietario activó NTP (`pool.ntp.org`) y ahora el desfase es de 0,67 s
   (2026-09-29). El sistema usa la hora del PC como referencia y avisará del
   desfase de cada cámara. Hay que revisar el NTP de cada cámara al
-  instalarla.
+  instalarla: `deploy/tools/camera_info.py` muestra el desfase de las Dahua y
+  las Hikvision (2026-09-30: 212 y Recepción 0 s, terminal de la puerta
+  −3 s).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
 modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
@@ -154,8 +159,15 @@ bloquea.
 
 ### Fase 3 — Frigate para las cámaras no Dahua `[~]`
 
-- [ ] Inventario de cámaras en un archivo de configuración, sin credenciales
-  en Git.
+- [x] Inventario de cámaras en un archivo de configuración, sin credenciales
+  en Git (2026-09-30). El ejemplo versionado es
+  `deploy/camera-inventory.example.json` y el real,
+  `deploy/camera-inventory.local.json`, que Git ignora. Cada cámara tiene
+  modelo, firmware, cómo entra al sistema, si su posición en vivo está
+  verificada y su estado (prevista, de prueba o instalada). La sala queda
+  vacía hasta la colocación definitiva. `deploy/tools/camera_info.py` lee el
+  modelo, el firmware y la hora de las Dahua y las Hikvision conectadas; la
+  Eufy no tiene interfaz para eso.
 - [x] Configuración de Frigate versionada como plantilla
   (`deploy/docker/frigate/config.template.yml`): go2rtc con una conexión por
   cámara, detección con CPU, clips de eventos de 7 días con el stream
@@ -177,8 +189,9 @@ bloquea.
   2026-09-30): sin detección ni clips. Se conecta directamente a la cámara,
   porque esa cámara manda los datos de arranque del vídeo (SPS/PPS) solo
   dentro del vídeo y go2rtc no los reenvía.
-- [ ] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
-  las patrullas desactivados (la imagen tiene que quedar fija).
+- [x] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
+  las patrullas desactivados (la imagen tiene que quedar fija). Confirmado
+  por el propietario el 2026-09-30.
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
   opcional, después del MVP.
 - [~] **Robot de Recepción, detección automática.** Validado en vivo el
@@ -336,10 +349,12 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 5. [ ] **3.3c Comparar modelos a través de Frigate**, re-emitiendo las
    grabaciones de prueba como cámaras virtuales: MobileNet, RF-DETR, D-FINE
    (y YOLOv9 si su licencia sirve).
-6. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
-   versionado. Hay que aclarar qué cámara es `puerta_planeta`, que no figura en
-   el inventario y ahora está en Frigate solo para ver.
-7. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
+6. [x] **3.4 Inventario** de las cámaras en un archivo local, con un ejemplo
+   versionado (2026-09-30). `puerta_planeta` resultó ser el terminal de
+   control de acceso de la puerta. Las salas se asignan al colocar las
+   cámaras.
+7. [x] **3.5 Eufy S350:** sin seguimiento automático ni patrullas (confirmado
+   por el propietario, 2026-09-30).
 8. [ ] Fase 4: un solo arranque.
 9. [ ] Fase 5: instalación y guía para el PC final.
 
@@ -370,6 +385,7 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
    - `deploy/docker/.env`: carpetas de Frigate y URLs de sus cámaras;
+   - `deploy/camera-inventory.local.json`: inventario de cámaras;
    - `.env.dahua_212`: datos de la 212 para el programa de prueba;
    - `experiments/dahua-netsdk/cameras.local.json`: 213 y 212;
    - `runtime/space-mapper/space-map.json`: la 212 está en "Espacio 2", donde
@@ -385,7 +401,7 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
    XT). No se da por validado nada de GPU AMD desde aquí.
 
 Siguiente paso: el 3.3c de "Trabajo actual", comparar modelos a través de
-Frigate con las grabaciones de prueba. Después, el inventario (3.4).
+Frigate con las grabaciones de prueba. Es lo último que queda de la fase 3.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.
