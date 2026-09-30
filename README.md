@@ -44,9 +44,11 @@ Supervisor: arranca y vigila todas las piezas
 
 ## Arranque actual (desarrollo)
 
-Frigate y Mosquitto se levantan antes, por separado. Después:
+Frigate y Mosquitto se levantan antes, con Docker (después Docker Desktop los
+vuelve a arrancar solo):
 
 ```powershell
+docker compose -f deploy\docker\compose.yml up -d
 python services\local-supervisor\run.py --check
 python services\local-supervisor\run.py
 ```

@@ -52,6 +52,8 @@ than seven days are removed. A failed child is restarted with exponential
 backoff capped at 30 seconds. `Ctrl+C` requests a clean shutdown in reverse
 startup order so adapters stop before their receiver.
 
-This supervisor does not start Docker, Frigate or Mosquitto. Start those
-external dependencies first. It also does not contain camera credentials;
+This supervisor does not start Docker, Frigate or Mosquitto yet (roadmap
+phase 4). Start them first with
+`docker compose -f deploy\docker\compose.yml up -d`; Docker Desktop restarts
+them afterwards. It also does not contain camera credentials;
 existing ignored `.env` and `cameras.local.json` files remain authoritative.

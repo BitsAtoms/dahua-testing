@@ -150,24 +150,31 @@ modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
 (canal IVS por el stream principal); falta el HDBW5459Z-ZHE-PV-PRO, que no
 bloquea.
 
-### Fase 3 — Frigate para las cámaras no Dahua `[ ]`
+### Fase 3 — Frigate para las cámaras no Dahua `[~]`
 
 - [ ] Inventario de cámaras en un archivo de configuración, sin credenciales
   en Git.
-- [~] Configuración de Frigate versionada como plantilla
+- [x] Configuración de Frigate versionada como plantilla
   (`deploy/docker/frigate/config.template.yml`): go2rtc con una conexión por
   cámara, detección con CPU, clips de eventos de 7 días con el stream
   principal, y ejemplos de zonas y máscaras. Las URLs y contraseñas son
-  variables `{FRIGATE_...}` guardadas en un archivo que Git ignora. Probado el
-  2026-09-29 en un Frigate 0.17.2 aislado: acepta la plantilla sin
-  reescribirla, go2rtc recibe las URLs y guardar una máscara desde la web
-  mantiene las variables (no escribe las contraseñas). Falta usarla en el
-  Frigate de este PC (paso 3.2).
-- [~] Docker Compose de Frigate + Mosquitto dentro del repositorio
+  variables `{FRIGATE_...}` guardadas en `deploy/docker/.env`, que Git ignora.
+  Guardar una máscara desde la web mantiene las variables: no escribe las
+  contraseñas. En uso en este PC desde el 2026-09-30.
+- [x] Docker Compose de Frigate + Mosquitto dentro del repositorio
   (`deploy/docker/compose.yml`), con versiones fijas (Frigate 0.17.2,
-  Mosquitto 2.1.2) y todos los puertos solo en `127.0.0.1`. El Frigate actual
-  de este PC tiene los puertos 8971, 8554 y 8555 abiertos a la red local; se
-  corrige al pasar a esta plantilla.
+  Mosquitto 2.1.2) y todos los puertos solo en `127.0.0.1`. Validado el
+  2026-09-30 recreando los contenedores desde cero: las 3 cámaras reciben
+  imagen, Frigate está conectado a MQTT, el modelo del robot se carga y solo
+  escuchan puertos locales (antes 8971, 8554 y 8555 estaban abiertos a la red).
+- [x] **Clips con el stream principal** en Recepción y Reuniones. Medido: la
+  Hikvision DeepinView graba en 4K a unos 9 Mbps, unos 4 GB por hora con
+  gente. Con 10 horas ocupadas al día son unos 290 GB por semana solo esa
+  cámara; cabe en los 4 TB, pero hay que sumarlo con el inventario final.
+- [x] **`puerta_planeta` solo para ver** (decisión del propietario,
+  2026-09-30): sin detección ni clips. Se conecta directamente a la cámara,
+  porque esa cámara manda los datos de arranque del vídeo (SPS/PPS) solo
+  dentro del vídeo y go2rtc no los reenvía.
 - [ ] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
   las patrullas desactivados (la imagen tiene que quedar fija).
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
@@ -175,9 +182,10 @@ bloquea.
 - [~] **Robot de Recepción, detección automática.** Validado en vivo el
   2026-09-29: el modelo `person_validity` de Frigate clasificó el robot
   (confianza 0,987), su track pasó a "excluido" y Recepción volvió a 0.
-  Pendiente: que el modelo quede activado de forma persistente en Frigate,
-  vigilar el caso de un track que empieza en una persona y pasa al robot, y
-  reentrenar con las posiciones definitivas de las cámaras. Frigate lo mantiene como
+  El modelo queda activado de forma persistente: se cargó solo al recrear
+  Frigate el 2026-09-30. Pendiente: vigilar el caso de un track que empieza
+  en una persona y pasa al robot, y reentrenar con las posiciones definitivas
+  de las cámaras. Frigate lo mantiene como
   "persona" hasta 64 minutos, y un track que empezó en una persona real se
   quedó pegado al robot 42 minutos. Como el robot cambia de sitio, una máscara
   no sirve. Solución: la clasificación de objetos de Frigate 0.17 (modelo
@@ -260,7 +268,8 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-28 | Mapa solo en la pantalla local; usuario con inicio automático | Decisión del propietario |
 | 2026-09-28 | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se mide y se informa, pero no bloquea | Para contar, la fragmentación secuencial no cambia la ocupación; los errores que la rompen son los duplicados y las fusiones (ver `docs/guia.md`, sección 3) |
 | 2026-09-29 | Las Dahua dan su posición en vivo por el canal IVS (NetSDK + PlaySDK); `HumanTrait` queda como enriquecimiento con fotos, unido por `ObjectID` | Probado en la 213 con dos pruebas controladas; evita detectar en el PC para 5 de las 7 cámaras, pendiente de medir el coste de CPU |
-| 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Estimación: 100–200 GB por cámara y semana, menos de 1 TB de los 4 TB |
+| 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Medido en la Hikvision 4K: unos 4 GB por hora con gente (unos 290 GB por semana con 10 h diarias) |
+| 2026-09-30 | `puerta_planeta` queda solo para ver, sin detección ni clips | Decisión del propietario: no se procesa, pero quiere verla en Frigate |
 | 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 
 ## Trabajo actual
@@ -272,15 +281,15 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
    datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
    a la red y versiones sin fijar.
-2. [ ] **3.2 Pasar el Frigate de este PC a la plantilla.** Las URLs salen de
-   `config.yaml` y van a `deploy/docker/.env`. Frigate sigue usando su carpeta
-   actual (`frigate-runtime`, con el modelo del robot) y la cola de MQTT se
-   copia al volumen nuevo. Reinicia Frigate: necesita el OK del propietario.
+2. [x] **3.2 El Frigate de este PC usa la plantilla** (2026-09-30). Las URLs
+   están en `deploy/docker/.env`. Frigate sigue usando su carpeta
+   (`frigate-runtime`, con el modelo del robot), y la cola de MQTT se copió al
+   volumen nuevo. `puerta_planeta` queda solo para ver.
 3. [ ] **3.3 Detector OpenVINO en CPU**, comparando MobileNet, YOLOv9 y
    D-FINE: consumo de CPU y personas perdidas o inventadas.
 4. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
-   versionado. Hay que aclarar qué cámara es `puerta_planeta`, que hoy está en
-   Frigate pero no figura en el inventario.
+   versionado. Hay que aclarar qué cámara es `puerta_planeta`, que no figura en
+   el inventario y ahora está en Frigate solo para ver.
 5. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
 6. [ ] Fase 4: un solo arranque.
 7. [ ] Fase 5: instalación y guía para el PC final.
@@ -290,12 +299,21 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 1. Leer `AGENTS.md`, este roadmap y `git status`. `docs/guia.md` explica los
    conceptos, y `docs/dahua-research.md` la evidencia de las cámaras Dahua.
 2. Qué hay en marcha en este PC de desarrollo:
-   - Docker con Frigate 0.17.2 y Mosquitto. La configuración de Frigate está
-     **fuera del repositorio**, en la carpeta `frigate-runtime/config` del
-     propietario, y es un dato del sitio: no se sube.
+   - Docker con Frigate 0.17.2 y Mosquitto, desde
+     `docker compose -f deploy\docker\compose.yml up -d` (Docker Desktop los
+     vuelve a arrancar solo). La configuración de Frigate sigue **fuera del
+     repositorio**, en la carpeta `frigate-runtime/config` del propietario, y
+     es un dato del sitio: no se sube. Los cambios en ella los hace el
+     propietario desde la web de Frigate (*Configuration editor*). El Compose
+     anterior quedó como `frigate-runtime/docker-compose.yml.old`, y la
+     configuración anterior (con contraseñas) como
+     `config.pre-template-20260930.yaml`: se puede borrar a partir del
+     2026-10-07. El volumen viejo `frigate-adapter_frigate-mqtt-data` también
+     se puede borrar entonces.
    - El supervisor: `python services\local-supervisor\run.py`.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
+   - `deploy/docker/.env`: carpetas de Frigate y URLs de sus cámaras;
    - `.env.dahua_212`: datos de la 212 para el programa de prueba;
    - `experiments/dahua-netsdk/cameras.local.json`: 213 y 212;
    - `runtime/space-mapper/space-map.json`: la 212 está en "Espacio 2", donde
@@ -310,8 +328,8 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: el 3.2 de "Trabajo actual", pasar el Frigate de este PC a
-`deploy/docker/compose.yml`. Después, OpenVINO (3.3) y el inventario (3.4).
+Siguiente paso: el 3.3 de "Trabajo actual", el detector OpenVINO en la CPU con
+la comparación de modelos. Después, el inventario (3.4).
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

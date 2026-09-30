@@ -100,12 +100,62 @@ They do not start Docker. On 2026-09-29 the template was also started in an
 isolated Frigate 0.17.2 container: the configuration validated without
 migration, and go2rtc received the substituted URLs.
 
+## Cameras that fail through the go2rtc relay
+
+Some cameras send their H.264 parameter sets (SPS/PPS) only inside the video,
+not in the RTSP session description. The go2rtc relay does not forward them,
+and Frigate's ffmpeg then logs `non-existing PPS 0 referenced` and
+`decode_slice_header error` in a loop until the watchdog restarts it. In
+go2rtc's `/api/streams`, such a producer shows an H.264 receiver without
+`profile` or `level`. The same stream decodes cleanly when ffmpeg reads the
+camera directly.
+
+For such a camera, read it directly and give it a single connection:
+
+```yaml
+cameras:
+  view_only_camera:
+    ffmpeg:
+      inputs:
+        - path: "{FRIGATE_VIEW_ONLY_CAMERA_URL}"
+          roles:
+            - detect
+    detect:
+      enabled: false   # view only; Frigate still decodes frames for the live view
+      width: 1280
+      height: 720
+      fps: 10          # without go2rtc, the live view runs at this rate
+    record:
+      enabled: false
+    snapshots:
+      enabled: false
+```
+
+Frigate requires a `detect` input even when detection is disabled. Without a
+go2rtc stream, the UI shows Frigate's own live view (jsmpeg). This happened
+with one test camera on 2026-09-30.
+
+## Development PC migration (2026-09-30)
+
+The development PC runs this stack. `deploy/docker/.env` points both Frigate
+folders at the existing `frigate-runtime` folder, so the database, the trained
+`person_validity` model and past snapshots were kept. The Mosquitto
+persistence was copied from the previous `frigate-adapter_frigate-mqtt-data`
+volume into `batcomputer-mqtt-data`. After `up -d --force-recreate`, all three
+cameras delivered frames, Frigate was online in MQTT, the classification model
+loaded, and only loopback ports were listening.
+
+Measured clip bitrate: the 3840x2160 H.264 main stream of the Hikvision
+DeepinView records about 9 Mbps, that is about 4 GB per hour of events. With
+10 occupied hours a day, that camera alone needs about 290 GB for the
+seven-day retention.
+
 ## Current limits
 
-- The development PC still runs its older Frigate and Mosquitto compose files
-  (`experiments/frigate-adapter/docker-compose.mqtt.yml`). This stack uses the
-  same container names and ports, so only one of them can run at a time.
 - The Mosquitto listener is anonymous. That is acceptable only while it is
   published on loopback.
 - `shm_size` and the 1 GB recording cache are Frigate's defaults for a few
   cameras; they are sized with the final camera inventory.
+- go2rtc logs `can't add track ... audio, sendonly` for the Hikvision main
+  stream: it is the camera's two-way audio channel and does not affect video
+  or clips.

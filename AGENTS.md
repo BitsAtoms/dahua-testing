@@ -379,11 +379,13 @@ local configuration. Use placeholders such as `192.168.1.XXX` in documentation.
 - A local Mosquitto broker is usually running. Any test that runs a collector
   or adapter must set `TRACK_MQTT_TOPIC=tracking/test/track-updates` and a
   scratch `TRACK_OUTBOX_ROOT`, or its messages reach the real receiver.
-- Frigate runs in Docker and its configuration lives outside this repository,
-  in the owner's `frigate-runtime/config` folder. It is site data: never
-  commit it. Change it through the Frigate UI or with the owner's explicit
+- Frigate and Mosquitto run from `deploy/docker/compose.yml`. The ignored
+  `deploy/docker/.env` holds the camera URLs and points
+  `STACK_FRIGATE_CONFIG_DIR` at the owner's `frigate-runtime/config` folder.
+  That configuration is site data: never commit it. Change it through the
+  Frigate UI (the owner applies the edits), or with the owner's explicit
   agreement. A setting toggled at runtime in the Frigate UI may not be saved
-  in `config.yml`; check `/api/config/raw` before assuming it persists.
+  in `config.yaml`; check `/api/config/raw` before assuming it persists.
 - Per-camera probe settings go in ignored `.env.<camera_id>` files. Read secret
   files only through code that uses them; never print their values.
 - Camera clocks can be wrong (one test camera was 26.9 days behind). Use PC

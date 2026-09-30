@@ -25,18 +25,17 @@ python experiments/frigate-adapter/replay.py `
 
 ## Local MQTT transport
 
-The included Mosquitto sidecar exposes its listener only on Windows localhost
-and joins Frigate's existing Docker network:
+Frigate and the Mosquitto broker are started together from the repository
+stack (`deploy/docker/`), which publishes the broker only on Windows loopback:
 
 ```powershell
-docker compose -f experiments/frigate-adapter/docker-compose.mqtt.yml up -d
+docker compose -f deploy/docker/compose.yml up -d
 ```
 
-This anonymous configuration is intentionally limited to the local proof of
-concept. Production deployment requires authentication and TLS or a private
-broker network.
+The broker is anonymous. That is acceptable only while it stays on loopback;
+exposing it beyond this PC requires authentication and TLS.
 
-Configure Frigate and restart it:
+The Frigate configuration template already contains:
 
 ```yaml
 mqtt:
