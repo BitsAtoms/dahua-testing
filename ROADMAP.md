@@ -331,9 +331,8 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 4. [x] **3.3b Detector externo con GPU** en este PC (RTX 3050), validado el
    2026-09-30 con RF-DETR Medium: Frigate detecta a través del programa
    nativo de Windows, y detectar pasa a costar un 6 % de un núcleo. Probada
-   también la caída del programa: exige reiniciar Frigate. En este PC el
-   programa lo arranca a mano `experiments/frigate-zmq-detector/run_detector.ps1`
-   hasta la fase 4.
+   también la caída del programa: exige reiniciar Frigate. Hasta la fase 4,
+   este PC vuelve a OpenVINO, porque el programa todavía no arranca solo.
 5. [ ] **3.3c Comparar modelos a través de Frigate**, re-emitiendo las
    grabaciones de prueba como cámaras virtuales: MobileNet, RF-DETR, D-FINE
    (y YOLOv9 si su licencia sirve).
@@ -360,6 +359,13 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
      `config.pre-template-20260930.yaml`: se puede borrar a partir del
      2026-10-07. El volumen viejo `frigate-adapter_frigate-mqtt-data` también
      se puede borrar entonces.
+   - El detector de Frigate en este PC es OpenVINO en la CPU (decisión del
+     propietario, 2026-09-30, hasta la fase 4). El detector con GPU está
+     probado pero apagado. Para volver a usarlo: arrancar
+     `experiments\frigate-zmq-detector\run_detector.ps1` en una ventana
+     propia, cambiar `detectors`/`model` en el *Configuration editor* según
+     `experiments/frigate-zmq-detector/README.md` y reiniciar Frigate. El
+     modelo ya está en `frigate-runtime/config/model_cache`.
    - El supervisor: `python services\local-supervisor\run.py`.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
