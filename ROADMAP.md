@@ -154,9 +154,20 @@ bloquea.
 
 - [ ] Inventario de cámaras en un archivo de configuración, sin credenciales
   en Git.
-- [ ] Configuración de Frigate versionada como plantilla: go2rtc, detección
-  con CPU, clips de eventos de 7 días, zonas y máscaras.
-- [ ] Docker Compose de Frigate + Mosquitto dentro del repositorio.
+- [~] Configuración de Frigate versionada como plantilla
+  (`deploy/docker/frigate/config.template.yml`): go2rtc con una conexión por
+  cámara, detección con CPU, clips de eventos de 7 días con el stream
+  principal, y ejemplos de zonas y máscaras. Las URLs y contraseñas son
+  variables `{FRIGATE_...}` guardadas en un archivo que Git ignora. Probado el
+  2026-09-29 en un Frigate 0.17.2 aislado: acepta la plantilla sin
+  reescribirla, go2rtc recibe las URLs y guardar una máscara desde la web
+  mantiene las variables (no escribe las contraseñas). Falta usarla en el
+  Frigate de este PC (paso 3.2).
+- [~] Docker Compose de Frigate + Mosquitto dentro del repositorio
+  (`deploy/docker/compose.yml`), con versiones fijas (Frigate 0.17.2,
+  Mosquitto 2.1.2) y todos los puertos solo en `127.0.0.1`. El Frigate actual
+  de este PC tiene los puertos 8971, 8554 y 8555 abiertos a la red local; se
+  corrige al pasar a esta plantilla.
 - [ ] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
   las patrullas desactivados (la imagen tiene que quedar fija).
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
@@ -176,8 +187,13 @@ bloquea.
   Hay que vigilar el caso de un track que empieza en una persona y pasa al
   robot.
 - [ ] Detector de Frigate: pasar del detector de CPU básico (TFLite, que la
-  documentación de Frigate no recomienda) a OpenVINO en CPU, y medir si cambian
-  los falsos positivos.
+  documentación de Frigate no recomienda) a OpenVINO en CPU. El propietario
+  quiere detectar mejor a las personas (2026-09-30), así que se comparan
+  MobileNet (el modelo actual), YOLOv9 y D-FINE, todos en la CPU: consumo por
+  cámara y personas perdidas o inventadas en las grabaciones de prueba. El
+  modelo definitivo se elige después de colocar las cámaras. El reconocimiento
+  facial y la búsqueda semántica no mejoran la detección: se ejecutan sobre
+  personas ya detectadas.
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
@@ -244,28 +260,30 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-28 | Mapa solo en la pantalla local; usuario con inicio automático | Decisión del propietario |
 | 2026-09-28 | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se mide y se informa, pero no bloquea | Para contar, la fragmentación secuencial no cambia la ocupación; los errores que la rompen son los duplicados y las fusiones (ver `docs/guia.md`, sección 3) |
 | 2026-09-29 | Las Dahua dan su posición en vivo por el canal IVS (NetSDK + PlaySDK); `HumanTrait` queda como enriquecimiento con fotos, unido por `ObjectID` | Probado en la 213 con dos pruebas controladas; evita detectar en el PC para 5 de las 7 cámaras, pendiente de medir el coste de CPU |
+| 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Estimación: 100–200 GB por cámara y semana, menos de 1 TB de los 4 TB |
+| 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 
 ## Trabajo actual
 
-Rama `codex/final-pc-readiness` (desde `main` en `e6f00f5`), cerrada el
-2026-09-29 como punto de control para mergear a `main`.
+Rama `codex/frigate-stack-template` (desde `main` en `7d86d3e`): fase 3.
+La rama anterior, `codex/final-pc-readiness` (fase 2, ocupación v1 y robot
+excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 
-1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
-   `docs/guia.md`.
-2. [x] Fase 2: canal IVS en vivo validado en la 213 (HDBW7859Z-Z4-PV-X) y en
-   la 212 (HDBW7459Z-Z-PV-X); coste de CPU bajo con el stream principal.
-3. [x] Canal en vivo dentro del colector, activado por defecto. En la caminata
-   con la 212, 7 de los 9 tracks cerrados los cerró la propia cámara con su
-   `HumanTrait` (0,2–1,3 s después del último dato) y todas las fotos se
-   unieron al track en vivo: ningún track suelto de solo fotos.
-4. [x] Ocupación v1 con presencias: 93,4 % de conteo correcto en la sesión
-   real de 26 minutos. En vivo, el propietario confirmó que contaba bien.
-5. [x] Robot de Recepción excluido automáticamente mediante la clasificación
-   de Frigate (`person_validity`).
-6. [ ] Fase 3: configuración de Frigate versionada como plantilla, detector
-   OpenVINO e inventario de cámaras.
-7. [ ] Fase 4: un solo arranque.
-8. [ ] Fase 5: instalación y guía para el PC final.
+1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
+   datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
+   a la red y versiones sin fijar.
+2. [ ] **3.2 Pasar el Frigate de este PC a la plantilla.** Las URLs salen de
+   `config.yaml` y van a `deploy/docker/.env`. Frigate sigue usando su carpeta
+   actual (`frigate-runtime`, con el modelo del robot) y la cola de MQTT se
+   copia al volumen nuevo. Reinicia Frigate: necesita el OK del propietario.
+3. [ ] **3.3 Detector OpenVINO en CPU**, comparando MobileNet, YOLOv9 y
+   D-FINE: consumo de CPU y personas perdidas o inventadas.
+4. [ ] **3.4 Inventario** de las 7 cámaras en un archivo local, con un ejemplo
+   versionado. Hay que aclarar qué cámara es `puerta_planeta`, que hoy está en
+   Frigate pero no figura en el inventario.
+5. [ ] **3.5 Eufy S350:** quitar el seguimiento automático y las patrullas.
+6. [ ] Fase 4: un solo arranque.
+7. [ ] Fase 5: instalación y guía para el PC final.
 
 ## Cómo retomar en una sesión nueva
 
@@ -292,13 +310,8 @@ Rama `codex/final-pc-readiness` (desde `main` en `e6f00f5`), cerrada el
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso, la fase 3, en este orden:
-
-1. Llevar la configuración de Frigate al repositorio como **plantilla sin
-   datos del sitio** (cámaras, URLs y máscaras como ejemplos o variables).
-2. Cambiar el detector de Frigate a **OpenVINO en CPU** y medir CPU y falsos
-   positivos frente al detector actual.
-3. Inventario de las 7 cámaras en un archivo local, con un ejemplo versionado.
+Siguiente paso: el 3.2 de "Trabajo actual", pasar el Frigate de este PC a
+`deploy/docker/compose.yml`. Después, OpenVINO (3.3) y el inventario (3.4).
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

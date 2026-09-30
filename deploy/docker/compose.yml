@@ -1,0 +1,51 @@
+# Docker stack of the monitoring system: Frigate (non-Dahua cameras) and the
+# Mosquitto broker shared by Frigate and the repository services.
+#
+# Every port listens on Windows loopback only: nothing is exposed to the LAN.
+# Site data (Frigate config, database, models and clips) lives in folders
+# chosen in the ignored deploy/docker/.env file. See README.md.
+
+name: batcomputer
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.1.2-alpine
+    container_name: frigate-mqtt
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.17.2
+    container_name: frigate
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: "512mb"
+    depends_on:
+      - mqtt
+    # Provides the {FRIGATE_...} camera URLs referenced by config.yml.
+    env_file:
+      - path: .env
+        required: true
+    volumes:
+      - ${STACK_FRIGATE_CONFIG_DIR:-../../runtime/frigate/config}:/config
+      - ${STACK_FRIGATE_MEDIA_DIR:-../../runtime/frigate/media}:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      # Web UI with login.
+      - "127.0.0.1:8971:8971"
+      # Internal API without login, used by the Frigate adapter.
+      - "127.0.0.1:5000:5000"
+      # go2rtc RTSP relays, for local troubleshooting (for example with VLC).
+      - "127.0.0.1:8554:8554"
+
+volumes:
+  # Persistent MQTT sessions and queued QoS 1 messages of the track receiver.
+  mqtt-data:
+    name: batcomputer-mqtt-data
