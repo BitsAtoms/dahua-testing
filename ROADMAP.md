@@ -268,7 +268,7 @@ Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
 ### Fase 4 — Un solo arranque y operación `[ ]`
 
-- [ ] El supervisor levanta Docker además de los servicios propios, en orden,
+- [x] El supervisor levanta Docker además de los servicios propios, en orden,
   y espera a que cada pieza esté sana. Si Frigate usa el detector con GPU, el
   programa detector arranca **antes** que Frigate, y si ese programa se
   reinicia, hay que reiniciar Frigate después. Probado el 2026-09-30 en los
@@ -282,6 +282,20 @@ Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
   En los dos casos basta con reiniciar Frigate con el programa ya en marcha:
   en 13 s vuelve a detectar. Como Docker arranca Frigate en cuanto se
   enciende, el supervisor lo reinicia una vez cuando el programa está listo.
+
+  **Hecho y validado en este PC el 2026-09-30** (4.1). El orden es: Docker
+  Desktop (lo arranca si está apagado) → Mosquitto → programa detector →
+  Frigate → servicios propios. El ajuste `frigate_detector` (`cpu` o `gpu`)
+  de la configuración local del supervisor dice si hay programa detector, y
+  el supervisor avisa si Frigate usa otro detector. Probado en vivo:
+  - con Docker Desktop apagado y Frigate encendido antes, todo quedó en
+    marcha en unos 25 s y Frigate detectaba a 21 ms por imagen;
+  - al matar el programa detector, el supervisor lo volvió a arrancar en 1 s
+    y reinició Frigate, que se recuperó en un minuto;
+  - al parar el supervisor se paran los servicios, Frigate y el programa;
+    Mosquitto y Docker Desktop siguen encendidos (decisión del propietario).
+
+  Detalle en `services/local-supervisor/README.md`.
 - [ ] Panel de salud: estado de cada cámara y servicio, y retraso del
   pipeline. Para Frigate, tres señales del detector:
   - **atascado:** `process_fps` muy por debajo de `camera_fps`, con
@@ -397,8 +411,11 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
    - [x] **4.0 Frigate sin su programa detector** (2026-09-30): queda ciego
      y no se recupera solo; reiniciarlo con el programa en marcha lo arregla
      en 13 s.
-   - [ ] **4.1** El supervisor arranca Docker Desktop, Mosquitto, el programa
-     detector y Frigate, en ese orden y esperando a cada uno.
+   - [x] **4.1** El supervisor arranca Docker Desktop, Mosquitto, el programa
+     detector y Frigate, en ese orden y esperando a cada uno (2026-09-30).
+     Reinicia Frigate si arrancó antes que el programa o si el programa se
+     reinicia. Validado con un arranque en frío de Docker Desktop, una caída
+     del programa y una parada limpia.
    - [ ] **4.2** Panel de salud.
    - [ ] **4.3** Inicio de sesión automático, tarea al iniciar la sesión y
      modo kiosco, probados en este PC.
@@ -411,9 +428,10 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
 1. Leer `AGENTS.md`, este roadmap y `git status`. `docs/guia.md` explica los
    conceptos, y `docs/dahua-research.md` la evidencia de las cámaras Dahua.
 2. Qué hay en marcha en este PC de desarrollo:
-   - Docker con Frigate 0.17.2 y Mosquitto, desde
-     `docker compose -f deploy\docker\compose.yml up -d` (Docker Desktop los
-     vuelve a arrancar solo). La configuración de Frigate sigue **fuera del
+   - Docker con Frigate 0.17.2 y Mosquitto, definidos en
+     `deploy\docker\compose.yml` y arrancados por el supervisor. Docker
+     Desktop no arranca solo al iniciar sesión en este PC; lo arranca el
+     supervisor. La configuración de Frigate sigue **fuera del
      repositorio**, en la carpeta `frigate-runtime/config` del propietario, y
      es un dato del sitio: no se sube. Los cambios en ella los hace el
      propietario desde la web de Frigate (*Configuration editor*). El Compose
@@ -424,13 +442,14 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
      se puede borrar entonces.
    - El detector de Frigate en este PC vuelve a ser el de la GPU desde el
      2026-09-30 (RF-DETR Medium, detector `zmq`, decisión del propietario para
-     la fase 4). Hasta que lo arranque el supervisor (4.1), hay que arrancar
-     `experiments\frigate-zmq-detector\run_detector.ps1` a mano **antes** que
-     Frigate. Si no, Frigate queda ciego: hay que reiniciarlo con
-     `docker restart frigate`. Para volver a OpenVINO, se restauran los
-     bloques `detectors`/`model` de `deploy/docker/frigate/config.template.yml`
-     en el *Configuration editor*.
-   - El supervisor: `python services\local-supervisor\run.py`.
+     la fase 4). Por eso `services/local-supervisor/local-stack.json` (que Git
+     ignora) tiene `"frigate_detector": "gpu"`. Para volver a OpenVINO, se
+     restauran los bloques `detectors`/`model` de
+     `deploy/docker/frigate/config.template.yml` en el *Configuration editor*
+     y se pone `"cpu"` en ese archivo.
+   - El supervisor lo arranca todo: `python services\local-supervisor\run.py`.
+     Sin el supervisor, Frigate queda parado. Si se arranca Frigate a mano
+     sin el programa detector, queda ciego.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
    - `deploy/docker/.env`: carpetas de Frigate y URLs de sus cámaras;
@@ -449,9 +468,8 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: 4.1, que el supervisor levante Docker Desktop, Mosquitto, el
-programa detector con GPU y Frigate, en ese orden, y reinicie Frigate cuando
-arrancó antes que el programa o cuando el programa se reinicia.
+Siguiente paso de la fase 4: el arranque automático (4.3) o el panel de salud
+(4.2), según decida el propietario.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

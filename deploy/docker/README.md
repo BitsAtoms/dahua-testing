@@ -40,6 +40,11 @@ Copy the template only once. After that, `config.yml` belongs to the site and
 is edited in the Frigate UI or by hand; later template changes are merged into
 it deliberately, never by overwriting it.
 
+From then on the local supervisor (`services/local-supervisor`) starts
+Docker Desktop, Mosquitto and Frigate in order, and stops Frigate when it
+stops. If Frigate uses the GPU detector outside Docker, set
+`"frigate_detector": "gpu"` in the supervisor's local configuration.
+
 The template's two example cameras show the two stream layouts. Rename them,
 and their `{FRIGATE_...}` variables, to the site cameras. The Frigate camera
 names are also used by the Frigate adapter (`FRIGATE_CAMERA_FRAME_SIZES` in the

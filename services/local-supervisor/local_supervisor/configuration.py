@@ -19,6 +19,12 @@ SERVICE_NAMES = (
     "visual_reid",
 )
 
+FRIGATE_DETECTORS = ("cpu", "gpu")
+GPU_DETECTOR_SERVICE = "frigate_gpu_detector"
+# Frigate reaches it at tcp://host.docker.internal:5555; loopback only.
+GPU_DETECTOR_ENDPOINT = ("127.0.0.1", 5555)
+COMPOSE_FILE = "deploy/docker/compose.yml"
+
 
 @dataclass(frozen=True)
 class StackConfig:
@@ -28,6 +34,10 @@ class StackConfig:
     visual_device: str
     status_seconds: float
     startup_delay_seconds: float
+    docker_stack: bool = True
+    frigate_detector: str = "cpu"
+    docker_start_timeout_seconds: float = 240.0
+    compose_file: Path = Path(COMPOSE_FILE)
 
 
 @dataclass(frozen=True)
@@ -57,6 +67,9 @@ def load_config(path: Path, repository_root: Path) -> StackConfig:
         "visual_device",
         "status_seconds",
         "startup_delay_seconds",
+        "docker_stack",
+        "frigate_detector",
+        "docker_start_timeout_seconds",
     }
     unknown = sorted(set(document) - allowed)
     if unknown:
@@ -81,6 +94,16 @@ def load_config(path: Path, repository_root: Path) -> StackConfig:
     visual_device = str(document.get("visual_device", "CPU")).strip()
     if not visual_device:
         raise ValueError("visual_device cannot be empty")
+    docker_stack = _as_bool(document.get("docker_stack", True), "docker_stack")
+    frigate_detector = document.get("frigate_detector", "cpu")
+    if frigate_detector not in FRIGATE_DETECTORS:
+        raise ValueError(f"frigate_detector must be one of: {', '.join(FRIGATE_DETECTORS)}")
+    if frigate_detector == "gpu" and not docker_stack:
+        # Frigate must be restarted after the detector; only the Docker stack can.
+        raise ValueError("frigate_detector gpu requires docker_stack true")
+    docker_start_timeout_seconds = float(document.get("docker_start_timeout_seconds", 240.0))
+    if docker_start_timeout_seconds <= 0:
+        raise ValueError("docker_start_timeout_seconds must be positive")
     return StackConfig(
         enabled=enabled,
         env_file=_resolve(repository_root, document.get("env_file", ".env")),
@@ -91,6 +114,10 @@ def load_config(path: Path, repository_root: Path) -> StackConfig:
         visual_device=visual_device,
         status_seconds=status_seconds,
         startup_delay_seconds=startup_delay_seconds,
+        docker_stack=docker_stack,
+        frigate_detector=frigate_detector,
+        docker_start_timeout_seconds=docker_start_timeout_seconds,
+        compose_file=(repository_root / COMPOSE_FILE).resolve(),
     )
 
 
@@ -193,6 +220,36 @@ def build_specs(config: StackConfig, repository_root: Path) -> list[ServiceSpec]
         ),
     }
     return [definitions[name] for name in SERVICE_NAMES if config.enabled[name]]
+
+
+def build_gpu_detector_spec(config: StackConfig, repository_root: Path) -> ServiceSpec | None:
+    """The Frigate zmq detector client, only when Frigate detects on the GPU."""
+    if config.frigate_detector != "gpu":
+        return None
+    root = repository_root / "experiments/frigate-zmq-detector"
+    python = root / ".venv/Scripts/python.exe"
+    if sys.platform != "win32":
+        python = root / ".venv/bin/python"
+    client = root / "vendor/detector/zmq_onnx_client.py"
+    host, port = GPU_DETECTOR_ENDPOINT
+    return ServiceSpec(
+        GPU_DETECTOR_SERVICE,
+        (
+            str(python.resolve()),
+            "-u",
+            str(client.resolve()),
+            "--endpoint",
+            f"tcp://{host}:{port}",
+            "--model",
+            "AUTO",
+            # DirectML only, so a GPU failure is loud instead of a CPU fallback.
+            "--providers",
+            "DmlExecutionProvider",
+        ),
+        (python, client),
+        ("onnxruntime", "zmq"),
+        listen_endpoints=(GPU_DETECTOR_ENDPOINT,),
+    )
 
 
 def _resolve(root: Path, value: object) -> Path:
