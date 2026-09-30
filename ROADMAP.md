@@ -291,8 +291,9 @@ intervenga.
   colector Dahua) y un comando de verificación.
 - [ ] Guía "cómo seguir en el PC final", incluida la creación manual de los
   secretos.
-- [ ] Subir `main` a GitHub, revisando antes que no haya datos del sitio (el
-  repositorio es público).
+- [~] Subir `main` a GitHub, revisando antes que no haya datos del sitio (el
+  repositorio es público). Hecho el 2026-09-30 hasta `d95be09`, revisando cada
+  parche; hay que repetir la revisión antes de cada subida.
 
 Salida: clonar, instalar y pasar la verificación en el PC final.
 
@@ -350,9 +351,10 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 
 ## Trabajo actual
 
-Rama `codex/frigate-stack-template` (desde `main` en `7d86d3e`): fase 3.
-La rama anterior, `codex/final-pc-readiness` (fase 2, ocupación v1 y robot
-excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
+Fase 3 cerrada el 2026-09-30: la rama `codex/frigate-stack-template` está
+mergeada en `main` (`d95be09`), y `main` está subido a GitHub después de
+revisar todos los parches (sin IP, contraseñas, grabaciones ni configuración
+local). La próxima rama es para la fase 4.
 
 1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
    datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
@@ -423,10 +425,9 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: la fase 3 está cerrada en la rama
-`codex/frigate-stack-template`, pendiente de mergear a `main` y de subir
-`main` a GitHub (con revisión previa de datos del sitio). Después, la fase 4:
-un solo arranque.
+Siguiente paso: la fase 4, un solo arranque, en una rama nueva. Primer punto:
+que el supervisor levante Docker, el programa detector con GPU y Frigate, en
+ese orden, y reinicie Frigate si el programa detector se reinicia.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.
