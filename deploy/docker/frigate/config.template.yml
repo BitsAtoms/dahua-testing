@@ -1,0 +1,151 @@
+# Frigate 0.17 configuration template for the non-Dahua cameras.
+#
+# This file contains no site data. Copy it once to the Frigate config folder
+# as config.yml (see ../README.md) and adapt the copy; the copy is site data
+# and never returns to Git. Masks and zones are drawn later in the Frigate UI.
+#
+# Camera URLs and credentials are never written here. Each go2rtc source is a
+# {FRIGATE_...} variable defined in the ignored deploy/docker/.env file.
+
+# Prevents Frigate from treating this file as an old config and rewriting it.
+version: 0.17-0
+
+mqtt:
+  enabled: true
+  host: frigate-mqtt
+  port: 1883
+  topic_prefix: frigate
+
+# Detector (roadmap phase 3): OpenVINO on CPU with the SSDLite MobileNet v2
+# model bundled in the image. It replaces Frigate's default TFLite CPU
+# detector, which the Frigate documentation does not recommend, and remains
+# the fallback if a GPU detector outside Docker is adopted later.
+detectors:
+  ov:
+    type: openvino
+    device: CPU
+
+model:
+  width: 300
+  height: 300
+  input_tensor: nhwc
+  input_pixel_format: bgr
+  path: /openvino-model/ssdlite_mobilenet_v2.xml
+  labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+objects:
+  track:
+    - person
+
+detect:
+  enabled: true
+  fps: 5
+
+# Event clips only, seven days (owner decision 2026-09-28). No continuous or
+# motion-only recording. "all" keeps every segment during an event so a clip
+# has no gaps while a person stands still.
+record:
+  enabled: true
+  continuous:
+    days: 0
+  motion:
+    days: 0
+  alerts:
+    retain:
+      days: 7
+      mode: all
+  detections:
+    retain:
+      days: 7
+      mode: all
+
+snapshots:
+  enabled: true
+  retain:
+    default: 7
+
+# Off until the owner's privacy review allows face comparison with visitors.
+face_recognition:
+  enabled: false
+
+semantic_search:
+  enabled: false
+
+lpr:
+  enabled: false
+
+classification:
+  bird:
+    enabled: false
+  # Site-trained object classifiers are created in the Frigate UI
+  # (Classification) and stored in the config folder. The Frigate adapter maps
+  # their labels with FRIGATE_TRACK_CLASSIFICATION_POLICY. Example:
+  # custom:
+  #   person_validity:
+  #     enabled: true
+  #     object_config:
+  #       objects:
+  #         - person
+  #       classification_type: attribute
+  #     threshold: 0.8
+
+# One connection per camera stream. Frigate's cameras read these relays from
+# rtsp://127.0.0.1:8554/<stream name>, so detect and record share them.
+go2rtc:
+  streams:
+    hikvision_example:
+      - "{FRIGATE_HIKVISION_EXAMPLE_MAIN_URL}"
+    hikvision_example_sub:
+      - "{FRIGATE_HIKVISION_EXAMPLE_SUB_URL}"
+    eufy_example:
+      - "{FRIGATE_EUFY_EXAMPLE_URL}"
+
+cameras:
+  # Camera with a main stream (clips) and a lower-resolution stream (detect).
+  hikvision_example:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/hikvision_example_sub
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+        - path: rtsp://127.0.0.1:8554/hikvision_example
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+    # Must match the detect stream: the Frigate adapter normalizes boxes with
+    # the same size (FRIGATE_CAMERA_FRAME_SIZES).
+    detect:
+      width: 1280
+      height: 720
+    live:
+      streams:
+        Main: hikvision_example
+        Sub: hikvision_example_sub
+    # Calibrated after final camera placement, then drawn in the Frigate UI.
+    # motion:
+    #   mask: 0,0,0.2,0,0.2,0.1,0,0.1
+    # objects:
+    #   mask: 0,0.5,0.05,0.5,0.05,0.9,0,0.9
+    # zones:
+    #   doorway:
+    #     coordinates: 0.4,0.6,0.6,0.6,0.6,1,0.4,1
+
+  # Camera with a single stream used for both detect and record. Detecting on
+  # a high-resolution stream costs more CPU than on a secondary stream.
+  eufy_example:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/eufy_example
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    detect:
+      width: 1280
+      height: 720
+    live:
+      streams:
+        Main: eufy_example

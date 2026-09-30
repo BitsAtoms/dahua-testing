@@ -1,0 +1,20 @@
+{
+  "schema_version": "frigate_replay_scenarios.v1",
+  "notes": "The seven retained recordings of experiments/visual-reid (onnx-detector-matrix.json). Paths are relative to the ignored recordings folder. expected_person and expected_tracks come from that matrix and from run_deepstream_confirmation_matrix.ps1; there is no per-second ground truth. detect_size matches how production Frigate detects on that camera.",
+  "scenarios": [
+    {"name": "interference_only", "group": "recepcion", "expected_person": "absent", "expected_tracks": 0, "duration_s": 30.03, "detect_size": [704, 576],
+     "path": "20260921T113306Z-interference_only/recepcion_terminator.mkv"},
+    {"name": "person_near_interference", "group": "recepcion", "expected_person": "mixed", "expected_tracks": 1, "duration_s": 30.03, "detect_size": [704, 576],
+     "path": "20260921T143019Z-person_near_interference/recepcion_terminator.mkv"},
+    {"name": "two_person_crossing_reception", "group": "recepcion", "expected_person": "mixed", "expected_tracks": 2, "duration_s": 90.0, "detect_size": [704, 576],
+     "path": "20260923T081054Z-two_person_crossing_occlusion_alternate_camera/recepcion_terminator.mkv"},
+    {"name": "person_present_mixed_pose", "group": "reuniones", "expected_person": "present", "expected_tracks": 1, "duration_s": 30.04, "detect_size": [1280, 720],
+     "path": "20260921T143345Z-person_present_mixed_pose/reuniones_terminator.mkv"},
+    {"name": "person_present_seated_partial", "group": "reuniones", "expected_person": "present", "expected_tracks": 1, "duration_s": 30.01, "detect_size": [1280, 720],
+     "path": "20260921T143706Z-person_present_seated_partial/reuniones_terminator.mkv"},
+    {"name": "room_empty_with_displays", "group": "reuniones", "expected_person": "absent", "expected_tracks": 0, "duration_s": 30.01, "detect_size": [1280, 720],
+     "path": "20260921T144103Z-room_empty_with_displays/reuniones_terminator.mkv"},
+    {"name": "two_person_crossing_meetings", "group": "reuniones", "expected_person": "mixed", "expected_tracks": 2, "duration_s": 90.05, "detect_size": [1280, 720],
+     "path": "20260922T094309Z-two_person_crossing_occlusion/reuniones_terminator.mkv"}
+  ]
+}

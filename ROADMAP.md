@@ -38,8 +38,11 @@ cámaras.
 | A definir | No Dahua | 1–2 | Frigate | El PC (CPU) |
 
 En total son 7 cámaras y está previsto llegar a 9. Hay una segunda Hikvision
-en el portero eléctrico, que no se incorpora. Las cámaras de prueba actuales
-son la Dahua 213, la Hikvision de Recepción y la Eufy de Reuniones.
+en el portero eléctrico, un terminal de control de acceso DS-K1T502DBFWX-C
+(`puerta_planeta`), que no se procesa: solo se ve en Frigate. Las cámaras de
+prueba actuales son las Dahua 212 y 213, la Hikvision de Recepción y la Eufy
+de Reuniones. El detalle de cada una (modelo, firmware y cómo entra al
+sistema) está en el inventario local `deploy/camera-inventory.local.json`.
 
 **Operación:**
 
@@ -48,9 +51,11 @@ son la Dahua 213, la Hikvision de Recepción y la Eufy de Reuniones.
   propios → mapa en pantalla completa.
 - El mapa solo se ve en la pantalla del PC final; nada se expone a la red.
 - Retención de 7 días para todo. Frigate guarda solo clips de eventos.
-- Frigate detecta con la CPU, porque Docker en Windows no puede usar las RX.
-  Las GPU quedan para ReID y, solo si se mide que hace falta, para un
-  detector propio.
+- Frigate corre en Docker, que en Windows no puede usar las RX: decodifica
+  el vídeo en la CPU. Su detector puede pasar a una RX mediante el detector
+  externo de Frigate (tipo `zmq`), con un programa nativo de Windows; está en
+  prueba y OpenVINO en la CPU queda como respaldo. La otra GPU queda para
+  ReID.
 
 ## Qué depende de la posición final de las cámaras
 
@@ -143,30 +148,59 @@ no sirve para el mapa en vivo.
   El propietario activó NTP (`pool.ntp.org`) y ahora el desfase es de 0,67 s
   (2026-09-29). El sistema usa la hora del PC como referencia y avisará del
   desfase de cada cámara. Hay que revisar el NTP de cada cámara al
-  instalarla.
+  instalarla: `deploy/tools/camera_info.py` muestra el desfase de las Dahua y
+  las Hikvision (2026-09-30: 212 y Recepción 0 s, terminal de la puerta
+  −3 s).
 
 Salida: una decisión documentada de cómo obtiene su posición en vivo cada
 modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
 (canal IVS por el stream principal); falta el HDBW5459Z-ZHE-PV-PRO, que no
 bloquea.
 
-### Fase 3 — Frigate para las cámaras no Dahua `[ ]`
+### Fase 3 — Frigate para las cámaras no Dahua `[x]`
 
-- [ ] Inventario de cámaras en un archivo de configuración, sin credenciales
-  en Git.
-- [ ] Configuración de Frigate versionada como plantilla: go2rtc, detección
-  con CPU, clips de eventos de 7 días, zonas y máscaras.
-- [ ] Docker Compose de Frigate + Mosquitto dentro del repositorio.
-- [ ] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
-  las patrullas desactivados (la imagen tiene que quedar fija).
+- [x] Inventario de cámaras en un archivo de configuración, sin credenciales
+  en Git (2026-09-30). El ejemplo versionado es
+  `deploy/camera-inventory.example.json` y el real,
+  `deploy/camera-inventory.local.json`, que Git ignora. Cada cámara tiene
+  modelo, firmware, cómo entra al sistema, si su posición en vivo está
+  verificada y su estado (prevista, de prueba o instalada). La sala queda
+  vacía hasta la colocación definitiva. `deploy/tools/camera_info.py` lee el
+  modelo, el firmware y la hora de las Dahua y las Hikvision conectadas; la
+  Eufy no tiene interfaz para eso.
+- [x] Configuración de Frigate versionada como plantilla
+  (`deploy/docker/frigate/config.template.yml`): go2rtc con una conexión por
+  cámara, detección con CPU, clips de eventos de 7 días con el stream
+  principal, y ejemplos de zonas y máscaras. Las URLs y contraseñas son
+  variables `{FRIGATE_...}` guardadas en `deploy/docker/.env`, que Git ignora.
+  Guardar una máscara desde la web mantiene las variables: no escribe las
+  contraseñas. En uso en este PC desde el 2026-09-30.
+- [x] Docker Compose de Frigate + Mosquitto dentro del repositorio
+  (`deploy/docker/compose.yml`), con versiones fijas (Frigate 0.17.2,
+  Mosquitto 2.1.2) y todos los puertos solo en `127.0.0.1`. Validado el
+  2026-09-30 recreando los contenedores desde cero: las 3 cámaras reciben
+  imagen, Frigate está conectado a MQTT, el modelo del robot se carga y solo
+  escuchan puertos locales (antes 8971, 8554 y 8555 estaban abiertos a la red).
+- [x] **Clips con el stream principal** en Recepción y Reuniones. Medido: la
+  Hikvision DeepinView graba en 4K a unos 9 Mbps, unos 4 GB por hora con
+  gente. Con 10 horas ocupadas al día son unos 290 GB por semana solo esa
+  cámara; cabe en los 4 TB, pero hay que sumarlo con el inventario final.
+- [x] **`puerta_planeta` solo para ver** (decisión del propietario,
+  2026-09-30): sin detección ni clips. Se conecta directamente a la cámara,
+  porque esa cámara manda los datos de arranque del vídeo (SPS/PPS) solo
+  dentro del vídeo y go2rtc no los reenvía.
+- [x] Eufy S350: RTSP directo sin HomeBase y con el seguimiento automático y
+  las patrullas desactivados (la imagen tiene que quedar fija). Confirmado
+  por el propietario el 2026-09-30.
 - [ ] Hikvision DeepinView: evaluar sus eventos ISAPI como enriquecimiento
   opcional, después del MVP.
 - [~] **Robot de Recepción, detección automática.** Validado en vivo el
   2026-09-29: el modelo `person_validity` de Frigate clasificó el robot
   (confianza 0,987), su track pasó a "excluido" y Recepción volvió a 0.
-  Pendiente: que el modelo quede activado de forma persistente en Frigate,
-  vigilar el caso de un track que empieza en una persona y pasa al robot, y
-  reentrenar con las posiciones definitivas de las cámaras. Frigate lo mantiene como
+  El modelo queda activado de forma persistente: se cargó solo al recrear
+  Frigate el 2026-09-30. Pendiente: vigilar el caso de un track que empieza
+  en una persona y pasa al robot, y reentrenar con las posiciones definitivas
+  de las cámaras. Frigate lo mantiene como
   "persona" hasta 64 minutos, y un track que empezó en una persona real se
   quedó pegado al robot 42 minutos. Como el robot cambia de sitio, una máscara
   no sirve. Solución: la clasificación de objetos de Frigate 0.17 (modelo
@@ -175,18 +209,75 @@ bloquea.
   `FRIGATE_TRACK_CLASSIFICATION_POLICY` y la ocupación ignora los excluidos.
   Hay que vigilar el caso de un track que empieza en una persona y pasa al
   robot.
-- [ ] Detector de Frigate: pasar del detector de CPU básico (TFLite, que la
-  documentación de Frigate no recomienda) a OpenVINO en CPU, y medir si cambian
-  los falsos positivos.
+- [x] Detector de Frigate. El propietario quiere detectar mejor a las
+  personas y aprovechar las GPU (2026-09-30). Dos vías, en este orden:
+  1. **Respaldo en la CPU:** pasar del detector de CPU básico (TFLite, que la
+     documentación de Frigate no recomienda) a OpenVINO en la CPU. Hecho el
+     2026-09-30. Medido en este PC (i9-12900F) con la misma carga, unas 13
+     detecciones por segundo: 6,1 ms por imagen frente a 11,3 ms, pero 1 núcleo
+     de CPU frente a 0,4. Frigate configura OpenVINO para responder rápido y
+     no deja ajustarlo. Se mantiene porque es el motor que Frigate recomienda
+     para los modelos grandes en la CPU. Hay que repetir la medición en el
+     Ryzen del PC final.
+  2. **GPU:** Frigate 0.17 puede enviar las imágenes a un detector externo
+     (tipo `zmq`), un programa fuera de Docker. El equipo de Frigate publica
+     uno genérico con ONNX Runtime (`frigate-nvr/apple-silicon-detector`,
+     MIT), hecho para Mac y no documentado para Windows. En Windows puede usar
+     DirectML o MIGraphX (AMD); su preparación está en
+     `experiments/windows-onnx-gpu`. **Mecanismo validado en este PC el
+     2026-09-30** (`experiments/frigate-zmq-detector`), con RF-DETR Medium a
+     320×320 en la RTX 3050 (DirectML, sin ninguna operación en la CPU):
+     37 ms por imagen vistos por Frigate (13 ms de modelo, 8 ms de viaje
+     desde Docker), y detectar pasa a costar un 6 % de un núcleo frente al
+     41–104 % de antes. Frigate registró personas con confianza 0,79–0,99. El
+     rendimiento con las RX se mide en el PC final (fase 6).
+
+  Hallazgos que condicionan la elección del modelo:
+  - Frigate no aplica la normalización de color que espera RF-DETR, y puntúa
+    sus detecciones de otra forma que el banco de pruebas de
+    `experiments/visual-reid`. Por eso la exportación para Frigate lleva la
+    normalización dentro, y la calidad se mide a través del propio Frigate,
+    re-emitiendo las grabaciones de prueba como cámaras virtuales.
+  - YOLOv9 tiene licencia GPL-3.0; RF-DETR y D-FINE, Apache-2.0.
+
+  **Comparación a través de Frigate** (2026-09-30,
+  `experiments/frigate-replay-bench`): las 7 grabaciones de prueba entran en
+  bucle en un Frigate aislado, con cada modelo a 320×320.
+  - MobileNet (el actual) no inventa personas, pero en las poses variadas solo
+    ve a la persona un 33 % del tiempo, y en los cruces cuenta una tercera
+    persona.
+  - **RF-DETR M y YOLOv9 M**: cero falsos positivos con el robot y con las
+    pantallas, cobertura completa y el mejor cruce en Recepción (nunca más de 2
+    personas). RF-DETR fragmenta algo menos.
+  - D-FINE M queda descartado: toma al robot por una persona todo el tiempo y
+    en DirectML da resultados incorrectos.
+  - Con 3–4 cámaras a la vez, un solo detector en la RTX 3050 no dio abasto
+    (se saltó hasta un 34 % de las imágenes), lo que infla la fragmentación.
+
+  Recomendación: RF-DETR M como modelo principal en la GPU, y YOLOv9 M como
+  alternativa; los dos quedan exportados. Son aproximaciones sin anotación
+  segundo a segundo y con las cámaras en posiciones provisionales: el modelo
+  definitivo se elige en el PC final, después de colocar las cámaras. El
+  reconocimiento facial y la búsqueda semántica no mejoran la detección: se
+  ejecutan sobre personas ya detectadas.
+- Quedan para más adelante: el enriquecimiento con ISAPI de la Hikvision
+  (opcional, después del MVP) y reentrenar el modelo del robot al colocar las
+  cámaras (fase 7).
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
 ### Fase 4 — Un solo arranque y operación `[ ]`
 
 - [ ] El supervisor levanta Docker además de los servicios propios, en orden,
-  y espera a que cada pieza esté sana.
+  y espera a que cada pieza esté sana. Si Frigate usa el detector con GPU, el
+  programa detector arranca **antes** que Frigate, y si ese programa se
+  reinicia, hay que reiniciar Frigate después. Probado el 2026-09-30: tras
+  una caída del programa, Frigate no se recupera solo (las cámaras quedan
+  atascadas) hasta que se reinicia.
 - [ ] Panel de salud: estado de cada cámara y servicio, y retraso del
-  pipeline.
+  pipeline. Para Frigate, dos señales de atasco del detector: `process_fps`
+  muy por debajo de `camera_fps`, con `skipped_fps` cerca de los fps de la
+  cámara, y un tiempo por imagen absurdo o congelado.
 - [ ] Arranque automático: inicio de sesión automático, tarea al iniciar la
   sesión y navegador en modo kiosco.
 - [ ] Recuperación ante cámara caída, reinicio de Docker y corte de luz.
@@ -211,6 +302,12 @@ Salida: clonar, instalar y pasar la verificación en el PC final.
   futuras, con grabaciones re-emitidas por RTSP): CPU, RAM, disco y retrasos
   p50/p95/p99.
 - [ ] Prueba prolongada de 24–72 h con cámaras virtuales.
+- [ ] Detector de Frigate en una RX 9070 XT (detector externo `zmq` con
+  MIGraphX o DirectML): tiempo por imagen, CPU liberada y comportamiento si el
+  programa externo se cae (respaldo en la CPU). Medir cuántas cámaras aguanta
+  un detector y probar uno por GPU (dos programas y dos detectores `zmq`),
+  porque en la RTX 3050 uno solo no dio abasto con 4 cámaras. Probar D-FINE
+  con MIGraphX. El banco `experiments/frigate-replay-bench` sirve de base.
 - [ ] Si se usa la GPU: verificar que funciona desde el arranque automático.
 
 ### Fase 7 — Colocación de cámaras y aceptación `[ ]`
@@ -244,40 +341,74 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-28 | Mapa solo en la pantalla local; usuario con inicio automático | Decisión del propietario |
 | 2026-09-28 | El tracking se acepta por conteo correcto por sala y cero fusiones de identidad; la fragmentación se mide y se informa, pero no bloquea | Para contar, la fragmentación secuencial no cambia la ocupación; los errores que la rompen son los duplicados y las fusiones (ver `docs/guia.md`, sección 3) |
 | 2026-09-29 | Las Dahua dan su posición en vivo por el canal IVS (NetSDK + PlaySDK); `HumanTrait` queda como enriquecimiento con fotos, unido por `ObjectID` | Probado en la 213 con dos pruebas controladas; evita detectar en el PC para 5 de las 7 cámaras, pendiente de medir el coste de CPU |
+| 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Medido en la Hikvision 4K: unos 4 GB por hora con gente (unos 290 GB por semana con 10 h diarias) |
+| 2026-09-30 | `puerta_planeta` queda solo para ver, sin detección ni clips | Decisión del propietario: no se procesa, pero quiere verla en Frigate |
+| 2026-09-30 | Detector de Frigate: OpenVINO en la CPU como respaldo, y prueba de la GPU con el detector externo de Frigate (`zmq`) y un programa nativo de Windows | Decisión del propietario: aprovechar las RX 9070 XT sin sacar Frigate de Docker. Docker en Windows no da acceso a las GPU AMD; la versión ROCm de Frigate necesita Linux |
+| 2026-09-30 | Modelo recomendado para el detector de Frigate en la GPU: RF-DETR M, con YOLOv9 M como alternativa; D-FINE M descartado | Comparación a través de Frigate con las grabaciones de prueba; la elección final se hace en el PC final tras colocar las cámaras |
+| 2026-09-30 | Las licencias de los modelos (por ejemplo, GPL-3.0 de YOLOv9) no limitan la elección: se busca la mejor detección | Decisión del propietario: el sistema es una demo interna de capacidades y no se comercializa |
+| 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 
 ## Trabajo actual
 
-Rama `codex/final-pc-readiness` (desde `main` en `e6f00f5`), cerrada el
-2026-09-29 como punto de control para mergear a `main`.
+Rama `codex/frigate-stack-template` (desde `main` en `7d86d3e`): fase 3.
+La rama anterior, `codex/final-pc-readiness` (fase 2, ocupación v1 y robot
+excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 
-1. [x] Documentación al día: este roadmap, `AGENTS.md`, `README.md` y
-   `docs/guia.md`.
-2. [x] Fase 2: canal IVS en vivo validado en la 213 (HDBW7859Z-Z4-PV-X) y en
-   la 212 (HDBW7459Z-Z-PV-X); coste de CPU bajo con el stream principal.
-3. [x] Canal en vivo dentro del colector, activado por defecto. En la caminata
-   con la 212, 7 de los 9 tracks cerrados los cerró la propia cámara con su
-   `HumanTrait` (0,2–1,3 s después del último dato) y todas las fotos se
-   unieron al track en vivo: ningún track suelto de solo fotos.
-4. [x] Ocupación v1 con presencias: 93,4 % de conteo correcto en la sesión
-   real de 26 minutos. En vivo, el propietario confirmó que contaba bien.
-5. [x] Robot de Recepción excluido automáticamente mediante la clasificación
-   de Frigate (`person_validity`).
-6. [ ] Fase 3: configuración de Frigate versionada como plantilla, detector
-   OpenVINO e inventario de cámaras.
-7. [ ] Fase 4: un solo arranque.
-8. [ ] Fase 5: instalación y guía para el PC final.
+1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
+   datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
+   a la red y versiones sin fijar.
+2. [x] **3.2 El Frigate de este PC usa la plantilla** (2026-09-30). Las URLs
+   están en `deploy/docker/.env`. Frigate sigue usando su carpeta
+   (`frigate-runtime`, con el modelo del robot), y la cola de MQTT se copió al
+   volumen nuevo. `puerta_planeta` queda solo para ver.
+3. [x] **3.3a Detector OpenVINO en la CPU** (respaldo), activo en este PC
+   desde el 2026-09-30: responde en la mitad de tiempo, pero gasta unas 2,5
+   veces más CPU que TFLite con la misma carga.
+4. [x] **3.3b Detector externo con GPU** en este PC (RTX 3050), validado el
+   2026-09-30 con RF-DETR Medium: Frigate detecta a través del programa
+   nativo de Windows, y detectar pasa a costar un 6 % de un núcleo. Probada
+   también la caída del programa: exige reiniciar Frigate. Hasta la fase 4,
+   este PC vuelve a OpenVINO, porque el programa todavía no arranca solo.
+5. [x] **3.3c Comparar modelos a través de Frigate** (2026-09-30), con las
+   grabaciones de prueba como cámaras virtuales: RF-DETR M y YOLOv9 M superan
+   claramente a MobileNet; D-FINE M queda descartado.
+6. [x] **3.4 Inventario** de las cámaras en un archivo local, con un ejemplo
+   versionado (2026-09-30). `puerta_planeta` resultó ser el terminal de
+   control de acceso de la puerta. Las salas se asignan al colocar las
+   cámaras.
+7. [x] **3.5 Eufy S350:** sin seguimiento automático ni patrullas (confirmado
+   por el propietario, 2026-09-30).
+8. [ ] Fase 4: un solo arranque.
+9. [ ] Fase 5: instalación y guía para el PC final.
 
 ## Cómo retomar en una sesión nueva
 
 1. Leer `AGENTS.md`, este roadmap y `git status`. `docs/guia.md` explica los
    conceptos, y `docs/dahua-research.md` la evidencia de las cámaras Dahua.
 2. Qué hay en marcha en este PC de desarrollo:
-   - Docker con Frigate 0.17.2 y Mosquitto. La configuración de Frigate está
-     **fuera del repositorio**, en la carpeta `frigate-runtime/config` del
-     propietario, y es un dato del sitio: no se sube.
+   - Docker con Frigate 0.17.2 y Mosquitto, desde
+     `docker compose -f deploy\docker\compose.yml up -d` (Docker Desktop los
+     vuelve a arrancar solo). La configuración de Frigate sigue **fuera del
+     repositorio**, en la carpeta `frigate-runtime/config` del propietario, y
+     es un dato del sitio: no se sube. Los cambios en ella los hace el
+     propietario desde la web de Frigate (*Configuration editor*). El Compose
+     anterior quedó como `frigate-runtime/docker-compose.yml.old`, y la
+     configuración anterior (con contraseñas) como
+     `config.pre-template-20260930.yaml`: se puede borrar a partir del
+     2026-10-07. El volumen viejo `frigate-adapter_frigate-mqtt-data` también
+     se puede borrar entonces.
+   - El detector de Frigate en este PC es OpenVINO en la CPU (decisión del
+     propietario, 2026-09-30, hasta la fase 4). El detector con GPU está
+     probado pero apagado. Para volver a usarlo: arrancar
+     `experiments\frigate-zmq-detector\run_detector.ps1` en una ventana
+     propia, cambiar `detectors`/`model` en el *Configuration editor* según
+     `experiments/frigate-zmq-detector/README.md` y reiniciar Frigate. El
+     modelo ya está en `frigate-runtime/config/model_cache`.
    - El supervisor: `python services\local-supervisor\run.py`.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
+   - `deploy/docker/.env`: carpetas de Frigate y URLs de sus cámaras;
+   - `deploy/camera-inventory.local.json`: inventario de cámaras;
    - `.env.dahua_212`: datos de la 212 para el programa de prueba;
    - `experiments/dahua-netsdk/cameras.local.json`: 213 y 212;
    - `runtime/space-mapper/space-map.json`: la 212 está en "Espacio 2", donde
@@ -292,13 +423,10 @@ Rama `codex/final-pc-readiness` (desde `main` en `e6f00f5`), cerrada el
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso, la fase 3, en este orden:
-
-1. Llevar la configuración de Frigate al repositorio como **plantilla sin
-   datos del sitio** (cámaras, URLs y máscaras como ejemplos o variables).
-2. Cambiar el detector de Frigate a **OpenVINO en CPU** y medir CPU y falsos
-   positivos frente al detector actual.
-3. Inventario de las 7 cámaras en un archivo local, con un ejemplo versionado.
+Siguiente paso: la fase 3 está cerrada en la rama
+`codex/frigate-stack-template`, pendiente de mergear a `main` y de subir
+`main` a GitHub (con revisión previa de datos del sitio). Después, la fase 4:
+un solo arranque.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

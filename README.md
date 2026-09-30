@@ -30,6 +30,8 @@ Supervisor: arranca y vigila todas las piezas
 | Pieza | Carpeta |
 |---|---|
 | Colector Dahua (C++ NetSDK + Python) | `experiments/dahua-netsdk/` |
+| Frigate y Mosquitto en Docker (plantilla sin datos del sitio) | `deploy/docker/` |
+| Inventario de cámaras (ejemplo) y lectura de modelo, firmware y hora | `deploy/camera-inventory.example.json`, `deploy/tools/` |
 | Adaptador de Frigate | `experiments/frigate-adapter/` |
 | Contratos de mensajes | `contracts/` |
 | Transporte durable (outbox MQTT) | `services/track-transport/` |
@@ -37,15 +39,19 @@ Supervisor: arranca y vigila todas las piezas
 | Tracking engine | `services/tracking-engine/` |
 | Mapa, editor y monitor | `services/space-mapper/` |
 | Supervisor del stack | `services/local-supervisor/` |
+| Detector de Frigate en la GPU, fuera de Docker (en prueba) | `experiments/frigate-zmq-detector/` |
+| Banco para comparar detectores a través de Frigate | `experiments/frigate-replay-bench/` |
 | Evidencia visual y benchmarks de visión | `experiments/visual-reid/` |
 | Prueba de GPU en Windows | `experiments/windows-onnx-gpu/` |
 | SDK oficial de Dahua (sin modificar) | `NetSDK/` |
 
 ## Arranque actual (desarrollo)
 
-Frigate y Mosquitto se levantan antes, por separado. Después:
+Frigate y Mosquitto se levantan antes, con Docker (después Docker Desktop los
+vuelve a arrancar solo):
 
 ```powershell
+docker compose -f deploy\docker\compose.yml up -d
 python services\local-supervisor\run.py --check
 python services\local-supervisor\run.py
 ```

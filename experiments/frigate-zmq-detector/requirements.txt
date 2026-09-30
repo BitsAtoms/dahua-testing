@@ -1,0 +1,6 @@
+# Python 3.12 on Windows. Series match the pinned client's own requirements,
+# with onnxruntime-directml replacing onnxruntime so the GPU can be used.
+numpy==2.4.6
+onnxruntime-directml==1.24.4
+opencv-python-headless==4.13.0.92
+pyzmq==27.1.0

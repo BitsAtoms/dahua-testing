@@ -1,0 +1,26 @@
+# Isolated Frigate for replaying retained recordings through each detector.
+# Its own broker and network: nothing reaches the real Frigate, broker or
+# track receiver, and no port is published. bench.py drives it.
+name: frigate-bench
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.1.2-alpine
+    container_name: frigate-bench-mqtt
+    volumes:
+      - ../../deploy/docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.17.2
+    container_name: frigate-bench
+    shm_size: "512mb"
+    depends_on:
+      - mqtt
+    volumes:
+      - ${BENCH_ROOT:-../../runtime/frigate-bench}/config:/config
+      - ${BENCH_ROOT:-../../runtime/frigate-bench}/media:/media/frigate
+      - ${BENCH_RECORDINGS:-../visual-reid/output/detector-benchmark}:/bench:ro
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000

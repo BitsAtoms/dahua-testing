@@ -1,0 +1,54 @@
+{
+  "schema_version": "camera_inventory.v1",
+  "notes": "Copy to deploy/camera-inventory.local.json (ignored). No addresses or credentials here: those stay in the ignored .env files. camera_id is the identifier used by Frigate or the Dahua collector, null until the camera is connected. space stays null until final placement.",
+  "cameras": [
+    {
+      "inventory_id": "cam-01",
+      "camera_id": "dahua_example",
+      "brand": "Dahua",
+      "model": "DH-IPC-EXAMPLE",
+      "firmware": "0.000.0000000.0.R",
+      "ingestion": "dahua_collector",
+      "live_position": "ivs",
+      "status": "test",
+      "space": null,
+      "notes": "Connected at a provisional position."
+    },
+    {
+      "inventory_id": "cam-02",
+      "camera_id": null,
+      "brand": "Dahua",
+      "model": "DH-IPC-EXAMPLE-2",
+      "firmware": null,
+      "ingestion": "dahua_collector",
+      "live_position": "to_verify",
+      "status": "planned",
+      "space": null,
+      "notes": "Not connected yet; verify the IVS live channel when connected."
+    },
+    {
+      "inventory_id": "cam-03",
+      "camera_id": "hikvision_example",
+      "brand": "Hikvision",
+      "model": "EXAMPLE-MODEL",
+      "firmware": null,
+      "ingestion": "frigate",
+      "live_position": "frigate",
+      "status": "test",
+      "space": null,
+      "notes": ""
+    },
+    {
+      "inventory_id": "cam-04",
+      "camera_id": "view_only_example",
+      "brand": "Hikvision",
+      "model": "EXAMPLE-TERMINAL",
+      "firmware": null,
+      "ingestion": "frigate_view_only",
+      "live_position": "none",
+      "status": "test",
+      "space": null,
+      "notes": "Shown in Frigate, not processed."
+    }
+  ]
+}
