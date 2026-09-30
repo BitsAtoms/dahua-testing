@@ -1,0 +1,77 @@
+{
+  "schema_version": "frigate_replay_profiles.v1",
+  "notes": "One Frigate detector configuration per profile. 'model_file' is copied into the bench Frigate model_cache; zmq profiles need experiments/frigate-zmq-detector/run_detector.ps1 running. The zmq request timeout is raised to 1000 ms so that quality is not mixed with transport timeouts; latency is reported separately. D-FINE runs on OpenVINO CPU: on DirectML (ONNX Runtime 1.24.4) it returned no detections where the CPU found objects.",
+  "profiles": {
+    "openvino-mobilenet": {
+      "detectors": {
+        "ov": {
+          "type": "openvino",
+          "device": "CPU"
+        }
+      },
+      "model": {
+        "width": 300,
+        "height": 300,
+        "input_tensor": "nhwc",
+        "input_pixel_format": "bgr",
+        "path": "/openvino-model/ssdlite_mobilenet_v2.xml",
+        "labelmap_path": "/openvino-model/coco_91cl_bkgr.txt"
+      }
+    },
+    "zmq-rfdetr-m-320": {
+      "model_file": "rfdetr-medium-320-frigate.onnx",
+      "detectors": {
+        "gpu": {
+          "type": "zmq",
+          "endpoint": "tcp://host.docker.internal:5555",
+          "request_timeout_ms": 1000
+        }
+      },
+      "model": {
+        "model_type": "rfdetr",
+        "width": 320,
+        "height": 320,
+        "input_tensor": "nchw",
+        "input_dtype": "float",
+        "path": "/config/model_cache/rfdetr-medium-320-frigate.onnx"
+      }
+    },
+    "zmq-yolov9-m-320": {
+      "model_file": "yolov9-m-320.onnx",
+      "detectors": {
+        "gpu": {
+          "type": "zmq",
+          "endpoint": "tcp://host.docker.internal:5555",
+          "request_timeout_ms": 1000
+        }
+      },
+      "model": {
+        "model_type": "yolo-generic",
+        "width": 320,
+        "height": 320,
+        "input_tensor": "nchw",
+        "input_dtype": "float",
+        "path": "/config/model_cache/yolov9-m-320.onnx",
+        "labelmap_path": "/labelmap/coco-80.txt"
+      }
+    },
+    "openvino-dfine-m-320": {
+      "model_file": "dfine-m-320.onnx",
+      "detectors": {
+        "ov": {
+          "type": "openvino",
+          "device": "CPU"
+        }
+      },
+      "model": {
+        "model_type": "dfine",
+        "width": 320,
+        "height": 320,
+        "input_tensor": "nchw",
+        "input_dtype": "float",
+        "path": "/config/model_cache/dfine-m-320.onnx",
+        "labelmap_path": "/labelmap/coco-80.txt"
+      }
+    }
+  }
+}

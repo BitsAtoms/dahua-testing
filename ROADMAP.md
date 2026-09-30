@@ -157,7 +157,7 @@ modelo Dahua. Ya está tomada para el HDBW7859Z-Z4-PV-X y el HDBW7459Z-Z-PV-X
 (canal IVS por el stream principal); falta el HDBW5459Z-ZHE-PV-PRO, que no
 bloquea.
 
-### Fase 3 — Frigate para las cámaras no Dahua `[~]`
+### Fase 3 — Frigate para las cámaras no Dahua `[x]`
 
 - [x] Inventario de cámaras en un archivo de configuración, sin credenciales
   en Git (2026-09-30). El ejemplo versionado es
@@ -209,7 +209,7 @@ bloquea.
   `FRIGATE_TRACK_CLASSIFICATION_POLICY` y la ocupación ignora los excluidos.
   Hay que vigilar el caso de un track que empieza en una persona y pasa al
   robot.
-- [ ] Detector de Frigate. El propietario quiere detectar mejor a las
+- [x] Detector de Frigate. El propietario quiere detectar mejor a las
   personas y aprovechar las GPU (2026-09-30). Dos vías, en este orden:
   1. **Respaldo en la CPU:** pasar del detector de CPU básico (TFLite, que la
      documentación de Frigate no recomienda) a OpenVINO en la CPU. Hecho el
@@ -240,11 +240,29 @@ bloquea.
     re-emitiendo las grabaciones de prueba como cámaras virtuales.
   - YOLOv9 tiene licencia GPL-3.0; RF-DETR y D-FINE, Apache-2.0.
 
-  Se comparan MobileNet (el modelo actual), RF-DETR, D-FINE y, si la licencia
-  sirve, YOLOv9: consumo y personas perdidas o inventadas. El modelo
-  definitivo se elige después de colocar las cámaras. El reconocimiento
-  facial y la búsqueda semántica no mejoran la detección: se ejecutan sobre
-  personas ya detectadas.
+  **Comparación a través de Frigate** (2026-09-30,
+  `experiments/frigate-replay-bench`): las 7 grabaciones de prueba entran en
+  bucle en un Frigate aislado, con cada modelo a 320×320.
+  - MobileNet (el actual) no inventa personas, pero en las poses variadas solo
+    ve a la persona un 33 % del tiempo, y en los cruces cuenta una tercera
+    persona.
+  - **RF-DETR M y YOLOv9 M**: cero falsos positivos con el robot y con las
+    pantallas, cobertura completa y el mejor cruce en Recepción (nunca más de 2
+    personas). RF-DETR fragmenta algo menos.
+  - D-FINE M queda descartado: toma al robot por una persona todo el tiempo y
+    en DirectML da resultados incorrectos.
+  - Con 3–4 cámaras a la vez, un solo detector en la RTX 3050 no dio abasto
+    (se saltó hasta un 34 % de las imágenes), lo que infla la fragmentación.
+
+  Recomendación: RF-DETR M como modelo principal en la GPU, y YOLOv9 M como
+  alternativa; los dos quedan exportados. Son aproximaciones sin anotación
+  segundo a segundo y con las cámaras en posiciones provisionales: el modelo
+  definitivo se elige en el PC final, después de colocar las cámaras. El
+  reconocimiento facial y la búsqueda semántica no mejoran la detección: se
+  ejecutan sobre personas ya detectadas.
+- Quedan para más adelante: el enriquecimiento con ISAPI de la Hikvision
+  (opcional, después del MVP) y reentrenar el modelo del robot al colocar las
+  cámaras (fase 7).
 
 Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 
@@ -286,7 +304,10 @@ Salida: clonar, instalar y pasar la verificación en el PC final.
 - [ ] Prueba prolongada de 24–72 h con cámaras virtuales.
 - [ ] Detector de Frigate en una RX 9070 XT (detector externo `zmq` con
   MIGraphX o DirectML): tiempo por imagen, CPU liberada y comportamiento si el
-  programa externo se cae (respaldo en la CPU).
+  programa externo se cae (respaldo en la CPU). Medir cuántas cámaras aguanta
+  un detector y probar uno por GPU (dos programas y dos detectores `zmq`),
+  porque en la RTX 3050 uno solo no dio abasto con 4 cámaras. Probar D-FINE
+  con MIGraphX. El banco `experiments/frigate-replay-bench` sirve de base.
 - [ ] Si se usa la GPU: verificar que funciona desde el arranque automático.
 
 ### Fase 7 — Colocación de cámaras y aceptación `[ ]`
@@ -323,6 +344,8 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-29 | Los clips de eventos de Frigate se graban con el stream principal | Decisión del propietario: más detalle al revisar. Medido en la Hikvision 4K: unos 4 GB por hora con gente (unos 290 GB por semana con 10 h diarias) |
 | 2026-09-30 | `puerta_planeta` queda solo para ver, sin detección ni clips | Decisión del propietario: no se procesa, pero quiere verla en Frigate |
 | 2026-09-30 | Detector de Frigate: OpenVINO en la CPU como respaldo, y prueba de la GPU con el detector externo de Frigate (`zmq`) y un programa nativo de Windows | Decisión del propietario: aprovechar las RX 9070 XT sin sacar Frigate de Docker. Docker en Windows no da acceso a las GPU AMD; la versión ROCm de Frigate necesita Linux |
+| 2026-09-30 | Modelo recomendado para el detector de Frigate en la GPU: RF-DETR M, con YOLOv9 M como alternativa; D-FINE M descartado | Comparación a través de Frigate con las grabaciones de prueba; la elección final se hace en el PC final tras colocar las cámaras |
+| 2026-09-30 | Las licencias de los modelos (por ejemplo, GPL-3.0 de YOLOv9) no limitan la elección: se busca la mejor detección | Decisión del propietario: el sistema es una demo interna de capacidades y no se comercializa |
 | 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 
 ## Trabajo actual
@@ -346,9 +369,9 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
    nativo de Windows, y detectar pasa a costar un 6 % de un núcleo. Probada
    también la caída del programa: exige reiniciar Frigate. Hasta la fase 4,
    este PC vuelve a OpenVINO, porque el programa todavía no arranca solo.
-5. [ ] **3.3c Comparar modelos a través de Frigate**, re-emitiendo las
-   grabaciones de prueba como cámaras virtuales: MobileNet, RF-DETR, D-FINE
-   (y YOLOv9 si su licencia sirve).
+5. [x] **3.3c Comparar modelos a través de Frigate** (2026-09-30), con las
+   grabaciones de prueba como cámaras virtuales: RF-DETR M y YOLOv9 M superan
+   claramente a MobileNet; D-FINE M queda descartado.
 6. [x] **3.4 Inventario** de las cámaras en un archivo local, con un ejemplo
    versionado (2026-09-30). `puerta_planeta` resultó ser el terminal de
    control de acceso de la puerta. Las salas se asignan al colocar las
@@ -400,8 +423,10 @@ excluido), está mergeada en `main` local, que todavía no se subió a GitHub.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso: el 3.3c de "Trabajo actual", comparar modelos a través de
-Frigate con las grabaciones de prueba. Es lo último que queda de la fase 3.
+Siguiente paso: la fase 3 está cerrada en la rama
+`codex/frigate-stack-template`, pendiente de mergear a `main` y de subir
+`main` a GitHub (con revisión previa de datos del sitio). Después, la fase 4:
+un solo arranque.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

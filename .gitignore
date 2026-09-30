@@ -27,3 +27,4 @@ experiments/frigate-zmq-detector/vendor/
 experiments/frigate-zmq-detector/models/
 experiments/frigate-zmq-detector/output/
 deploy/camera-inventory.local.json
+experiments/frigate-replay-bench/output/

@@ -13,6 +13,7 @@ merely created on the GPU does not count.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 from pathlib import Path
 import sys
@@ -37,6 +38,19 @@ def session(model: Path, provider: str, profile_dir: Path | None, device_id: int
     return ort.InferenceSession(str(model), sess_options=options, providers=[(provider, provider_options)])
 
 
+def build_feeds(reference: ort.InferenceSession) -> dict[str, np.ndarray]:
+    """A random image in [0, 1]; an int64 input gets the image size (D-FINE)."""
+    inputs = reference.get_inputs()
+    image = inputs[0]
+    shape = [d if isinstance(d, int) and d > 0 else 1 for d in image.shape]
+    feeds = {image.name: np.random.default_rng(20260930).random(shape, dtype=np.float32)}
+    for extra in inputs[1:]:
+        if extra.type != "tensor(int64)":
+            raise ValueError(f"unsupported extra input {extra.name} {extra.type}")
+        feeds[extra.name] = np.array([[shape[2], shape[3]]], dtype=np.int64)
+    return feeds
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("model", type=Path)
@@ -47,27 +61,36 @@ def main() -> int:
     args = parser.parse_args()
 
     reference = session(args.model, "CPUExecutionProvider", None, 0)
-    shape = [int(d) for d in reference.get_inputs()[0].shape]
-    pixels = np.random.default_rng(20260930).random(shape, dtype=np.float32)
-    feed_name = reference.get_inputs()[0].name
-    expected = reference.run(None, {feed_name: pixels})
+    feeds = build_feeds(reference)
+    shape = list(next(iter(feeds.values())).shape)
+    expected = reference.run(None, feeds)
 
     with tempfile.TemporaryDirectory() as directory:
         gpu = session(args.model, args.provider, Path(directory), args.device_id)
-        actual = gpu.run(None, {feed_name: pixels})
+        actual = gpu.run(None, feeds)
         profile = Path(gpu.end_profiling())
-        placement = analyze_profile(json.loads(profile.read_text(encoding="utf-8")), args.provider)
+        events = json.loads(profile.read_text(encoding="utf-8"))
+        placement = analyze_profile(events, args.provider)
+        cpu_ops = Counter(
+            (event.get("args") or {}).get("op_name") for event in events
+            if (event.get("args") or {}).get("provider") == "CPUExecutionProvider"
+        )
 
     timed = session(args.model, args.provider, None, args.device_id)
     for _ in range(5):
-        timed.run(None, {feed_name: pixels})
+        timed.run(None, feeds)
     latencies = []
     for _ in range(args.runs):
         start = time.perf_counter()
-        timed.run(None, {feed_name: pixels})
+        timed.run(None, feeds)
         latencies.append((time.perf_counter() - start) * 1000.0)
 
-    difference = max(float(np.max(np.abs(a - e))) for a, e in zip(actual, expected))
+    # Order-insensitive: detectors that sort by score may swap near-ties.
+    difference = max(
+        float(np.max(np.abs(np.sort(np.asarray(a, dtype=np.float64).ravel())
+                            - np.sort(np.asarray(e, dtype=np.float64).ravel()))))
+        for a, e in zip(actual, expected)
+    )
     report = {
         "model": args.model.name,
         "provider": args.provider,
@@ -75,6 +98,7 @@ def main() -> int:
         "onnxruntime": ort.__version__,
         "input_shape": shape,
         **placement,
+        "cpu_ops": dict(cpu_ops) if args.provider != "CPUExecutionProvider" else {},
         "max_abs_diff_vs_cpu": difference,
         "latency_ms_p50": round(percentile(latencies, 0.50), 2),
         "latency_ms_p95": round(percentile(latencies, 0.95), 2),

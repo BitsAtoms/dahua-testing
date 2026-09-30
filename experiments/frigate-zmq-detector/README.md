@@ -22,6 +22,7 @@ evaluation, not a supported configuration.
 ## Files
 
 ```text
+export/*.Dockerfile        pinned YOLOv9 and D-FINE export recipes
 requirements.txt           pinned Python 3.12 dependencies (onnxruntime-directml)
 fetch_client.py            downloads the client at a pinned commit, checks SHA-256
 export_rfdetr_frigate.py   RF-DETR Medium 320x320 with normalization in the graph
@@ -162,6 +163,52 @@ and a few frames were skipped. For more cameras: a second client on another
 port (possibly on the other GPU) configured as a second `zmq` detector, and
 sending `uint8` instead of `float32` (with the /255 moved into the graph)
 would cut the transfer by four.
+
+## More models: YOLOv9 and D-FINE
+
+`export/yolov9.Dockerfile` and `export/dfine.Dockerfile` are Frigate 0.17's
+documented export recipes pinned to upstream commits. The build context is
+the small `export/` folder:
+
+```powershell
+docker build experiments/frigate-zmq-detector/export -f experiments/frigate-zmq-detector/export/yolov9.Dockerfile --build-arg MODEL_SIZE=m --build-arg IMG_SIZE=320 --output experiments/frigate-zmq-detector/models
+docker build experiments/frigate-zmq-detector/export -f experiments/frigate-zmq-detector/export/dfine.Dockerfile --build-arg MODEL_SIZE=m --build-arg IMG_SIZE=320 --output experiments/frigate-zmq-detector/models
+```
+
+Two changes to the documented recipes were needed on 2026-09-30:
+
+- **torch pinned to 2.8.0 (CPU wheels).** Unpinned, the recipes installed
+  torch 2.14, whose dynamo exporter forces ONNX opset 18 ("requested
+  opset_version 12 is lower"). DirectML in ONNX Runtime 1.24.4 then fails to
+  create the session with `80070057 The parameter is incorrect`
+  (`MLOperatorAuthorImpl.cpp(2853)`), and ONNX Runtime silently falls back to
+  the CPU. torch 2.8.0 keeps the classic exporter: opset 12 for YOLOv9 and 16
+  for D-FINE.
+- **D-FINE at 320.** The recipe hard-codes 640. The model precomputes its
+  positional embeddings and decoder anchors for `eval_spatial_size`, so the
+  recipe also sets that size and keeps the anchor grid and valid mask the
+  model generated instead of the 640 ones stored in the checkpoint (they are
+  not learned).
+
+Weight checksums printed by the builds: `yolov9-m-converted.pt`
+`4f60eef3...a2349`, `dfine_m_obj2coco.pth` `183caeb1...3ec1d8`.
+
+On Windows the DirectML error text is localized (Spanish here) and ONNX
+Runtime's Python binding cannot decode it, which hides it behind a UTF-8
+error. Calling `SetThreadUILanguage(0x0409)` through `ctypes` before creating
+the session shows it in English.
+
+`verify_model.py` results on the RTX 3050 (ONNX Runtime 1.24.4):
+
+| Model (320x320) | DirectML placement | p50 | Matches CPU |
+|---|---|---:|---|
+| RF-DETR Medium (normalization prepended) | all nodes | 13.4 ms | yes (4.9e-4) |
+| YOLOv9-M (opset 12) | all nodes | 9.5 ms | yes (7.2e-4; same scores on a real frame) |
+| D-FINE-M (opset 16) | shape ops on CPU | 21.2 ms | **no**: no detections on a real frame where the CPU found three objects |
+
+D-FINE on DirectML is therefore not usable; Frigate's documentation also
+states that D-FINE currently only runs on OpenVINO CPU. It is compared on
+OpenVINO CPU instead, and MIGraphX should be tried on the final AMD computer.
 
 ## Open points
 
