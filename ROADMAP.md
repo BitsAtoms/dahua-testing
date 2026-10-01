@@ -588,7 +588,7 @@ plantas, salas sobre rejilla, puertas, Exterior) junto con el mapa en vivo de
 Para verlas en este PC: `http://127.0.0.1:8092/preview`, o una pantalla en
 `http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud). El
 supervisor arranca el servicio de pantallas desde el siguiente inicio de
-sesión; a mano: `python servicesatcomputer-ui\server.py`. La recuperación
+sesión; a mano: `python services\batcomputer-ui\server.py`. La recuperación
 ante fallos (4.4) sigue pendiente y no depende de la estética.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
