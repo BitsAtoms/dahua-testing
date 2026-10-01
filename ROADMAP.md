@@ -397,9 +397,9 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
   - con un 1 % de probabilidad, un acertijo de **Enigma** en verde.
 
   Es la parte de datos del paso 4.2.
-- [~] **`mini_right`, salud de las cámaras** (2026-10-01, pendiente de
-  revisión): si cada cámara tiene conexión y cuándo vio a alguien por última
-  vez ("viendo personas").
+- [x] **`mini_right`, salud de las cámaras** (aprobada el 2026-10-01): si cada
+  cámara tiene conexión y cuándo vio a alguien por última vez ("viendo
+  personas").
 - [ ] Siguientes: el editor de espacios con el mapa en vivo, la
   videovigilancia, los eventos y los recorridos. Al final, las ventanas
   colocadas en sus pantallas al arrancar y el ratón encerrado.
@@ -579,9 +579,8 @@ rama `codex/health-panel`.
    XT). No se da por validado nada de GPU AMD desde aquí.
 
 En curso: la presentación en las 9 pantallas, en la rama
-`codex/batcomputer-presentation`, sin mergear ni subir. Ya están hechas las tres
-pantallas pequeñas; `mini_right` está pendiente del visto bueno del
-propietario. Siguiente paso: el editor de espacios (espacios de trabajo,
+`codex/batcomputer-presentation`, sin mergear ni subir. Ya están hechas y aprobadas
+las tres pantallas pequeñas. Siguiente paso: el editor de espacios (espacios de trabajo,
 plantas, salas sobre rejilla, puertas, Exterior) junto con el mapa en vivo de
 `top_right`, según `docs/diseno-batcomputer.md`.
 

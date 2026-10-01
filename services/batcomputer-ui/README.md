@@ -42,7 +42,7 @@ canvas about 0.36 mm per CSS pixel.
 |---|---|---|
 | `mini_center` | supervisor console told for visitors | built, approved 2026-10-01 |
 | `mini_left` | health of the system parts, and the GOTHAM row | built, approved 2026-10-01 |
-| `mini_right` | health of the cameras | built, in review |
+| `mini_right` | health of the cameras | built, approved 2026-10-01 |
 | `top_left` | video wall of every camera with the analysis drawn over it | pending |
 | `top_right` | live map of the floors | pending |
 | `side_left` | events of every source with thumbnails, and the Dahua collector log | pending |
