@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · consola del supervisor</title>
+<link rel="stylesheet" href="/web/theme.css">
+<style>
+  /* mini_center: the supervisor console. Black background, yellow text only (owner, 2026-10-01). */
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 20px; }
+  .console { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 10px 14px 12px; font-family: var(--font-mono); font-size: 17px; line-height: 1.32; overflow: hidden;
+    text-shadow: 0 0 0.3em rgba(253, 227, 17, 0.45); }
+  .line { display: grid; grid-template-columns: 6.2em 1fr; column-gap: 0.6em; }
+  .line .at { opacity: 0.55; }
+  .line .text { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: break-all; }
+  .line.error .text { background: var(--invert-bg); color: var(--invert-text); text-shadow: none; padding: 0 0.3em; font-weight: 700; }
+  .line.session .text { letter-spacing: 0.2em; }
+  .line.fresh { animation: arrive 0.6s ease-out; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(0.5em); } }
+  .waiting { margin: auto; letter-spacing: 0.2em; opacity: 0.7; }
+  .bc-meta.stopped { color: var(--invert-text); background: var(--invert-bg); padding: 0 0.5em; }
+  @media (prefers-reduced-motion: reduce) { .line.fresh { animation: none; } }
+</style>
+</head>
+<body>
+<div class="bc-screen" id="screen">
+  <div class="bc-header">
+    <span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span>
+    <span class="bc-meta" id="status">CONECTANDO</span><span class="bc-meta" id="clock"></span>
+  </div>
+  <div class="console" id="console"><div class="waiting">ESPERANDO AL SUPERVISOR…</div></div>
+</div>
+<script type="module">
+  import { fitCanvas, localTime, poll, startClock } from "/web/screen.js";
+
+  fitCanvas(document.getElementById("screen"), 960, 540);
+  startClock(document.getElementById("clock"));
+
+  const consoleBox = document.getElementById("console");
+  const status = document.getElementById("status");
+  const MAX_LINES = 60;
+  // The supervisor prints its status every 10 s: a longer silence means it stopped.
+  const SILENCE_SECONDS = 30;
+  let lastSeq = 0;
+  let session = null;
+  let lastLineAt = null;
+  let cursor = null;
+
+  function addLine(at, text, kind, fresh) {
+    const line = document.createElement("div");
+    line.className = `line${kind ? ` ${kind}` : ""}${fresh ? " fresh" : ""}`;
+    const time = document.createElement("span");
+    time.className = "at";
+    time.textContent = at;
+    const body = document.createElement("span");
+    body.className = "text";
+    body.textContent = text;
+    line.append(time, body);
+    consoleBox.insertBefore(line, cursor);
+  }
+
+  async function load() {
+    const response = await fetch(`/api/console?after=${lastSeq}`, { cache: "no-store" });
+    const data = await response.json();
+    if (!data.session) return;
+    if (!cursor) {
+      consoleBox.replaceChildren();
+      cursor = document.createElement("div");
+      cursor.innerHTML = '<span class="bc-cursor"></span>';
+      consoleBox.append(cursor);
+    }
+    const fresh = lastSeq > 0;
+    if (data.session !== session) {
+      if (session !== null) addLine(localTime(), "── NUEVA SESIÓN DEL SUPERVISOR ──", "session", fresh);
+      session = data.session;
+    }
+    for (const line of data.lines) {
+      const kind = /\bERROR\b|Traceback|exited code=(?!0\b)/.test(line.text) ? "error" : "";
+      addLine(localTime(line.at), line.text, kind, fresh);
+      lastLineAt = new Date(line.at);
+    }
+    lastSeq = Math.max(lastSeq, data.last_seq);
+    while (consoleBox.children.length > MAX_LINES + 1) consoleBox.firstElementChild.remove();
+    const silent = !lastLineAt || (Date.now() - lastLineAt.getTime()) / 1000 > SILENCE_SECONDS;
+    status.textContent = silent ? "DETENIDO" : "EN VIVO";
+    status.classList.toggle("stopped", silent);
+  }
+
+  poll(1, load, () => {
+    status.textContent = "SIN CONEXIÓN";
+    status.classList.add("stopped");
+  });
+</script>
+</body>
+</html>

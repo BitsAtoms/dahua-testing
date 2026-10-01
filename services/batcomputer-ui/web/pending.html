@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · pantalla</title>
+<link rel="stylesheet" href="/web/theme.css">
+<style>
+  /* Placeholder for screens not built yet, and the two free work screens. */
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .center { flex: 1; display: grid; place-items: center; align-content: center; gap: 0.6em; text-align: center;
+    text-transform: uppercase; letter-spacing: 0.3em; color: var(--text-muted); }
+  .center strong { color: var(--text); font-size: 1.4em; }
+  #screen.work { background: #000; }
+  #screen.work::after { display: none; }
+  #screen.work .center, #screen.work .center strong { color: var(--line-quiet); }
+</style>
+</head>
+<body>
+<div class="bc-screen" id="screen">
+  <div class="bc-header" id="header"><span class="bc-code" id="code"></span><span class="bc-title" id="title"></span><span class="bc-meta">PENDIENTE</span></div>
+  <div class="center" id="center"><strong>En construcción</strong><span id="detail"></span></div>
+</div>
+<script type="module">
+  import { fitCanvas } from "/web/screen.js";
+
+  const id = decodeURIComponent(location.pathname.split("/").pop());
+  const { screens } = await (await fetch("/api/screens", { cache: "no-store" })).json();
+  const screen = screens.find(item => item.position_id === id);
+  const root = document.getElementById("screen");
+  document.title = `Batcomputer · ${screen.title}`;
+  document.getElementById("code").textContent = screen.code;
+  document.getElementById("title").textContent = screen.title;
+  root.style.fontSize = screen.width < 1000 && screen.height < 1000 ? "20px" : "30px";
+  if (screen.work) {
+    root.classList.add("work");
+    document.getElementById("header").remove();
+    document.getElementById("center").innerHTML = "<strong>Pantalla de trabajo</strong><span>escritorio de Windows</span>";
+  } else {
+    document.getElementById("detail").textContent = `${id} · ${screen.width}×${screen.height}`;
+  }
+  fitCanvas(root, screen.width, screen.height);
+</script>
+</body>
+</html>

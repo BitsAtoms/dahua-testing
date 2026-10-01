@@ -13,6 +13,7 @@ Docker Desktop            started with `docker desktop start` if the engine is d
  -> Frigate               `docker compose up -d frigate`, then wait for its API
  -> track receiver
  -> space mapper
+ -> Batcomputer screens (services/batcomputer-ui)
  -> tracking engine
  -> Dahua dashboard
  -> Frigate adapter
@@ -74,8 +75,8 @@ starting anything:
 python services\local-supervisor\run.py --check
 ```
 
-The check also verifies that ports `8090`, `8091` and, in GPU mode, `5555` are
-free. An occupied port normally means an individually launched copy is still
+The check also verifies that ports `8090`, `8091`, `8092` and, in GPU mode,
+`5555` are free. An occupied port normally means an individually launched copy is still
 active.
 
 After stopping any individually launched copies, start the complete system:

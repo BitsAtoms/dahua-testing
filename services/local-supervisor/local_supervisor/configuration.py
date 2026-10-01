@@ -12,6 +12,7 @@ from typing import Any
 SERVICE_NAMES = (
     "track_receiver",
     "space_mapper",
+    "batcomputer_ui",
     "tracking_engine",
     "dahua_dashboard",
     "frigate_adapter",
@@ -147,6 +148,11 @@ def build_specs(config: StackConfig, repository_root: Path) -> list[ServiceSpec]
             "space_mapper",
             (str(system_python), "-u", script("services/space-mapper/server.py")),
             listen_endpoints=(("127.0.0.1", 8091),),
+        ),
+        "batcomputer_ui": ServiceSpec(
+            "batcomputer_ui",
+            (str(system_python), "-u", script("services/batcomputer-ui/server.py")),
+            listen_endpoints=(("127.0.0.1", 8092),),
         ),
         "tracking_engine": ServiceSpec(
             "tracking_engine",

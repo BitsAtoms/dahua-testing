@@ -1,10 +1,10 @@
-# Batcomputer UI (draft)
+# Batcomputer UI
 
 The final PC drives nine displays in a replica Batman computer: two portrait
 side screens, a 2x2 landscape block and three small console screens. This
-module will show the system on all of them, one window per display, in the
-owner's style. It starts with the visual style; the content of the six large
-screens is pending (roadmap).
+service shows the system on them, one page per display, in the owner's
+style. The approved design is [`docs/diseno-batcomputer.md`](../../docs/diseno-batcomputer.md);
+screens are built and reviewed one at a time on the development PC.
 
 ```text
 side_left    top_left     top_right     side_right
@@ -12,11 +12,64 @@ side_left    top_left     top_right     side_right
    mini_left        mini_center        mini_right
 ```
 
+## Run
+
+The local supervisor starts it (`batcomputer_ui`, port 8092). By hand, from
+the repository root:
+
+```powershell
+python services\batcomputer-ui\server.py
+```
+
+| Address | What |
+|---|---|
+| `http://127.0.0.1:8092/preview` | the nine screens to scale on one display, with live data |
+| `http://127.0.0.1:8092/screen/<position_id>` | one screen; on the final PC each display shows one of these |
+| `/api/screens` | screens, design canvases and which ones are built |
+| `/api/console?after=<seq>` | supervisor console lines after a sequence number |
+
+The server listens on localhost only and serves files from `web/` only.
+
+On the development PC a screen opened at 100 % is close to its real size:
+this PC's monitor has about 0.31 mm per pixel and the Batcomputer's design
+canvas about 0.36 mm per CSS pixel.
+
+## Screens
+
+| Screen | Content | State |
+|---|---|---|
+| `mini_center` | supervisor console: the newest session's `supervisor.log`, followed live; credentials are masked | built, in review |
+| `mini_left` | health of the system parts | pending |
+| `mini_right` | health of the cameras | pending |
+| `top_left` | video wall of every camera with the analysis drawn over it | pending |
+| `top_right` | live map of the floors | pending |
+| `side_left` | events of every source with thumbnails, and the Dahua collector log | pending |
+| `side_right` | journeys between rooms and the day's summary | pending |
+| `bottom_left`, `bottom_right` | free Windows desktops for work | not shown |
+
+### Supervisor console (`mini_center`)
+
+- Follows `runtime/local-supervisor/logs/<newest session>/supervisor.log`,
+  starting with its last 256 KB, and switches to a new session when the
+  supervisor restarts.
+- Times are shown in local time. Lines are clamped to two rows.
+- Errors (`ERROR`, tracebacks, non-zero exits) are shown black on yellow.
+- The header says `EN VIVO` while lines arrive and `DETENIDO` after 30 s of
+  silence; the supervisor prints its status every 10 s.
+- `rtsp://user:password@` and `password=`/`token=`-style values are masked
+  before they reach the screen.
+
 ## Files
 
 ```text
+server.py               HTTP server (stdlib), localhost only
+batcomputer_ui/         screens registry and the supervisor console reader
 web/theme.css           palette, contrast roles and shared components
-web/style-sample.html   the nine screens to scale with example content
+web/screen.js           canvas fitting, clock and polling shared by the pages
+web/screens/<id>.html   one page per built screen
+web/pending.html        placeholder for screens not built yet and the work screens
+web/preview.html        the nine screens to scale
+web/style-sample.html   the approved style sample, static
 displays.example.json   geometry of the final PC's displays (versioned)
 displays.local.json     full inventory of the final PC (ignored: device names, stable ids)
 displays.local.md       the same inventory, readable (ignored)
@@ -30,36 +83,26 @@ displays.local.md       the same inventory, readable (ignored)
 | `top_left`, `bottom_left` | 3840×2160 | 32" | 100 %, **150 %** on `bottom_left` (primary) | DisplayPort | RX on PCI bus 6 |
 | `top_right`, `bottom_right` | 3840×2160 | 32" | 100 % | DisplayPort | RX on PCI bus 3 |
 | `side_right` | 2160×3840 (rotated 270°) | 32" | 100 % | DisplayPort | RX on PCI bus 3 |
-| `mini_left`, `mini_right` | 1920×1080 | about 15.6" (EDID wrong) | 100 % | HDMI | RX of their column |
-| `mini_center` | 1920×1080 | about 15.6" | 100 % | HDMI | Ryzen integrated GPU |
+| `mini_left`, `mini_right` | 1920×1080 | about 15" (EDID wrong) | 100 % | HDMI | RX of their column |
+| `mini_center` | 1920×1080 | about 15" | 100 % | HDMI | Ryzen integrated GPU |
 
 The six large screens are the same 32" 4K Samsung monitor. None is touch.
-Windows numbers (`\.\DISPLAYn`) can change after reboots or driver
-updates; the inventory's `stable_id` (adapter plus connector) is the reliable
-key, and positions are checked again at start.
+Windows numbers (`\\.\DISPLAYn`) can change after reboots or driver updates;
+the inventory's `stable_id` (adapter plus connector) is the reliable key, and
+positions are checked again at start.
 
 **Design canvas.** All nine screens have almost the same pixel pitch (about
 0.18 mm), so every window renders at a fixed device scale factor of 2: large
 screens are designed at 1920×1080 CSS pixels, side screens at 1080×1920 and
 small screens at 960×540. One CSS pixel is then about 0.36 mm on every screen,
-and Windows' 150 % on `bottom_left` does not change the layout.
+and Windows' 150 % on `bottom_left` does not change the layout. Pages fit
+their canvas into any smaller window, so the same page works in the preview.
 
-**Mouse.** `bottom_right`, `top_right` and `mini_right` sit 14 px lower than the
-left column in the Windows layout, so no single `ClipCursor` rectangle keeps
-the cursor out of `mini_left` and `mini_center` without cutting 14 rows of
-`bottom_right`. Aligning the rows in Settings → Display fixes it; otherwise a
-low-level mouse hook is needed. Gaps of 5 to 31 px also stop the cursor
-between some large screens.
-
-Open the sample directly in Chrome; it needs no server:
-
-```powershell
-start chrome "$PWD\services\batcomputer-ui\web\style-sample.html"
-```
-
-Each screen is laid out at its design canvas and scaled into a preview of the
-whole wall. Sizes come from the inventory and the arrangement from the
-owner's photo.
+**Mouse.** Only the two work screens are interactive. The cursor will be
+confined to them by software (a low-level mouse hook), which also avoids the
+14 px row offset and the gaps of the Windows layout. Planned keys:
+`Ctrl+Alt+L` locks and unlocks the cursor, `Ctrl+Alt+M` brings it to the
+centre of `bottom_left`.
 
 ## Style rules (owner, 2026-10-01)
 
@@ -89,32 +132,10 @@ dominate, yellow gives the contrast.
 - No Batman logos for now; a bat-signal detector is a concept for later.
 - The intensity of the 1990s effects is kept until it is seen on the real
   screens.
-
-## Screens decided (owner, 2026-10-01)
-
-| Screen | Content |
-|---|---|
-| `top_left` | video wall: live streams of every registered camera, with the analysis (person boxes, track number) drawn over them |
-| `top_right` | tracking map of the spaces (the space mapper's monitor in this style) |
-| `side_left` | events of every source with their thumbnails (Dahua body, face and context; Frigate snapshot), and the Dahua collector's log |
-| `side_right` | journeys between rooms (handoff candidates) and the day's summary |
-| `bottom_left`, `bottom_right` | free: normal Windows desktops for work |
-| `mini_left` | health of the system parts (Docker, MQTT, Frigate and its detector, services, transport delay) |
-| `mini_center` | supervisor console: black background, yellow monospace text only |
-| `mini_right` | health of the cameras: whether each one is connected |
-
-Only the two work screens are interactive. The other seven show information
-and ignore the pointer, so the cursor is confined to `bottom_left` and
-`bottom_right` by software (a low-level mouse hook), which also avoids the
-14 px row offset and the gaps of the Windows layout. Planned keys:
-`Ctrl+Alt+L` locks and unlocks the cursor, `Ctrl+Alt+M` brings it to the
-centre of `bottom_left`. Windows' own "show the pointer when Ctrl is pressed"
-and a larger yellow pointer help to find it.
-
-**Censorship.** `Ctrl+Alt+X` toggles static over every stream of the video
-wall ("SEÑAL CENSURADA"); a Stream Deck key sends that shortcut. It is a
-global shortcut, so it works whichever window has the focus. The style sample
-previews it with `X` or the `?censored` address.
+- **Privacy mode.** `Ctrl+Alt+X`, sent by a Stream Deck key, covers every
+  stream of the video wall and every event photo with static ("SEÑAL
+  CENSURADA"), and remembers its state across restarts. The style sample
+  previews it with `X` or the `?censored` address.
 
 Video wall notes: the Dahua cameras are not in Frigate today; their sub-streams
 would be added to go2rtc for viewing only, like the door intercom. Tiles use

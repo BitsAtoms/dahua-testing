@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · vista previa</title>
+<link rel="stylesheet" href="/web/theme.css">
+<style>
+  /* The nine live screens drawn to scale on one display (development PC). */
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--text); font-family: var(--font-display); }
+  .page-header { height: 56px; display: flex; align-items: center; gap: 24px; padding: 0 24px; border-bottom: 2px solid var(--line);
+    text-transform: uppercase; letter-spacing: 0.16em; font-size: 22px; font-stretch: condensed; font-variation-settings: "wdth" 75; }
+  .page-header .note { color: var(--text-muted); letter-spacing: 0.06em; text-transform: none; font-size: 17px; }
+  .wall { position: relative; margin: 30px auto 0; }
+  .bezel { position: absolute; background: #000; outline: 1px solid #1c1c1c; box-shadow: 0 0 18px rgba(80, 92, 124, 0.25); overflow: hidden; }
+  .bezel iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #000; }
+  .tag { position: absolute; transform: translateY(-100%); padding-bottom: 3px; font-family: var(--font-mono); font-size: 12px;
+    color: var(--line-quiet); white-space: nowrap; text-decoration: none; }
+  .tag.built { color: var(--text-muted); }
+  .tag:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <strong>Batcomputer · vista previa</strong>
+  <span class="note">Las 9 pantallas a escala con datos reales. Clic en el nombre de una pantalla para abrirla sola.</span>
+</header>
+<main class="wall" id="wall"></main>
+<script type="module">
+  const { screens } = await (await fetch("/api/screens", { cache: "no-store" })).json();
+  const wall = document.getElementById("wall");
+  const items = screens.map(screen => {
+    const bezel = document.createElement("div");
+    bezel.className = "bezel";
+    const frame = document.createElement("iframe");
+    frame.src = `/screen/${screen.position_id}`;
+    frame.width = screen.width;
+    frame.height = screen.height;
+    frame.title = screen.position_id;
+    const tag = document.createElement("a");
+    tag.className = `tag${screen.built ? " built" : ""}`;
+    tag.href = `/screen/${screen.position_id}`;
+    tag.target = "_blank";
+    tag.textContent = `${screen.position_id}${screen.built ? "" : screen.work ? " · trabajo" : " · pendiente"}`;
+    bezel.append(frame);
+    wall.append(bezel, tag);
+    return { screen, bezel, frame, tag };
+  });
+  function layout() {
+    const width = Math.max(...screens.map(s => s.wall_cm[0] + s.wall_cm[2]));
+    const height = Math.max(...screens.map(s => s.wall_cm[1] + s.wall_cm[3]));
+    const k = Math.min((innerWidth - 40) / width, (innerHeight - 56 - 50) / height);
+    wall.style.width = `${width * k}px`;
+    wall.style.height = `${height * k}px`;
+    for (const { screen, bezel, frame, tag } of items) {
+      const [x, y, w, h] = screen.wall_cm;
+      Object.assign(bezel.style, { left: `${x * k}px`, top: `${y * k}px`, width: `${w * k}px`, height: `${h * k}px` });
+      frame.style.transform = `scale(${(w * k) / screen.width})`;
+      Object.assign(tag.style, { left: `${x * k}px`, top: `${y * k}px` });
+    }
+  }
+  addEventListener("resize", layout);
+  layout();
+</script>
+</body>
+</html>
