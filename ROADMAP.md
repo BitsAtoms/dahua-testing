@@ -335,7 +335,9 @@ empotradas en la consola (`mini_left`, `mini_center`, `mini_right`). Cada
 pantalla tendrá su propia ventana, que al arrancar se coloca sola en su sitio.
 Este trabajo empezó el 2026-10-01, antes de la fase 5, porque la instalación
 tiene que colocar esas ventanas. La parte visual del panel de salud (4.2) se
-hace aquí. Detalle en `services/batcomputer-ui/README.md`.
+hace aquí. El diseño completo, pendiente de aprobar, está en
+[`docs/diseno-batcomputer.md`](docs/diseno-batcomputer.md); el estilo, en
+`services/batcomputer-ui/README.md`.
 
 - [x] Estilo: la paleta del propietario y una muestra de las 9 pantallas a
   escala (2026-10-01). Predominan el negro y el negro lavado, con el amarillo
@@ -367,7 +369,11 @@ hace aquí. Detalle en `services/batcomputer-ui/README.md`.
   Deck) alterna entre las imágenes y estática.
 - [ ] Editor de espacios nuevo, en una pantalla de trabajo, para crear las
   salas, colocar las cámaras y unir las salas. El actual no convence al
-  propietario y arrastra herramientas de pruebas anteriores.
+  propietario y arrastra herramientas de pruebas anteriores. Se organiza en espacios de
+  trabajo (un edificio), con hasta 3 plantas, salas dibujadas sobre una
+  rejilla de ayuda, puertas, Exterior y conexiones entre plantas. Los tiempos
+  de paso no se escriben a mano: la propuesta es medirlos por puerta, según por
+  dónde sale y entra cada persona en la imagen de cada cámara.
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
 - [ ] Documento de diseño para que lo apruebe el propietario, y después la

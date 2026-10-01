@@ -39,6 +39,7 @@ Supervisor: arranca y vigila todas las piezas
 | Tracking engine | `services/tracking-engine/` |
 | Mapa, editor y monitor | `services/space-mapper/` |
 | Supervisor del stack | `services/local-supervisor/` |
+| Pantallas del Batcomputer (diseño y estilo, en curso) | `services/batcomputer-ui/`, [`docs/diseno-batcomputer.md`](docs/diseno-batcomputer.md) |
 | Detector de Frigate en la GPU, fuera de Docker (en prueba) | `experiments/frigate-zmq-detector/` |
 | Banco para comparar detectores a través de Frigate | `experiments/frigate-replay-bench/` |
 | Evidencia visual y benchmarks de visión | `experiments/visual-reid/` |
