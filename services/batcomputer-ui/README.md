@@ -27,6 +27,7 @@ python services\batcomputer-ui\server.py
 | `http://127.0.0.1:8092/screen/<position_id>` | one screen; on the final PC each display shows one of these |
 | `/api/screens` | screens, design canvases and which ones are built |
 | `/api/console?after=<seq>` | supervisor console lines after a sequence number |
+| `/api/system-health` | health of the system parts (cached 2 s) |
 
 The server listens on localhost only and serves files from `web/` only.
 
@@ -38,8 +39,8 @@ canvas about 0.36 mm per CSS pixel.
 
 | Screen | Content | State |
 |---|---|---|
-| `mini_center` | supervisor console: the newest session's `supervisor.log`, followed live; credentials are masked | built, in review |
-| `mini_left` | health of the system parts | pending |
+| `mini_center` | supervisor console told for visitors | built, approved 2026-10-01 |
+| `mini_left` | health of the system parts | built, in review |
 | `mini_right` | health of the cameras | pending |
 | `top_left` | video wall of every camera with the analysis drawn over it | pending |
 | `top_right` | live map of the floors | pending |
@@ -78,6 +79,29 @@ else their id.
 - `rtsp://user:password@` and `password=`/`token=`-style values are masked
   before anything is narrated.
 
+### Health of the parts (`mini_left`)
+
+`batcomputer_ui/health.py` computes it in this service, from sources it can
+already read, so the rules can be tuned without restarting the supervisor:
+service states from the supervisor's `stack_status` lines and restarts from
+its `exited code=` lines (fed by the console reader), Frigate's `/api/stats`
+and `/api/config`, a connection to the MQTT broker, and the receiver database
+(read only). The rows keep a fixed order:
+
+| Row | Ok | Problem |
+|---|---|---|
+| Contenedores | `en marcha` | **critical** `parados` when neither Mosquitto nor Frigate answers |
+| Mensajería | `conectada` | **critical** `sin conexión` |
+| Análisis de vídeo | `2 cámaras analizándose` | **error** `no responde` |
+| Detector de IA · GPU/CPU | `33 ms por imagen` | **error**: `ciego` (zmq detector under 1 ms), `roto` (over 1 s), `congelado` (same value for 5 min while there are detections), `atascado` (a camera processing under half its frames, skipping over half, for 90 s: after every Frigate restart that lasts about a minute), `programa de la GPU detenido` |
+| Servicios del sistema | `7 de 7 en marcha` | **critical** when the supervisor log is silent for 30 s; **error** for a stopped service; **warning** for more than 3 restarts in 10 min |
+| Retraso de los datos | p95 of publication to reception over 5 min | **warning** over 2 s; `sin datos recientes` (no people) is not a fault |
+
+The header sums up the alarms (`TODO EN ORDEN`, `1 ERROR · 1 AVISO`), in red
+when one is critical. `?demo` shows example alarms to review their look.
+The supervisor will reuse these detector rules for automatic recovery
+(roadmap step 4.4).
+
 ### Header icons
 
 The yellow block of each header is decoration with an icon of what the
@@ -89,7 +113,7 @@ and a route.
 
 ```text
 server.py               HTTP server (stdlib), localhost only
-batcomputer_ui/         screens registry, supervisor console reader and narrator
+batcomputer_ui/         screens registry, supervisor console reader, narrator and health
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
 web/icons.js            header icons (classic script, also used by the style sample)

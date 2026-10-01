@@ -247,8 +247,12 @@ entra en la siguiente**, y cuánto se tarda de verdad entre las dos.
   - reúne los datos de las otras piezas;
   - guarda el estado del modo privado;
   - escucha los atajos globales y vigila el ratón.
-- **El supervisor** pone su salud en un archivo que leen `mini_left` y
-  `mini_right`. Es la parte de datos del panel de salud (paso 4.2).
+- **La salud de las partes** la calcula el propio servicio de pantallas, con
+  datos que ya puede leer: el estado de los servicios que el supervisor
+  escribe cada 10 s, las estadísticas de Frigate, la mensajería y la base del
+  receptor. Así se ajusta sin reiniciar el supervisor, que reutilizará las
+  mismas reglas para la recuperación automática (4.4). Es la parte de datos
+  del panel de salud (paso 4.2).
 - **El lanzador** abre las 7 ventanas de exhibición. Cada una es una ventana
   de Chrome con su propio perfil, en su pantalla, a pantalla completa y con la
   escala ×2. Las pantallas se reconocen por su identificador estable, y no por

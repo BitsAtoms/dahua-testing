@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Iterable
 
 if TYPE_CHECKING:
     from .narrator import Narrator
@@ -44,8 +44,11 @@ class SupervisorConsole:
     """
 
     def __init__(self, log_root: Path, keep: int = 300, tail_bytes: int = 256 * 1024,
-                 narrator: "Narrator | None" = None) -> None:
+                 narrator: "Narrator | None" = None,
+                 observers: Iterable[Callable[[str, str], None]] = ()) -> None:
         self.log_root = log_root
+        # Called with every raw line, for example to follow service states.
+        self.observers = list(observers)
         # With a narrator the console keeps visitor lines instead of raw ones.
         self.narrator = narrator
         # A long session's log holds hundreds of thousands of lines: start near its end.
@@ -58,6 +61,11 @@ class SupervisorConsole:
         # Time of the newest raw log line: the supervisor is alive while it moves.
         self.last_line_at: str | None = None
         self.lock = threading.Lock()
+
+    def refresh(self) -> None:
+        """Read new log lines, feeding the observers, without returning them."""
+        with self.lock:
+            self._poll()
 
     def read(self, after: int = 0) -> dict:
         with self.lock:
@@ -114,6 +122,8 @@ class SupervisorConsole:
             at, _, text = line.partition(" ")
             self.last_line_at = at
             text = mask_secrets(text)
+            for observer in self.observers:
+                observer(at, text)
             if self.narrator is None:
                 self._append(at, text, "raw")
                 continue

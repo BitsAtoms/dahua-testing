@@ -17,7 +17,10 @@ SERVICE_ROOT = Path(__file__).resolve().parent
 REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
+from functools import partial
+
 from batcomputer_ui.console import SupervisorConsole
+from batcomputer_ui.health import HealthMonitor, SupervisorWatch, receiver_delays
 from batcomputer_ui.narrator import CameraNames, Narrator
 from batcomputer_ui.screens import SCREENS, screens_document
 
@@ -66,6 +69,8 @@ class UiHandler(BaseHTTPRequestHandler):
             self._file(target)
         elif path == "/api/health":
             self._json(HTTPStatus.OK, {"ok": True})
+        elif path == "/api/system-health":
+            self._json(HTTPStatus.OK, self.server.health.snapshot())
         elif path == "/api/screens":
             self._json(HTTPStatus.OK, screens_document(built_screens()))
         elif path == "/api/console":
@@ -121,9 +126,11 @@ class UiServer(ThreadingHTTPServer):
     allow_reuse_address = False
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], console: SupervisorConsole) -> None:
+    def __init__(self, address: tuple[str, int], console: SupervisorConsole,
+                 health: HealthMonitor | None = None) -> None:
         super().__init__(address, UiHandler)
         self.console = console
+        self.health = health if health is not None else HealthMonitor(SupervisorWatch())
 
 
 def main() -> int:
@@ -140,14 +147,29 @@ def main() -> int:
         type=Path,
         default=REPOSITORY_ROOT / "runtime/space-mapper/space-map.json",
     )
+    parser.add_argument(
+        "--receiver-database",
+        type=Path,
+        default=REPOSITORY_ROOT / "runtime/track-receiver/receiver.sqlite3",
+    )
     args = parser.parse_args()
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal.default_int_handler)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("batcomputer ui only listens on localhost")
 
-    console = SupervisorConsole(args.supervisor_logs, narrator=Narrator(CameraNames(args.map_file)))
-    server = UiServer((args.host, args.port), console)
+    watch = SupervisorWatch()
+    console = SupervisorConsole(
+        args.supervisor_logs,
+        narrator=Narrator(CameraNames(args.map_file)),
+        observers=[watch.observe],
+    )
+    health = HealthMonitor(
+        watch,
+        delays=partial(receiver_delays, args.receiver_database),
+        refresh=console.refresh,
+    )
+    server = UiServer((args.host, args.port), console, health)
     try:
         print(f"batcomputer_ui=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)

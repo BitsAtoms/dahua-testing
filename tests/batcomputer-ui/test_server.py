@@ -14,6 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "services" / "batcomputer-ui"))
 
 from batcomputer_ui.console import SupervisorConsole  # noqa: E402
+from batcomputer_ui.health import HealthMonitor, SupervisorWatch  # noqa: E402
 from batcomputer_ui.screens import SCREENS  # noqa: E402
 from server import UiServer  # noqa: E402
 
@@ -25,7 +26,12 @@ class ServerTests(unittest.TestCase):
         log = Path(cls.directory.name) / "20261001T083524Z" / "supervisor.log"
         log.parent.mkdir(parents=True)
         log.write_text("2026-10-01T08:35:24+00:00 stack_starting services=7\n", encoding="utf-8")
-        cls.server = UiServer(("127.0.0.1", 0), SupervisorConsole(Path(cls.directory.name)))
+        watch = SupervisorWatch()
+        console = SupervisorConsole(Path(cls.directory.name), observers=[watch.observe])
+        # Offline sources: the test must not reach the real Frigate or broker.
+        health = HealthMonitor(watch, frigate=lambda endpoint: None, tcp=lambda host, port: False,
+                               refresh=console.refresh)
+        cls.server = UiServer(("127.0.0.1", 0), console, health)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         cls.thread = threading.Thread(target=cls.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
         cls.thread.start()
@@ -76,6 +82,15 @@ class ServerTests(unittest.TestCase):
         self.assertEqual([line["text"] for line in data["lines"]], ["stack_starting services=7"])
         status, _, _ = self.get("/api/console?after=x")
         self.assertEqual(status, 400)
+
+    def test_system_health_lists_the_parts_in_a_fixed_order(self) -> None:
+        status, _, body = self.get("/api/system-health")
+        health = json.loads(body)
+
+        self.assertEqual(status, 200)
+        self.assertEqual([item["id"] for item in health["items"]],
+                         ["docker", "mqtt", "frigate", "detector", "services", "delay"])
+        self.assertEqual(health["overall"], "critical")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · salud de las partes</title>
+<link rel="stylesheet" href="/web/theme.css">
+<script src="/web/icons.js"></script>
+<style>
+  /* mini_left: health of the system parts, in a fixed order so it always reads the same. */
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 20px; }
+  .rows { flex: 1; min-height: 0; display: grid; grid-auto-rows: 1fr; gap: 8px; padding: 12px 14px; font-size: 23px; }
+  .bc-status { align-content: center; }
+  .bc-status .bc-value { font-size: 0.9em; text-align: right; }
+  .bc-meta.alarm { color: var(--invert-text); background: var(--invert-bg); padding: 0 0.5em; }
+  .bc-meta.alarm.critical { background: var(--critical); }
+</style>
+</head>
+<body>
+<div class="bc-screen" id="screen">
+  <div class="bc-header">
+    <span class="bc-code" data-icon="pulse"></span><span class="bc-title">Salud · partes</span>
+    <span class="bc-meta" id="summary">COMPROBANDO</span><span class="bc-meta" id="clock"></span>
+  </div>
+  <div class="rows" id="rows"></div>
+  <div class="bc-hazard"></div>
+</div>
+<script type="module">
+  import { fitCanvas, poll, startClock } from "/web/screen.js";
+
+  fitCanvas(document.getElementById("screen"), 960, 540);
+  startClock(document.getElementById("clock"));
+
+  const ICONS = { ok: "●", warning: "▲", error: "■", critical: "✕", unknown: "○" };
+  const rows = document.getElementById("rows");
+  const summary = document.getElementById("summary");
+
+  function render(items) {
+    rows.replaceChildren(...items.map(item => {
+      const row = document.createElement("div");
+      row.className = `bc-status ${item.state}`;
+      for (const [cls, text] of [["bc-icon", ICONS[item.state]], ["", item.label], ["bc-value", item.value]]) {
+        const span = document.createElement("span");
+        if (cls) span.className = cls;
+        span.textContent = text;
+        row.append(span);
+      }
+      return row;
+    }));
+  }
+
+  function describe(counts) {
+    const parts = [];
+    if (counts.critical) parts.push(`${counts.critical} CRÍTICO${counts.critical > 1 ? "S" : ""}`);
+    if (counts.error) parts.push(`${counts.error} ERROR${counts.error > 1 ? "ES" : ""}`);
+    if (counts.warning) parts.push(`${counts.warning} AVISO${counts.warning > 1 ? "S" : ""}`);
+    return parts.length ? parts.join(" · ") : "TODO EN ORDEN";
+  }
+
+  // ?demo shows every alarm state with example values, to review how they look.
+  const DEMO = {
+    overall: "critical",
+    counts: { critical: 1, error: 1, warning: 1 },
+    items: [
+      { label: "Contenedores", state: "ok", value: "en marcha" },
+      { label: "Mensajería", state: "critical", value: "sin conexión" },
+      { label: "Análisis de vídeo", state: "ok", value: "2 cámaras analizándose" },
+      { label: "Detector de IA · GPU", state: "error", value: "ciego: no ve a nadie" },
+      { label: "Servicios del sistema", state: "warning", value: "4 reinicios en 10 min" },
+      { label: "Retraso de los datos", state: "unknown", value: "sin datos recientes" },
+    ],
+  };
+  const demo = new URLSearchParams(location.search).has("demo");
+
+  async function load() {
+    const health = demo ? DEMO : await (await fetch("/api/system-health", { cache: "no-store" })).json();
+    render(health.items);
+    summary.textContent = describe(health.counts);
+    const alarm = ["error", "critical"].includes(health.overall);
+    summary.className = `bc-meta${alarm ? ` alarm ${health.overall}` : ""}`;
+  }
+
+  poll(2, load, () => {
+    summary.textContent = "SIN CONEXIÓN";
+    summary.className = "bc-meta alarm critical";
+  });
+</script>
+</body>
+</html>
