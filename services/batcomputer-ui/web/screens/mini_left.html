@@ -9,10 +9,26 @@
   /* mini_left: health of the system parts, in a fixed order so it always reads the same. */
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
   #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 20px; }
-  .rows { flex: 1; min-height: 0; display: grid; grid-auto-rows: 1fr; gap: 8px; padding: 12px 14px; font-size: 23px; }
+  .rows { flex: 1; min-height: 0; display: grid; grid-auto-rows: 1fr; gap: 6px; padding: 10px 14px 8px; font-size: 23px; }
   .bc-status { align-content: center; }
   .bc-status .bc-value { font-size: 0.9em; text-align: right; }
   .bc-meta.alarm { color: var(--invert-text); background: var(--invert-bg); padding: 0 0.5em; }
+  /* GOTHAM row: fictional live notifications, apart from the real rows and never counted in the summary. */
+  .gotham-zone { flex: none; padding: 0 14px 10px; font-size: 23px; }
+  .gotham-zone::before { content: ""; display: block; height: 0; border-top: 2px dashed var(--line-quiet); margin: 0 0 8px; }
+  .bc-status.gotham { position: relative; overflow: hidden; height: 2.5em; }
+  .gotham-text { display: flex; align-items: center; gap: 0.6em; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .gotham-tag { flex: none; font-size: 0.6em; letter-spacing: 0.24em; padding: 0.15em 0.5em; border: 2px solid currentColor; font-weight: 700; }
+  .gotham-label { overflow: hidden; text-overflow: ellipsis; }
+  .gotham .bc-value { white-space: nowrap; }
+  .gotham-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: currentColor; opacity: 0.6; transform-origin: left; }
+  .gotham.arriving::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(253, 227, 17, 0.55) 0 2px, transparent 2px 7px);
+    animation: transmission 0.5s steps(5, end) forwards; }
+  .gotham.arriving .gotham-text { animation: jitter 0.35s steps(4, end); }
+  @keyframes transmission { 0% { opacity: 1; transform: translateY(-6px); } 60% { opacity: 0.7; } 100% { opacity: 0; transform: translateY(6px); } }
+  @keyframes jitter { 0% { transform: translateX(-6px); } 50% { transform: translateX(4px); } 100% { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .gotham.arriving::after, .gotham.arriving .gotham-text { animation: none; } }
   .bc-meta.alarm.critical { background: var(--critical); }
 </style>
 </head>
@@ -23,10 +39,19 @@
     <span class="bc-meta" id="summary">COMPROBANDO</span><span class="bc-meta" id="clock"></span>
   </div>
   <div class="rows" id="rows"></div>
+  <div class="gotham-zone">
+    <div class="bc-status gotham unknown" id="gotham">
+      <span class="bc-icon">○</span>
+      <span class="gotham-text"><span class="gotham-tag">GOTHAM</span><span class="gotham-label">Conectando con la red de Gotham</span></span>
+      <span class="bc-value"></span>
+      <span class="gotham-bar"></span>
+    </div>
+  </div>
   <div class="bc-hazard"></div>
 </div>
 <script type="module">
   import { fitCanvas, poll, startClock } from "/web/screen.js";
+  import { startGothamTicker } from "/web/gotham.js";
 
   fitCanvas(document.getElementById("screen"), 960, 540);
   startClock(document.getElementById("clock"));
@@ -79,6 +104,8 @@
     const alarm = ["error", "critical"].includes(health.overall);
     summary.className = `bc-meta${alarm ? ` alarm ${health.overall}` : ""}`;
   }
+
+  startGothamTicker(document.getElementById("gotham"));
 
   poll(2, load, () => {
     summary.textContent = "SIN CONEXIÓN";

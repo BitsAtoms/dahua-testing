@@ -99,6 +99,17 @@ and `/api/config`, a connection to the MQTT broker, and the receiver database
 
 The header sums up the alarms (`TODO EN ORDEN`, `1 ERROR · 1 AVISO`), in red
 when one is critical. `?demo` shows example alarms to review their look.
+
+**GOTHAM row.** Below the real rows, apart from them by a dashed line and
+tagged `GOTHAM`, a seventh row shows fictional live notifications from
+Batman's universe ("Ubicación del Joker desconocida", "Daño en armamento de
+la Batimoto"), so a mostly healthy screen stays alive and shows every state
+style (owner, 2026-10-01). Every 6 to 11 s a new one arrives with an
+interference flicker, is typed letter by letter, and a thin bar drains until
+the next one. They never count in the header summary. The messages, their
+state and the odds of each state are in `web/data/gotham-alerts.json`: in a
+label or value, `{a-b}` is a random whole number and `{x|y}` a random choice.
+`tests/batcomputer-ui/test_gotham_alerts.py` checks the file after editing.
 The supervisor will reuse these detector rules for automatic recovery
 (roadmap step 4.4).
 
@@ -117,6 +128,8 @@ batcomputer_ui/         screens registry, supervisor console reader, narrator an
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
 web/icons.js            header icons (classic script, also used by the style sample)
+web/gotham.js           the GOTHAM row ticker
+web/data/gotham-alerts.json  its fictional messages (edit freely)
 web/screens/<id>.html   one page per built screen
 web/pending.html        placeholder for screens not built yet and the work screens
 web/preview.html        the nine screens to scale
