@@ -401,7 +401,10 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 Fase 3 cerrada el 2026-09-30: la rama `codex/frigate-stack-template` está
 mergeada en `main` (`d95be09`), y `main` está subido a GitHub después de
 revisar todos los parches (sin IP, contraseñas, grabaciones ni configuración
-local). La fase 4 está en marcha en la rama `codex/single-startup`.
+local). La fase 4 está en marcha. Su primera rama, `codex/single-startup`
+(4.0, 4.1 y 4.3: el arranque único), está mergeada en `main` (`1af2aaa`) el
+2026-10-01, sin subir todavía a GitHub. El panel de salud (4.2) sigue en la
+rama `codex/health-panel`.
 
 1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
    datos del sitio, con tests que rechazan IPs, contraseñas, puertos abiertos
