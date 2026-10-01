@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Batcomputer · muestra de estilo</title>
 <link rel="stylesheet" href="theme.css">
+<script src="icons.js"></script>
 <style>
   /* Preview page only: the nine screens drawn to scale on one display. */
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
@@ -142,7 +143,7 @@
 
   <!-- side_left: events of every source with thumbnails, and the Dahua collector log (owner 2026-10-01) -->
   <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-device="2160×3840" data-cm="0,18,39.2,69.8">
-    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Eventos</span><span class="bc-meta">DAHUA · FRIGATE</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="photo"></span><span class="bc-title">Eventos</span><span class="bc-meta">DAHUA · FRIGATE</span></div>
     <div class="bc-body dahua">
       <div class="dcard new"><div class="dhead"><span class="time">10:36:12</span><span>CAM-03 SHOWROOM</span><span class="track">track 4646</span></div>
         <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
@@ -165,7 +166,7 @@ published update track=4646 latency=3ms
 
   <!-- top_left: video wall of every registered camera, with analysis overlays (owner 2026-10-01) -->
   <section class="bc-screen" data-id="top_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,0,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">TL</span><span class="bc-title">Videovigilancia</span><span class="bc-meta">7 CÁMARAS · 6 CON IMAGEN · ANALIZANDO</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="videowall"></span><span class="bc-title">Videovigilancia</span><span class="bc-meta">7 CÁMARAS · 6 CON IMAGEN · ANALIZANDO</span></div>
     <div class="bc-body videowall">
       <div class="tile"><span class="name">CAM-01 RECEPCIÓN</span><span class="src">FRIGATE</span><span class="box" style="left:30%;top:30%;width:14%;height:52%"><span class="box-label">PERSONA 0,97</span></span><span class="fps">5,1 img/s</span></div>
       <div class="tile"><span class="name">CAM-02 REUNIONES</span><span class="src">FRIGATE</span><span class="box" style="left:52%;top:26%;width:12%;height:50%"><span class="box-label">PERSONA 0,91</span></span><span class="fps">5,0 img/s</span></div>
@@ -181,7 +182,7 @@ published update track=4646 latency=3ms
 
   <!-- top_right: tracking map of the spaces (owner 2026-10-01) -->
   <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,0,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">TR</span><span class="bc-title">Mapa de seguimiento</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="floorplan"></span><span class="bc-title">Mapa de seguimiento</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
     <div class="bc-body map">
       <svg viewBox="0 0 1800 900" aria-label="Plano de ejemplo">
         <defs>
@@ -233,7 +234,7 @@ published update track=4646 latency=3ms
 
   <!-- side_right: to be decided; proposal A + B (journeys and the day's summary) -->
   <section class="bc-screen" data-id="side_right" data-native="1080x1920" data-device="2160×3840" data-cm="191.4,18,39.2,69.8">
-    <div class="bc-header"><span class="bc-code">SR</span><span class="bc-title">Recorridos · resumen</span><span class="bc-meta">PROPUESTA</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="route"></span><span class="bc-title">Recorridos · resumen</span><span class="bc-meta">PROPUESTA</span></div>
     <div class="bc-body" style="padding:40px 40px 20px">
       <div class="timeline">
         <div class="hop"><div class="time">10:36:12</div><div class="route">Recepción → Reuniones</div><div class="why">4 s · tiempo encaja 0,92</div><span class="chip strong">Probable</span></div>
@@ -254,7 +255,7 @@ published update track=4646 latency=3ms
 
   <!-- mini_left: health of the system parts (display only, owner 2026-10-01) -->
   <section class="bc-screen mini" data-id="mini_left" data-native="960x540" data-device="1920×1080" data-cm="2.35,93,34.5,19.4">
-    <div class="bc-header"><span class="bc-code">ML</span><span class="bc-title">Salud · partes</span><span class="bc-meta" id="clock">10:36:12</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="pulse"></span><span class="bc-title">Salud · partes</span><span class="bc-meta" id="clock">10:36:12</span></div>
     <div class="bc-body health mini-list">
       <div class="bc-status error"><span class="bc-icon">■</span><span>Detector · ciego</span><span class="bc-value">0,5 ms</span></div>
       <div class="bc-status warning"><span class="bc-icon">▲</span><span>Retraso transporte</span><span class="bc-value">p95 2,4 s</span></div>
@@ -267,7 +268,7 @@ published update track=4646 latency=3ms
 
   <!-- mini_center: supervisor console (owner's example: black, yellow only) -->
   <section class="bc-screen" data-id="mini_center" data-native="960x540" data-device="1920×1080" data-cm="98.05,84,34.5,19.4">
-    <div class="bc-header"><span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span><span class="bc-meta">EN VIVO</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="terminal"></span><span class="bc-title">Consola · supervisor</span><span class="bc-meta">EN VIVO</span></div>
     <div class="bc-body bc-console" style="font-size:17px; padding:12px 14px">[infrastructure] docker engine=ready after=9.6s
 [infrastructure] mqtt ready after=0.0s
 [infrastructure] frigate_gpu_detector ready after=6.0s
@@ -285,7 +286,7 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
 
   <!-- mini_right: camera connections (display only, owner 2026-10-01) -->
   <section class="bc-screen mini" data-id="mini_right" data-native="960x540" data-device="1920×1080" data-cm="193.75,93,34.5,19.4">
-    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">6 DE 7 CONECTADAS</span></div>
+    <div class="bc-header"><span class="bc-code" data-icon="camera"></span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">6 DE 7 CONECTADAS</span></div>
     <div class="bc-body health mini-list">
       <div class="bc-status critical"><span class="bc-icon">✕</span><span>CAM-05 Almacén</span><span class="bc-value">sin conexión 2 min</span></div>
       <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-01 · 02 · 07</span><span class="bc-value">Frigate · 5 img/s</span></div>

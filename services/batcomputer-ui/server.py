@@ -18,6 +18,7 @@ REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
 from batcomputer_ui.console import SupervisorConsole
+from batcomputer_ui.narrator import CameraNames, Narrator
 from batcomputer_ui.screens import SCREENS, screens_document
 
 
@@ -134,13 +135,19 @@ def main() -> int:
         type=Path,
         default=REPOSITORY_ROOT / "runtime/local-supervisor/logs",
     )
+    parser.add_argument(
+        "--map-file",
+        type=Path,
+        default=REPOSITORY_ROOT / "runtime/space-mapper/space-map.json",
+    )
     args = parser.parse_args()
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal.default_int_handler)
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("batcomputer ui only listens on localhost")
 
-    server = UiServer((args.host, args.port), SupervisorConsole(args.supervisor_logs))
+    console = SupervisorConsole(args.supervisor_logs, narrator=Narrator(CameraNames(args.map_file)))
+    server = UiServer((args.host, args.port), console)
     try:
         print(f"batcomputer_ui=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)

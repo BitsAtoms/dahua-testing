@@ -4,17 +4,22 @@
 <meta charset="utf-8">
 <title>Batcomputer · consola del supervisor</title>
 <link rel="stylesheet" href="/web/theme.css">
+<script src="/web/icons.js"></script>
 <style>
-  /* mini_center: the supervisor console. Black background, yellow text only (owner, 2026-10-01). */
+  /* mini_center: the supervisor console, told for visitors. Black background, yellow text only (owner, 2026-10-01). */
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
   #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 20px; }
   .console { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end;
-    padding: 10px 14px 12px; font-family: var(--font-mono); font-size: 17px; line-height: 1.32; overflow: hidden;
-    text-shadow: 0 0 0.3em rgba(253, 227, 17, 0.45); }
-  .line { display: grid; grid-template-columns: 6.2em 1fr; column-gap: 0.6em; }
+    padding: 10px 14px 12px; font-family: var(--font-mono); font-size: 19px; line-height: 1.42; overflow: hidden;
+    text-shadow: 0 0 0.3em rgba(253, 227, 17, 0.45);
+    /* Older lines fade out under the header as new ones push them up. */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 3.2em); mask-image: linear-gradient(to bottom, transparent 0, #000 3.2em); }
+  .line { display: grid; grid-template-columns: 5.6em 1fr; column-gap: 0.6em; }
   .line .at { opacity: 0.55; }
-  .line .text { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: break-all; }
-  .line.error .text { background: var(--invert-bg); color: var(--invert-text); text-shadow: none; padding: 0 0.3em; font-weight: 700; }
+  .line .text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* Events at full strength, periodic summaries dimmer, alerts inverted. */
+  .line.status .text { opacity: 0.72; }
+  .line.alert .text { background: var(--invert-bg); color: var(--invert-text); text-shadow: none; padding: 0 0.3em; font-weight: 700; }
   .line.session .text { letter-spacing: 0.2em; }
   .line.fresh { animation: arrive 0.6s ease-out; }
   @keyframes arrive { from { opacity: 0; transform: translateY(0.5em); } }
@@ -26,7 +31,7 @@
 <body>
 <div class="bc-screen" id="screen">
   <div class="bc-header">
-    <span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span>
+    <span class="bc-code" data-icon="terminal"></span><span class="bc-title">Consola · supervisor</span>
     <span class="bc-meta" id="status">CONECTANDO</span><span class="bc-meta" id="clock"></span>
   </div>
   <div class="console" id="console"><div class="waiting">ESPERANDO AL SUPERVISOR…</div></div>
@@ -40,11 +45,11 @@
   const consoleBox = document.getElementById("console");
   const status = document.getElementById("status");
   const MAX_LINES = 60;
-  // The supervisor prints its status every 10 s: a longer silence means it stopped.
+  // The supervisor prints its status every 10 s: a longer silence of its log
+  // (not of the visitor lines, which are sparse) means it stopped.
   const SILENCE_SECONDS = 30;
   let lastSeq = 0;
   let session = null;
-  let lastLineAt = null;
   let cursor = null;
 
   function addLine(at, text, kind, fresh) {
@@ -72,17 +77,14 @@
     }
     const fresh = lastSeq > 0;
     if (data.session !== session) {
-      if (session !== null) addLine(localTime(), "── NUEVA SESIÓN DEL SUPERVISOR ──", "session", fresh);
+      if (session !== null) addLine(localTime(), "── EL SISTEMA SE HA REINICIADO ──", "session", fresh);
       session = data.session;
     }
-    for (const line of data.lines) {
-      const kind = /\bERROR\b|Traceback|exited code=(?!0\b)/.test(line.text) ? "error" : "";
-      addLine(localTime(line.at), line.text, kind, fresh);
-      lastLineAt = new Date(line.at);
-    }
+    for (const line of data.lines) addLine(localTime(line.at), line.text, line.kind, fresh);
     lastSeq = Math.max(lastSeq, data.last_seq);
     while (consoleBox.children.length > MAX_LINES + 1) consoleBox.firstElementChild.remove();
-    const silent = !lastLineAt || (Date.now() - lastLineAt.getTime()) / 1000 > SILENCE_SECONDS;
+    const lastRaw = data.last_line_at ? new Date(data.last_line_at) : null;
+    const silent = !lastRaw || Number.isNaN(lastRaw.getTime()) || (Date.now() - lastRaw.getTime()) / 1000 > SILENCE_SECONDS;
     status.textContent = silent ? "DETENIDO" : "EN VIVO";
     status.classList.toggle("stopped", silent);
   }

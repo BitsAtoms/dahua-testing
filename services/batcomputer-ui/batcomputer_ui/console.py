@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import threading
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .narrator import Narrator
 
 
 SESSION_PATTERN = re.compile(r"^\d{8}T\d{6}Z$")
@@ -28,6 +32,7 @@ class ConsoleLine:
     seq: int
     at: str
     text: str
+    kind: str = "raw"
 
 
 class SupervisorConsole:
@@ -38,8 +43,11 @@ class SupervisorConsole:
     beginning. Lines keep increasing sequence numbers across sessions.
     """
 
-    def __init__(self, log_root: Path, keep: int = 300, tail_bytes: int = 256 * 1024) -> None:
+    def __init__(self, log_root: Path, keep: int = 300, tail_bytes: int = 256 * 1024,
+                 narrator: "Narrator | None" = None) -> None:
         self.log_root = log_root
+        # With a narrator the console keeps visitor lines instead of raw ones.
+        self.narrator = narrator
         # A long session's log holds hundreds of thousands of lines: start near its end.
         self.tail_bytes = tail_bytes
         self.lines: deque[ConsoleLine] = deque(maxlen=keep)
@@ -47,6 +55,8 @@ class SupervisorConsole:
         self.offset = 0
         self.pending = b""
         self.next_seq = 1
+        # Time of the newest raw log line: the supervisor is alive while it moves.
+        self.last_line_at: str | None = None
         self.lock = threading.Lock()
 
     def read(self, after: int = 0) -> dict:
@@ -56,6 +66,7 @@ class SupervisorConsole:
             return {
                 "session": self.session,
                 "last_seq": self.next_seq - 1,
+                "last_line_at": self.last_line_at,
                 "lines": [line.__dict__ for line in lines],
             }
 
@@ -101,5 +112,14 @@ class SupervisorConsole:
             if not line.strip():
                 continue
             at, _, text = line.partition(" ")
-            self.lines.append(ConsoleLine(self.next_seq, at, mask_secrets(text)))
-            self.next_seq += 1
+            self.last_line_at = at
+            text = mask_secrets(text)
+            if self.narrator is None:
+                self._append(at, text, "raw")
+                continue
+            for story in self.narrator.tell(at, text):
+                self._append(story.at, story.text, story.kind)
+
+    def _append(self, at: str, text: str, kind: str) -> None:
+        self.lines.append(ConsoleLine(self.next_seq, at, text, kind))
+        self.next_seq += 1

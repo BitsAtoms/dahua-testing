@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>Batcomputer · pantalla</title>
 <link rel="stylesheet" href="/web/theme.css">
+<script src="/web/icons.js"></script>
 <style>
   /* Placeholder for screens not built yet, and the two free work screens. */
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
@@ -29,7 +30,9 @@
   const screen = screens.find(item => item.position_id === id);
   const root = document.getElementById("screen");
   document.title = `Batcomputer · ${screen.title}`;
-  document.getElementById("code").textContent = screen.code;
+  const chip = document.getElementById("code");
+  chip.dataset.icon = screen.icon;
+  window.bcIcons.decorate();
   document.getElementById("title").textContent = screen.title;
   root.style.fontSize = screen.width < 1000 && screen.height < 1000 ? "20px" : "30px";
   if (screen.work) {

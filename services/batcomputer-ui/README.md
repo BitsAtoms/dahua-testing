@@ -49,23 +49,50 @@ canvas about 0.36 mm per CSS pixel.
 
 ### Supervisor console (`mini_center`)
 
-- Follows `runtime/local-supervisor/logs/<newest session>/supervisor.log`,
-  starting with its last 256 KB, and switches to a new session when the
-  supervisor restarts.
-- Times are shown in local time. Lines are clamped to two rows.
-- Errors (`ERROR`, tracebacks, non-zero exits) are shown black on yellow.
-- The header says `EN VIVO` while lines arrive and `DETENIDO` after 30 s of
-  silence; the supervisor prints its status every 10 s.
+Visitors see this screen, so it tells what is really happening in plain
+Spanish instead of showing the technical log (owner, 2026-10-01).
+`batcomputer_ui/narrator.py` reads each line of the newest session's
+`supervisor.log` (from its last 256 KB) and keeps only what relates to
+something real:
+
+| Log line | On screen |
+|---|---|
+| receiver `phase=new` | `◆ RECEPCIÓN · nueva persona a la vista (#4509)` |
+| receiver `phase=end` | `◇ RECEPCIÓN · #4509 sale de la imagen tras 42 s` (time since its `new`) |
+| receiver `phase=snapshot` | `▣ … · fotos de cuerpo y cara de #4509 guardadas` (Dahua) or `foto de … guardada` (Frigate), once per person |
+| `tracking_status` | `● 2 personas en seguimiento ahora mismo`, at most once a minute; new handoff candidates as `↔ El sistema relaciona …`, at most every 15 s |
+| `stack_status` | a service that stops or comes back, at once; otherwise `● Sistema en marcha: 10 de 10 piezas funcionando` every 5 min |
+| start-up steps, `started`, `exited`, `ERROR` | `► Detector de IA en la tarjeta gráfica listo`, `▲ Se ha detenido …; se reinicia solo` |
+| everything else (`tracking_batch`, `visual_reid_status`, detector logs…) | nothing |
+
+On 2026-10-01, 4000 log lines in 12 minutes became 41 visitor lines. Each
+line keeps its track number, so it still reads as live data. Cameras are
+named after their map label, or else their room (the space mapper's map), or
+else their id.
+
+- Times are shown in local time, one row per line; older lines fade out under
+  the header.
+- Alerts are shown black on yellow, and periodic summaries a little dimmer.
+- The header says `EN VIVO` while the raw log moves and `DETENIDO` after 30 s
+  of silence (the supervisor prints its status every 10 s).
 - `rtsp://user:password@` and `password=`/`token=`-style values are masked
-  before they reach the screen.
+  before anything is narrated.
+
+### Header icons
+
+The yellow block of each header is decoration with an icon of what the
+screen shows, without letters (owner, 2026-10-01): `web/icons.js` draws a
+terminal, a pulse line, a video camera, four screens, a folded map, a photo
+and a route.
 
 ## Files
 
 ```text
 server.py               HTTP server (stdlib), localhost only
-batcomputer_ui/         screens registry and the supervisor console reader
+batcomputer_ui/         screens registry, supervisor console reader and narrator
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
+web/icons.js            header icons (classic script, also used by the style sample)
 web/screens/<id>.html   one page per built screen
 web/pending.html        placeholder for screens not built yet and the work screens
 web/preview.html        the nine screens to scale

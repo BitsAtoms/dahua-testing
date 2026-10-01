@@ -77,16 +77,19 @@
   font-variation-settings: "wdth" 75;
   flex: none;
 }
+/* Decorative yellow block: an icon of what the screen shows, no letters (owner, 2026-10-01). */
 .bc-code {
   align-self: stretch;
   display: flex;
   align-items: center;
-  padding: 0 1.1em 0 0.7em;
+  justify-content: center;
+  min-width: 2.2em;
+  padding: 0 1.2em 0 0.7em;
   background: var(--invert-bg);
   color: var(--invert-text);
-  letter-spacing: 0.08em;
   clip-path: polygon(0 0, 100% 0, calc(100% - 0.9em) 100%, 0 100%);
 }
+.bc-code svg { width: 1.3em; height: 1.3em; display: block; }
 .bc-title { flex: 1; }
 .bc-meta {
   font-family: var(--font-mono);

@@ -64,6 +64,9 @@ Batcomputer moderno con toques del Batman clásico y de los 90:
   física, y líneas de barrido y brillo de monitor antiguo, muy suaves. La
   intensidad se revisa en las pantallas reales.
 
+El bloque amarillo de cada cabecera es decoración, con un icono de lo que
+muestra la pantalla y sin letras.
+
 Las reglas exactas y los contrastes medidos están en el README del módulo.
 
 ## 4. Pantalla por pantalla
@@ -116,7 +119,9 @@ Las reglas exactas y los contrastes medidos están en el README del módulo.
 - `mini_left`: salud de las partes. Docker, Mosquitto, Frigate, el detector
   (con las alarmas de ciego, atascado y roto), los servicios y el retraso del
   transporte.
-- `mini_center`: la consola del supervisor, en vivo.
+- `mini_center`: la consola del supervisor, en vivo y contada para
+  visitantes: frases como "Recepción · nueva persona a la vista (#4509)" en
+  lugar del registro técnico. Se descarta el ruido interno.
 - `mini_right`: la conexión de cada cámara.
 
 ## 5. Modo privado
