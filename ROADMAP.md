@@ -326,6 +326,33 @@ Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
 Salida: después de reiniciar el PC, el sistema queda operativo sin que nadie
 intervenga.
 
+### Presentación en las 9 pantallas del Batcomputer `[~]`
+
+El PC final está en una réplica del ordenador de Batman con 9 pantallas: dos
+verticales a los lados (`side_left`, `side_right`), un bloque central de 2×2
+(`top_left`, `top_right`, `bottom_left`, `bottom_right`) y tres pequeñas
+empotradas en la consola (`mini_left`, `mini_center`, `mini_right`). Cada
+pantalla tendrá su propia ventana, que al arrancar se coloca sola en su sitio.
+Este trabajo empezó el 2026-10-01, antes de la fase 5, porque la instalación
+tiene que colocar esas ventanas. La parte visual del panel de salud (4.2) se
+hace aquí. Detalle en `services/batcomputer-ui/README.md`.
+
+- [x] Estilo: la paleta del propietario y una muestra de las 9 pantallas a
+  escala (2026-10-01). Predominan el negro y el negro lavado, con el amarillo
+  como contraste; el rojo queda solo para lo crítico. Ningún estado se
+  distingue solo por el color.
+- [x] Contenido de las pantallas pequeñas: salud de las partes (`mini_left`),
+  consola del supervisor (`mini_center`) y salud de las cámaras
+  (`mini_right`). Solo muestran información: no son interactivas y el ratón
+  no debe llegar a ellas.
+- [ ] Inventario de las pantallas del PC final (resolución, orientación,
+  escala, conexión, tarjeta gráfica y posición física de cada una), con el
+  prompt preparado para ejecutarlo allí.
+- [ ] Contenido de las 6 pantallas grandes.
+- [ ] Documento de diseño para que lo apruebe el propietario, y después la
+  construcción: las ventanas, su colocación y el ratón limitado al bloque de
+  las pantallas grandes.
+
 ### Fase 5 — Preparación para el PC final `[ ]`
 
 - [ ] Script de instalación reproducible (Python, entornos, Docker y
@@ -395,6 +422,9 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | En este PC compartido no se toca el inicio de sesión automático (es de otra cuenta); el propietario entra a mano | Decisión del propietario: el PC final tiene una sola cuenta, que entra sola |
 | 2026-10-01 | El supervisor impide la suspensión mientras está en marcha, sin cambiar los ajustes de energía | Decisión del propietario; el PC final ya estará configurado para no apagarse |
 | 2026-10-01 | El mapa se muestra en una ventana de aplicación de Chrome a pantalla completa, que `F11` alterna, en vez del modo `--kiosk` | Decisión del propietario: poder ver el modo kiosco y seguir trabajando en este PC; si el PC final necesita el kiosco bloqueado se decide en la fase 5 |
+| 2026-10-01 | Estilo de las pantallas: Batcomputer moderno con toques del Batman clásico y de los 90. Paleta amarillo `#FDE311`, ocre `#988829`, azul grisáceo oscuro `#282e3c` y claro `#505c7c`, negro lavado `#242424` y negro `#020202`; predominan los negros | Decisión del propietario |
+| 2026-10-01 | Rojo `#FF4D3A` solo para alarmas y situaciones críticas o especiales; sin logotipos de Batman por ahora (un detector de batiseñal queda como idea para más adelante) | Decisión del propietario |
+| 2026-10-01 | Pantallas pequeñas: salud de las partes, consola del supervisor y salud de las cámaras, sin interacción ni ratón | Decisión del propietario |
 
 ## Trabajo actual
 
@@ -494,8 +524,11 @@ rama `codex/health-panel`.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso de la fase 4: el panel de salud (4.2) o la recuperación ante
-fallos (4.4), según decida el propietario.
+En curso: la presentación en las 9 pantallas, en la rama
+`codex/batcomputer-presentation`. Siguiente paso: traer el inventario de
+pantallas del PC final (prompt en la carpeta Descargas de este PC) y decidir
+el contenido de las 6 pantallas grandes. La recuperación ante fallos (4.4)
+sigue pendiente y no depende de la estética.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

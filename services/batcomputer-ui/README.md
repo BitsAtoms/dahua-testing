@@ -41,15 +41,35 @@ dominate, yellow gives the contrast.
 | Secondary text | ochre `#988829` on black only | 5.8:1 (4.4:1 on washed black: large text only) |
 | Lines, grids, inactive marks | light steel `#505c7c` | 3.1:1, never text |
 | Alarms, highlights | black on yellow | 16.0:1 |
+| Critical or special situations only | black on red `#FF4D3A`, red on black | 6.3:1; never yellow on red (2.5:1) |
 | Accents | dark steel `#282e3c` | |
 
 - Status is never color alone: ok is an ochre dot, a warning a yellow triangle
   with an outline, an error black on yellow with a hazard edge and a slow blink,
-  unknown a hollow ring with a dashed outline.
+  critical black on red with a cross and a faster blink (below 3 flashes per
+  second), unknown a hollow ring with a dashed outline. For red-green
+  colorblind viewers red is close to ochre (deuteranopia dE 6.0), which is why
+  critical also differs in fill, icon and word.
 - Yellow and black hazard stripes echo the physical console.
 - Faint scanlines and a soft yellow glow give the 1990s CRT tint; blinking
   stops under `prefers-reduced-motion`.
 - Fonts ship with Windows 11: Bahnschrift (condensed, technical) and Cascadia
   Mono (consoles and figures). Nothing is downloaded.
-- The supervisor console (owner's example for `mini_center`): black background,
-  yellow monospace text only.
+- No Batman logos for now; a bat-signal detector is a concept for later.
+- The intensity of the 1990s effects is kept until it is seen on the real
+  screens.
+
+## Screens decided (owner, 2026-10-01)
+
+| Screen | Content |
+|---|---|
+| `mini_left` | health of the system parts (Docker, MQTT, Frigate and its detector, services, transport delay) |
+| `mini_center` | supervisor console: black background, yellow monospace text only |
+| `mini_right` | health of the cameras: whether each one is connected |
+
+The three small screens only show information: they are not interactive and
+the mouse should not reach them. On the final PC's Windows layout the six
+large screens form one block and the small ones sit below it, so the cursor
+can be confined to that block with `ClipCursor` (to confirm with the display
+inventory), and their windows ignore clicks. The large screens' content is
+still to be decided; the sample shows examples.

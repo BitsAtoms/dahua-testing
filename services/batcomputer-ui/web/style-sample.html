@@ -69,6 +69,9 @@
   .state { display: grid; place-items: center; align-content: center; height: 100%; gap: 18px; text-align: center; }
   .state .big { font-size: 120px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-stretch: condensed; font-variation-settings: "wdth" 75; }
   .state .small { font-family: var(--font-mono); font-size: 34px; color: var(--text-muted); }
+  .mini-list { gap: 12px; font-size: 34px; }
+  /* Display-only screens: no pointer interaction (owner 2026-10-01). */
+  .bc-screen.mini, .bc-screen[data-id="mini_center"] { pointer-events: none; cursor: none; }
 </style>
 </head>
 <body>
@@ -175,17 +178,15 @@
     </div>
   </section>
 
-  <!-- bottom_right: system health -->
+  <!-- bottom_right: content to be decided; shows the status legend for review -->
   <section class="bc-screen" data-id="bottom_right" data-native="1920x1080" data-cm="101,35,60,34">
-    <div class="bc-header"><span class="bc-code">BR</span><span class="bc-title">Salud del sistema</span><span class="bc-meta">ACTUALIZADO HACE 3 S</span></div>
+    <div class="bc-header"><span class="bc-code">BR</span><span class="bc-title">Leyenda de estados</span><span class="bc-meta">CONTENIDO POR DEFINIR</span></div>
     <div class="bc-body health">
-      <div class="bc-status error"><span class="bc-icon">■</span><span>Detector de Frigate · ciego</span><span class="bc-value">0,5 ms/imagen</span></div>
-      <div class="bc-status warning"><span class="bc-icon">▲</span><span>Retraso del transporte</span><span class="bc-value">p95 2,4 s</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>Docker · Mosquitto · Frigate</span><span class="bc-value">en marcha</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>Programa detector GPU</span><span class="bc-value">escuchando</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>Servicios propios (7)</span><span class="bc-value">0 reinicios</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>dahua_212</span><span class="bc-value">NetSDK conectado · CGI ok</span></div>
-      <div class="bc-status unknown"><span class="bc-icon">○</span><span>dahua_213</span><span class="bc-value">desactivada</span></div>
+      <div class="bc-status critical"><span class="bc-icon">✕</span><span>Crítico · solo situaciones especiales</span><span class="bc-value">rojo, parpadeo rápido</span></div>
+      <div class="bc-status error"><span class="bc-icon">■</span><span>Error</span><span class="bc-value">negro sobre amarillo</span></div>
+      <div class="bc-status warning"><span class="bc-icon">▲</span><span>Aviso</span><span class="bc-value">recuadro amarillo</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Correcto</span><span class="bc-value">punto ocre, discreto</span></div>
+      <div class="bc-status unknown"><span class="bc-icon">○</span><span>Sin datos o desactivado</span><span class="bc-value">borde punteado</span></div>
     </div>
   </section>
 
@@ -203,17 +204,23 @@
     <div class="bc-hazard"></div>
   </section>
 
-  <!-- mini_left: clock -->
-  <section class="bc-screen" data-id="mini_left" data-native="1280x800" data-cm="6,76,22,14">
-    <div class="bc-header"><span class="bc-code">ML</span><span class="bc-title">Reloj</span><span class="bc-meta">EN MARCHA 02:14:33</span></div>
-    <div class="bc-body"><div class="clock"><div class="time" id="clock">10:36:12</div><div class="date">Jueves 1 oct 2026</div></div></div>
+  <!-- mini_left: health of the system parts (display only, owner 2026-10-01) -->
+  <section class="bc-screen mini" data-id="mini_left" data-native="1280x800" data-cm="6,76,22,14">
+    <div class="bc-header"><span class="bc-code">ML</span><span class="bc-title">Salud · partes</span><span class="bc-meta" id="clock">10:36:12</span></div>
+    <div class="bc-body health mini-list">
+      <div class="bc-status error"><span class="bc-icon">■</span><span>Detector · ciego</span><span class="bc-value">0,5 ms</span></div>
+      <div class="bc-status warning"><span class="bc-icon">▲</span><span>Retraso transporte</span><span class="bc-value">p95 2,4 s</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Docker · MQTT</span><span class="bc-value">ok</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Frigate</span><span class="bc-value">ok</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Servicios (7)</span><span class="bc-value">0 reinicios</span></div>
+    </div>
     <div class="bc-hazard"></div>
   </section>
 
   <!-- mini_center: supervisor console (owner's example: black, yellow only) -->
   <section class="bc-screen" data-id="mini_center" data-native="1280x800" data-cm="89,74,22,14">
     <div class="bc-header"><span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span><span class="bc-meta">EN VIVO</span></div>
-    <div class="bc-body bc-console">[infrastructure] docker engine=ready after=9.6s
+    <div class="bc-body bc-console" style="font-size:28px">[infrastructure] docker engine=ready after=9.6s
 [infrastructure] mqtt ready after=0.0s
 [infrastructure] frigate_gpu_detector ready after=6.0s
 [infrastructure] frigate action=restart reason=started_before_detector
@@ -228,10 +235,16 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
 <span class="bc-cursor"></span></div>
   </section>
 
-  <!-- mini_right: overall state -->
-  <section class="bc-screen" data-id="mini_right" data-native="1280x800" data-cm="173,76,22,14">
-    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Estado</span><span class="bc-meta">9 PANTALLAS</span></div>
-    <div class="bc-body"><div class="state"><div class="big">▲ 1 AVISO</div><div class="small">1 error · 1 aviso · 5 ok</div></div></div>
+  <!-- mini_right: camera connections (display only, owner 2026-10-01) -->
+  <section class="bc-screen mini" data-id="mini_right" data-native="1280x800" data-cm="173,76,22,14">
+    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">3 DE 4 CONECTADAS</span></div>
+    <div class="bc-body health mini-list">
+      <div class="bc-status critical"><span class="bc-icon">✕</span><span>CAM-04 Almacén</span><span class="bc-value">sin conexión 2 min</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-01 Recepción</span><span class="bc-value">5,1 img/s</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-02 Reuniones</span><span class="bc-value">5,0 img/s</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-03 Showroom</span><span class="bc-value">NetSDK · CGI</span></div>
+      <div class="bc-status unknown"><span class="bc-icon">○</span><span>CAM-05 Puerta</span><span class="bc-value">desactivada</span></div>
+    </div>
     <div class="bc-hazard"></div>
   </section>
 

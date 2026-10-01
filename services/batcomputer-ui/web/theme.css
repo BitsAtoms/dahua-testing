@@ -6,6 +6,10 @@
  *   ochre on black 5.8:1 (secondary text); on washed black 4.4:1 (large text only)
  *   light steel on black 3.1:1, on washed black 2.3:1 (lines only, never text)
  *   black on yellow 16.0:1 (alarms and highlights)
+ *   red on black 6.3:1, black on red 6.3:1; yellow on red 2.5:1 (never)
+ * Red is reserved for critical or special situations (owner, 2026-10-01). For
+ * red-green colorblind viewers it is close to ochre (deutan dE 6.0), so the
+ * critical state also has its own fill, icon and word.
  * Fonts ship with Windows 11 (Bahnschrift, Cascadia Mono): nothing is downloaded.
  */
 
@@ -16,6 +20,7 @@
   --bc-steel-light: #505c7c;
   --bc-black-washed: #242424;
   --bc-black: #020202;
+  --bc-red: #FF4D3A;
 
   --bg: var(--bc-black);
   --panel: var(--bc-black-washed);
@@ -26,6 +31,7 @@
   --line-quiet: var(--bc-steel-light);
   --invert-bg: var(--bc-yellow);
   --invert-text: var(--bc-black);
+  --critical: var(--bc-red);
 
   --font-display: Bahnschrift, "Arial Narrow", sans-serif;
   --font-mono: "Cascadia Mono", Consolas, monospace;
@@ -150,6 +156,7 @@
  *   ok       ochre dot, quiet
  *   warning  yellow triangle, outlined row
  *   error    black on yellow, hazard edge, slow blink
+ *   critical black on red, cross icon, red hazard edge, blink (red only here)
  *   unknown  hollow light-steel ring, dashed
  */
 .bc-status {
@@ -174,6 +181,14 @@
   border-left: 0.6em solid transparent;
   border-image: repeating-linear-gradient(-45deg, var(--bc-black) 0 0.3em, var(--bc-yellow) 0.3em 0.6em) 1;
   animation: bc-blink 1s steps(1, end) infinite;
+}
+.bc-status.critical {
+  background: var(--critical);
+  color: var(--bc-black);
+  font-weight: 700;
+  border-left: 0.6em solid transparent;
+  border-image: repeating-linear-gradient(-45deg, var(--bc-black) 0 0.3em, var(--critical) 0.3em 0.6em) 1;
+  animation: bc-blink 0.6s steps(1, end) infinite;
 }
 .bc-status.unknown { border: 2px dashed var(--line-quiet); color: var(--text-muted); }
 .bc-status.unknown .bc-icon { color: var(--line-quiet); }
@@ -200,5 +215,5 @@
 @keyframes bc-blink { 50% { opacity: 0.25; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .bc-status.error, .bc-cursor { animation: none; }
+  .bc-status.error, .bc-status.critical, .bc-cursor { animation: none; }
 }
