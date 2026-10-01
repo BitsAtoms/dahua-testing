@@ -79,4 +79,23 @@ outboxes keep undelivered messages.
 by Docker before the detector): the supervisor started 4 s after the task,
 restarted Frigate (236 `Model not ready` warnings in the 21 s before, none
 after), and the map window opened 20 s after the task. Every process ran at
-normal priority.
+normal priority. `Ctrl+Alt+B` reopened the map window.
+
+Real restart of the PC, signing in by hand (the development PC is shared and
+its automatic sign-in belongs to another account, which was left untouched):
+
+| Step | Local time | Since boot |
+|---|---|---:|
+| Windows boot | 10:34:48 | 0 s |
+| Sign-in (by hand) | 10:35:17 | 29 s |
+| `autostart.py` started by the task | 10:35:19 | 31 s |
+| Docker Desktop answered (started by the supervisor, 9.6 s) | 10:35:34 | 46 s |
+| Mosquitto listening | 10:35:42 | 54 s |
+| GPU detector client listening | 10:35:48 | 60 s |
+| Frigate restarted after the detector and answering | 10:36:12 | 84 s |
+| All services started, map window open | 10:36:13 | 85 s |
+
+From sign-in to the map: 56 s, with one autostart instance and no retry.
+Fifteen minutes later Frigate had no `Model not ready` warnings, 33 ms per
+inference and no skipped frames. On a cold Docker, restarting Frigate took
+about 22 s, against about 7 s with Docker already running.

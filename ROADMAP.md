@@ -303,8 +303,24 @@ Salida: Frigate se levanta desde el repositorio con las cámaras de prueba.
   - **ciego:** tiempo por imagen por debajo de 1 ms, o `Model not ready` en el
     log, aunque las cámaras parezcan sanas;
   - **roto:** tiempo por imagen absurdo o congelado.
-- [ ] Arranque automático: inicio de sesión automático, tarea al iniciar la
-  sesión y navegador en modo kiosco.
+- [x] Arranque automático: inicio de sesión automático, tarea al iniciar la
+  sesión y navegador en modo kiosco. **Validado en este PC el 2026-10-01**
+  reiniciando de verdad: del encendido al mapa en pantalla, 85 s; desde el
+  inicio de sesión, 56 s, sin tocar nada. Ese día:
+  - `deploy/windows/install-autostart.ps1` registró, sin permisos de
+    administrador, la tarea "Batcomputer" del Programador de tareas;
+  - la tarea lanza `services/local-supervisor/autostart.py`, que reintenta el
+    supervisor si falla al arrancar y abre el mapa en una ventana de Chrome a
+    pantalla completa;
+  - `F11` alterna entre pantalla completa y ventana normal, `Ctrl+Alt+B`
+    vuelve a abrir el mapa y `Alt+F4` lo cierra (decisión del propietario:
+    poder trabajar en este PC);
+  - el supervisor impide la suspensión mientras está en marcha y guarda su
+    salida en `supervisor.log`.
+
+  En este PC el inicio de sesión fue manual. El PC es compartido y su inicio
+  automático pertenece a otra cuenta, que no se tocó (decisión del
+  propietario). El PC final tiene una sola cuenta, que entra sola.
 - [ ] Recuperación ante cámara caída, reinicio de Docker y corte de luz.
 
 Salida: después de reiniciar el PC, el sistema queda operativo sin que nadie
@@ -375,6 +391,10 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-09-29 | Frigate con versión fija y puertos solo en `127.0.0.1`; reconocimiento facial apagado en la plantilla | `stable` cambia solo con cada actualización; nada se expone a la red; la comparación facial espera la revisión de privacidad |
 | 2026-09-30 | Fase 4: el supervisor arranca también Docker Desktop, y este PC de desarrollo vuelve al detector con GPU | Decisión del propietario: el supervisor controla el orden completo, y probar con la GPU da más indicios de que funcionará en el PC final |
 | 2026-09-30 | El arranque completo (inicio de sesión automático, tarea al iniciar la sesión y modo kiosco) se prueba primero en este PC | Decisión del propietario: al encender el PC no hay que hacer nada más; el PC final usará el mismo inicio de sesión automático de Windows |
+| 2026-10-01 | Al parar el supervisor se paran también Frigate y el programa detector; Mosquitto y Docker Desktop siguen encendidos | Decisión del propietario: sin el programa detector, Frigate quedaría ciego |
+| 2026-10-01 | En este PC compartido no se toca el inicio de sesión automático (es de otra cuenta); el propietario entra a mano | Decisión del propietario: el PC final tiene una sola cuenta, que entra sola |
+| 2026-10-01 | El supervisor impide la suspensión mientras está en marcha, sin cambiar los ajustes de energía | Decisión del propietario; el PC final ya estará configurado para no apagarse |
+| 2026-10-01 | El mapa se muestra en una ventana de aplicación de Chrome a pantalla completa, que `F11` alterna, en vez del modo `--kiosk` | Decisión del propietario: poder ver el modo kiosco y seguir trabajando en este PC; si el PC final necesita el kiosco bloqueado se decide en la fase 5 |
 
 ## Trabajo actual
 
@@ -417,8 +437,9 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
      reinicia. Validado con un arranque en frío de Docker Desktop, una caída
      del programa y una parada limpia.
    - [ ] **4.2** Panel de salud.
-   - [ ] **4.3** Inicio de sesión automático, tarea al iniciar la sesión y
-     modo kiosco, probados en este PC.
+   - [x] **4.3** Tarea al iniciar la sesión y mapa a pantalla completa en
+     Chrome, probados con un reinicio real de este PC (2026-10-01): mapa en
+     pantalla 85 s después del encendido.
    - [ ] **4.4** Recuperación ante cámara caída, reinicio de Docker y corte de
      luz.
 9. [ ] Fase 5: instalación y guía para el PC final.
@@ -447,9 +468,11 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
      restauran los bloques `detectors`/`model` de
      `deploy/docker/frigate/config.template.yml` en el *Configuration editor*
      y se pone `"cpu"` en ese archivo.
-   - El supervisor lo arranca todo: `python services\local-supervisor\run.py`.
-     Sin el supervisor, Frigate queda parado. Si se arranca Frigate a mano
-     sin el programa detector, queda ciego.
+   - El supervisor lo arranca todo. Desde el 2026-10-01 lo lanza la tarea
+     "Batcomputer" al iniciar la sesión de `Agustin`, con la ventana del mapa.
+     Se quita con `deploy\windows\install-autostart.ps1 -Uninstall`. A mano:
+     `python services\local-supervisor\run.py`. Sin el supervisor, Frigate
+     queda parado o ciego.
 3. Configuración local, que Git ignora:
    - `.env`: credenciales y `FRIGATE_TRACK_CLASSIFICATION_POLICY`;
    - `deploy/docker/.env`: carpetas de Frigate y URLs de sus cámaras;
@@ -468,8 +491,8 @@ local). La fase 4 está en marcha en la rama `codex/single-startup`.
 6. Este PC no es el PC final (aquí hay una RTX 3050; el final tiene dos RX 9070
    XT). No se da por validado nada de GPU AMD desde aquí.
 
-Siguiente paso de la fase 4: el arranque automático (4.3) o el panel de salud
-(4.2), según decida el propietario.
+Siguiente paso de la fase 4: el panel de salud (4.2) o la recuperación ante
+fallos (4.4), según decida el propietario.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.

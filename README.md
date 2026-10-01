@@ -56,8 +56,15 @@ python services\local-supervisor\run.py --check
 python services\local-supervisor\run.py
 ```
 
-`Ctrl+C` lo para todo menos Mosquitto y Docker Desktop. Que arranque solo al
-encender el PC es el siguiente paso de la fase 4 del roadmap.
+`Ctrl+C` lo para todo menos Mosquitto y Docker Desktop.
+
+Para que todo arranque solo al iniciar la sesión de Windows, con el mapa a
+pantalla completa (`F11` alterna la pantalla completa y `Ctrl+Alt+B` vuelve a
+abrir el mapa), ver [`deploy/windows/README.md`](deploy/windows/README.md):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\install-autostart.ps1
+```
 
 ## Tests
 
