@@ -13,8 +13,10 @@ import urllib.request
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "services" / "batcomputer-ui"))
 
+from batcomputer_ui.cameras import CameraHealth  # noqa: E402
 from batcomputer_ui.console import SupervisorConsole  # noqa: E402
 from batcomputer_ui.health import HealthMonitor, SupervisorWatch  # noqa: E402
+from batcomputer_ui.narrator import CameraNames  # noqa: E402
 from batcomputer_ui.screens import SCREENS  # noqa: E402
 from server import UiServer  # noqa: E402
 
@@ -31,7 +33,9 @@ class ServerTests(unittest.TestCase):
         # Offline sources: the test must not reach the real Frigate or broker.
         health = HealthMonitor(watch, frigate=lambda endpoint: None, tcp=lambda host, port: False,
                                refresh=console.refresh)
-        cls.server = UiServer(("127.0.0.1", 0), console, health)
+        cameras = CameraHealth(CameraNames(Path(cls.directory.name) / "missing.json"),
+                               frigate=lambda endpoint: None, dahua=lambda: None)
+        cls.server = UiServer(("127.0.0.1", 0), console, health, cameras)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         cls.thread = threading.Thread(target=cls.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
         cls.thread.start()
@@ -91,6 +95,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in health["items"]],
                          ["docker", "mqtt", "frigate", "detector", "services", "delay"])
         self.assertEqual(health["overall"], "critical")
+
+    def test_camera_health_answers_without_sources(self) -> None:
+        status, _, body = self.get("/api/camera-health")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["cameras"], [])
 
 
 if __name__ == "__main__":

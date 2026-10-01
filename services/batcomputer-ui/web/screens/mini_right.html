@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · salud de las cámaras</title>
+<link rel="stylesheet" href="/web/theme.css">
+<script src="/web/icons.js"></script>
+<style>
+  /* mini_right: is each camera connected, and when did it last see someone. */
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 20px; }
+  .rows { flex: 1; min-height: 0; display: grid; grid-auto-rows: 1fr; gap: 6px; padding: 10px 14px 10px; font-size: 23px; }
+  /* More than six cameras (nine are planned): two columns. */
+  .rows.two { grid-template-columns: 1fr 1fr; grid-auto-flow: column; font-size: 19px; }
+  .bc-status { align-content: center; }
+  .camera { display: flex; align-items: center; gap: 0.6em; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .camera .name { overflow: hidden; text-overflow: ellipsis; }
+  .source { flex: none; font-size: 0.6em; letter-spacing: 0.24em; padding: 0.15em 0.5em; border: 2px solid currentColor; font-weight: 700; }
+  .bc-status .bc-value { font-size: 0.9em; text-align: right; white-space: nowrap; }
+  /* A camera seeing people right now: a pulsing mark before its value. */
+  .bc-status.active .bc-value { color: var(--text); }
+  .bc-status.active .bc-value::before { content: "◉ "; animation: seeing 1.2s ease-in-out infinite; }
+  @keyframes seeing { 50% { opacity: 0.2; } }
+  .bc-meta.alarm { color: var(--invert-text); background: var(--invert-bg); padding: 0 0.5em; }
+  .bc-meta.alarm.critical { background: var(--critical); }
+  .empty { margin: auto; letter-spacing: 0.2em; opacity: 0.7; }
+  @media (prefers-reduced-motion: reduce) { .bc-status.active .bc-value::before { animation: none; } }
+</style>
+</head>
+<body>
+<div class="bc-screen" id="screen">
+  <div class="bc-header">
+    <span class="bc-code" data-icon="camera"></span><span class="bc-title">Salud · cámaras</span>
+    <span class="bc-meta" id="summary">COMPROBANDO</span><span class="bc-meta" id="clock"></span>
+  </div>
+  <div class="rows" id="rows"><div class="empty">BUSCANDO CÁMARAS…</div></div>
+  <div class="bc-hazard"></div>
+</div>
+<script type="module">
+  import { fitCanvas, poll, startClock } from "/web/screen.js";
+
+  fitCanvas(document.getElementById("screen"), 960, 540);
+  startClock(document.getElementById("clock"));
+
+  const ICONS = { ok: "●", warning: "▲", error: "■", critical: "✕", unknown: "○" };
+  const SOURCES = { dahua: "DAHUA", frigate: "FRIGATE" };
+  const rows = document.getElementById("rows");
+  const summary = document.getElementById("summary");
+
+  // ?demo shows every state with example cameras, to review how they look.
+  const DEMO = {
+    overall: "critical", connected: 5, total: 6,
+    cameras: [
+      { name: "Almacén", source: "dahua", state: "critical", value: "sin conexión" },
+      { name: "Entrada", source: "dahua", state: "ok", value: "NetSDK + CGI · viendo personas", active: true },
+      { name: "Pasillo", source: "dahua", state: "error", value: "sin eventos (CGI)" },
+      { name: "Puerta", source: "frigate", state: "ok", value: "solo vista · 10,1 img/s" },
+      { name: "Recepción", source: "frigate", state: "ok", value: "5,1 img/s · hace 2 min" },
+      { name: "Terraza", source: "dahua", state: "unknown", value: "desactivada" },
+    ],
+  };
+  const demo = new URLSearchParams(location.search).has("demo");
+
+  function render(cameras) {
+    rows.classList.toggle("two", cameras.length > 6);
+    if (!cameras.length) {
+      rows.innerHTML = '<div class="empty">SIN CÁMARAS REGISTRADAS</div>';
+      return;
+    }
+    rows.replaceChildren(...cameras.map(camera => {
+      const row = document.createElement("div");
+      row.className = `bc-status ${camera.state}${camera.active ? " active" : ""}`;
+      const icon = document.createElement("span");
+      icon.className = "bc-icon";
+      icon.textContent = ICONS[camera.state];
+      const label = document.createElement("span");
+      label.className = "camera";
+      const source = document.createElement("span");
+      source.className = "source";
+      source.textContent = SOURCES[camera.source] || camera.source.toUpperCase();
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = camera.name;
+      label.append(source, name);
+      const value = document.createElement("span");
+      value.className = "bc-value";
+      value.textContent = camera.value;
+      row.append(icon, label, value);
+      return row;
+    }));
+  }
+
+  async function load() {
+    const health = demo ? DEMO : await (await fetch("/api/camera-health", { cache: "no-store" })).json();
+    render(health.cameras);
+    summary.textContent = health.total ? `${health.connected} DE ${health.total} CONECTADAS` : "SIN CÁMARAS";
+    const alarm = ["error", "critical"].includes(health.overall);
+    summary.className = `bc-meta${alarm ? ` alarm ${health.overall}` : ""}`;
+  }
+
+  poll(2, load, () => {
+    summary.textContent = "SIN CONEXIÓN";
+    summary.className = "bc-meta alarm critical";
+  });
+</script>
+</body>
+</html>

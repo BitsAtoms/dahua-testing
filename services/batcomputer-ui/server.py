@@ -19,6 +19,7 @@ sys.path.insert(0, str(SERVICE_ROOT))
 
 from functools import partial
 
+from batcomputer_ui.cameras import CameraHealth, last_seen
 from batcomputer_ui.console import SupervisorConsole
 from batcomputer_ui.health import HealthMonitor, SupervisorWatch, receiver_delays
 from batcomputer_ui.narrator import CameraNames, Narrator
@@ -71,6 +72,8 @@ class UiHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {"ok": True})
         elif path == "/api/system-health":
             self._json(HTTPStatus.OK, self.server.health.snapshot())
+        elif path == "/api/camera-health":
+            self._json(HTTPStatus.OK, self.server.cameras.snapshot())
         elif path == "/api/screens":
             self._json(HTTPStatus.OK, screens_document(built_screens()))
         elif path == "/api/console":
@@ -127,10 +130,11 @@ class UiServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], console: SupervisorConsole,
-                 health: HealthMonitor | None = None) -> None:
+                 health: HealthMonitor | None = None, cameras: CameraHealth | None = None) -> None:
         super().__init__(address, UiHandler)
         self.console = console
         self.health = health if health is not None else HealthMonitor(SupervisorWatch())
+        self.cameras = cameras if cameras is not None else CameraHealth(CameraNames(Path("missing.json")))
 
 
 def main() -> int:
@@ -159,9 +163,10 @@ def main() -> int:
         parser.error("batcomputer ui only listens on localhost")
 
     watch = SupervisorWatch()
+    names = CameraNames(args.map_file)
     console = SupervisorConsole(
         args.supervisor_logs,
-        narrator=Narrator(CameraNames(args.map_file)),
+        narrator=Narrator(names),
         observers=[watch.observe],
     )
     health = HealthMonitor(
@@ -169,7 +174,8 @@ def main() -> int:
         delays=partial(receiver_delays, args.receiver_database),
         refresh=console.refresh,
     )
-    server = UiServer((args.host, args.port), console, health)
+    cameras = CameraHealth(names, seen=partial(last_seen, args.receiver_database))
+    server = UiServer((args.host, args.port), console, health, cameras)
     try:
         print(f"batcomputer_ui=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)

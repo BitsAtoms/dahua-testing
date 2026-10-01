@@ -28,6 +28,7 @@ python services\batcomputer-ui\server.py
 | `/api/screens` | screens, design canvases and which ones are built |
 | `/api/console?after=<seq>` | supervisor console lines after a sequence number |
 | `/api/system-health` | health of the system parts (cached 2 s) |
+| `/api/camera-health` | connection and last activity of each camera (cached 2 s) |
 
 The server listens on localhost only and serves files from `web/` only.
 
@@ -40,8 +41,8 @@ canvas about 0.36 mm per CSS pixel.
 | Screen | Content | State |
 |---|---|---|
 | `mini_center` | supervisor console told for visitors | built, approved 2026-10-01 |
-| `mini_left` | health of the system parts | built, in review |
-| `mini_right` | health of the cameras | pending |
+| `mini_left` | health of the system parts, and the GOTHAM row | built, approved 2026-10-01 |
+| `mini_right` | health of the cameras | built, in review |
 | `top_left` | video wall of every camera with the analysis drawn over it | pending |
 | `top_right` | live map of the floors | pending |
 | `side_left` | events of every source with thumbnails, and the Dahua collector log | pending |
@@ -121,6 +122,25 @@ them to review their look.
 The supervisor will reuse these detector rules for automatic recovery
 (roadmap step 4.4).
 
+### Health of the cameras (`mini_right`)
+
+`batcomputer_ui/cameras.py`: one row per camera, named like the console
+(map label, else its room, else its id), with a `DAHUA` or `FRIGATE` tag.
+
+| Camera | Ok | Problem |
+|---|---|---|
+| Frigate | `5,1 img/s · hace 2 min`; `solo vista · 10,1 img/s` without detection | **critical** `sin imagen` (`camera_fps` 0) |
+| Dahua | `NetSDK + CGI · viendo personas` | **critical** `sin conexión` (NetSDK); **error** `sin eventos (CGI)` |
+| either | | `Frigate no responde` / `colector sin respuesta` while its source is down (the camera stays listed) |
+| switched off | `desactivada`, listed last, not counted | |
+
+The last activity comes from the newest track update of each camera in the
+receiver database; under 10 s it reads `viendo personas` with a pulsing
+mark, so the screen moves with real data. The header says `4 DE 4
+CONECTADAS`, in red when a camera is critical. More than six cameras use two
+columns. Camera addresses from the Dahua collector never leave the module.
+`?demo` shows example states.
+
 ### Header icons
 
 The yellow block of each header is decoration with an icon of what the
@@ -132,7 +152,7 @@ and a route.
 
 ```text
 server.py               HTTP server (stdlib), localhost only
-batcomputer_ui/         screens registry, supervisor console reader, narrator and health
+batcomputer_ui/         screens registry, supervisor console reader, narrator, health of the parts and of the cameras
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
 web/icons.js            header icons (classic script, also used by the style sample)
