@@ -442,7 +442,7 @@ function metric(label,value){const item=document.createElement('div');item.class
 function sectionTitle(text){const title=document.createElement('div');title.className='group-title';title.textContent=text;return title;}
 function emptyHint(text){const item=document.createElement('span');item.className='hint';item.textContent=text;return item;}
 
-async function init(){ try{ const [mapResponse,cameraResponse]=await Promise.all([fetch('/api/map'),fetch('/api/cameras')]); model=await mapResponse.json(); const cameras=await cameraResponse.json(); $('siteName').value=model.site.name; const data=$('cameraIds'); for(const id of cameras.camera_ids||[]){const option=document.createElement('option');option.value=id;data.append(option)} setSaved('LISTO');render(); }catch(error){$('status').textContent='ERROR DE CARGA';console.error(error);} }
+async function init(){ try{ const [mapResponse,cameraResponse]=await Promise.all([fetch('/api/map'),fetch('/api/cameras')]); model=await mapResponse.json(); const cameras=await cameraResponse.json(); $('siteName').value=model.site.name; const data=$('cameraIds'); for(const id of cameras.camera_ids||[]){const option=document.createElement('option');option.value=id;data.append(option)} setSaved('LISTO');render(); if(new URLSearchParams(location.search).get('view')==='monitor')setMonitorMode(true); }catch(error){$('status').textContent='ERROR DE CARGA';console.error(error);setTimeout(init,5000);} }
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}}); init();
 </script>
 </body>

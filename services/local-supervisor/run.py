@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import signal
+import sys
 import threading
 import time
 
@@ -15,8 +16,10 @@ from local_supervisor.configuration import (
     build_specs,
     load_config,
 )
+from local_supervisor.console_log import TeeLog
 from local_supervisor.docker_stack import DockerStack, check_docker, find_docker
 from local_supervisor.infrastructure import Infrastructure, StartupError, Timeouts
+from local_supervisor.power import keep_awake
 from local_supervisor.processes import ManagedService, check_spec
 from local_supervisor.retention import cleanup_logs
 
@@ -87,11 +90,15 @@ def main() -> int:
     console_lock = threading.Lock()
     session = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     session_log_root = config.log_root / session
+    console = sys.stdout
+    sys.stdout = TeeLog(console, session_log_root / "supervisor.log")
     removed_files, removed_bytes = cleanup_logs(config.log_root)
     print(
         f"log_retention files={removed_files} bytes={removed_bytes} days=7",
         flush=True,
     )
+    awake = keep_awake(True)
+    print(f"power keep_awake={'on' if awake else 'unavailable'}", flush=True)
 
     def infrastructure_console(message: str) -> None:
         with console_lock:
@@ -162,7 +169,12 @@ def main() -> int:
             service.stop()
         if infrastructure is not None:
             infrastructure.stop()
+        if awake:
+            keep_awake(False)
         print("stack_stopped", flush=True)
+        log = sys.stdout
+        sys.stdout = console
+        log.close()
     return exit_code
 
 

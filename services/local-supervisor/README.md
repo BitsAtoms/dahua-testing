@@ -86,9 +86,12 @@ python services\local-supervisor\run.py
 
 Output from every child is prefixed with its service name and also appended to
 `runtime/local-supervisor/logs/<session>/<service>.log`; infrastructure steps
-are prefixed with `[infrastructure]`. Log sessions older than seven days are
-removed. A failed child is restarted with exponential backoff capped at
-30 seconds. The status line every 10 s includes `mqtt`, `frigate` and, in GPU
+are prefixed with `[infrastructure]`. Everything the supervisor prints is also
+written, timestamped, to `<session>/supervisor.log`, so an unattended start can
+be diagnosed afterwards. Log sessions older than seven days are removed. While
+it runs, the supervisor asks Windows not to sleep (`power keep_awake=on`); it
+changes no power setting and does not keep the display on. A failed child is
+restarted with exponential backoff capped at 30 seconds. The status line every 10 s includes `mqtt`, `frigate` and, in GPU
 mode, `frigate_gpu_detector`.
 
 `Ctrl+C` or `Ctrl+Break` requests a clean shutdown in reverse startup order:
@@ -96,6 +99,12 @@ the repository services (adapters before their receiver), then
 `docker compose stop frigate`, then the detector client. Mosquitto and Docker
 Desktop keep running (owner decision 2026-09-30). A stopped Frigate stays
 stopped until the supervisor starts it again.
+
+## Start at sign-in
+
+`autostart.py` is the entry point of the Windows logon task: it runs this
+supervisor, retries a failed start every 30 s and opens the map window. Its
+installation and keys are described in `deploy/windows/README.md`.
 
 ## Live validation (development PC, 2026-09-30)
 
