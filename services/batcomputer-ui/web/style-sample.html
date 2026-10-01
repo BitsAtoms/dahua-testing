@@ -85,6 +85,13 @@
     font-size: 22px; animation: bc-blink 0.6s steps(1, end) infinite; }
   .tile.free { background: var(--bg); border: 2px dashed var(--line-quiet); display: grid; place-items: center; }
   .tile.free .free-label { color: var(--line-quiet); letter-spacing: 0.3em; font-size: 18px; }
+  /* Censored video wall: every tile shows static instead of its stream. */
+  .tile .static { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: none; }
+  .tile .censored-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none;
+    padding: 6px 16px; background: var(--bc-black); border: 2px solid var(--text); font-size: 20px; letter-spacing: 0.2em; white-space: nowrap; }
+  .videowall.censored .tile:not(.free) > :not(.static):not(.censored-label) { visibility: hidden; }
+  .videowall.censored .tile:not(.free) .static, .videowall.censored .tile:not(.free) .censored-label { display: block; }
+  .videowall.censored .tile.down { background: var(--panel); }
   /* Dahua events: body, face and context thumbnails per track. */
   .dahua { display: flex; flex-direction: column; gap: 18px; }
   .dcard { padding: 14px 16px; border-left: 4px solid var(--line-quiet); }
@@ -97,6 +104,7 @@
     background-image: repeating-linear-gradient(45deg, rgba(80, 92, 124, 0.3) 0 2px, transparent 2px 12px);
     font-family: var(--font-mono); font-size: 13px; color: var(--line-quiet); }
   .thumb.face { height: 150px; }
+  .thumbs.single { grid-template-columns: 1fr; }
   .collector { font-size: 20px; flex: 1; min-height: 0; padding: 10px 12px; border: 1px solid var(--line-quiet); }
   /* Day summary: stat tiles. */
   .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -132,14 +140,14 @@
 
 <main class="wall" id="wall">
 
-  <!-- side_left: Dahua collector events with thumbnails and its log (owner 2026-10-01) -->
+  <!-- side_left: events of every source with thumbnails, and the Dahua collector log (owner 2026-10-01) -->
   <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-device="2160×3840" data-cm="0,18,39.2,69.8">
-    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Eventos · Dahua</span><span class="bc-meta">CON FOTOS</span></div>
+    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Eventos</span><span class="bc-meta">DAHUA · FRIGATE</span></div>
     <div class="bc-body dahua">
       <div class="dcard new"><div class="dhead"><span class="time">10:36:12</span><span>CAM-03 SHOWROOM</span><span class="track">track 4646</span></div>
         <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
-      <div class="dcard"><div class="dhead"><span class="time">10:31:40</span><span>CAM-06 ENTRADA</span><span class="track">track 4639</span></div>
-        <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
+      <div class="dcard"><div class="dhead"><span class="time">10:31:40</span><span>CAM-01 RECEPCIÓN</span><span class="track">frigate r-17</span></div>
+        <div class="thumbs single"><div class="thumb ctx">INSTANTÁNEA · PERSONA 0,97</div></div></div>
       <div class="dcard"><div class="dhead"><span class="time">10:22:05</span><span>CAM-03 SHOWROOM</span><span class="track">track 4631</span></div>
         <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
       <div class="bc-label" style="margin-top:6px">Registro del colector</div>
@@ -320,6 +328,44 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
   }
   addEventListener("resize", layout);
   layout();
+
+  // Censorship preview: Ctrl+Alt+X (or X) toggles static over every stream.
+  const videowall = document.querySelector(".videowall");
+  const statics = [];
+  for (const tile of videowall.querySelectorAll(".tile:not(.free)")) {
+    const canvas = document.createElement("canvas");
+    canvas.className = "static";
+    canvas.width = 160;
+    canvas.height = 90;
+    const label = document.createElement("span");
+    label.className = "censored-label";
+    label.textContent = "SEÑAL CENSURADA";
+    tile.append(canvas, label);
+    statics.push(canvas.getContext("2d"));
+  }
+  let bar = 0;
+  function drawStatic() {
+    if (videowall.classList.contains("censored")) {
+      for (const ctx of statics) {
+        const image = ctx.createImageData(160, 90);
+        for (let i = 0; i < image.data.length; i += 4) {
+          const row = Math.floor(i / 4 / 160);
+          const v = Math.random() * (Math.abs(row - bar) < 3 ? 140 : 70);
+          image.data[i] = v; image.data[i + 1] = v * 1.02; image.data[i + 2] = v * 1.25; image.data[i + 3] = 255;
+        }
+        ctx.putImageData(image, 0, 0);
+      }
+      bar = (bar + 1) % 90;
+    }
+    setTimeout(() => requestAnimationFrame(drawStatic), 66);
+  }
+  drawStatic();
+  addEventListener("keydown", event => {
+    if (event.key.toLowerCase() === "x" && (!event.ctrlKey || event.altKey)) {
+      videowall.classList.toggle("censored");
+    }
+  });
+  if (new URLSearchParams(location.search).has("censored")) videowall.classList.add("censored");
   setInterval(() => {
     document.getElementById("clock").textContent = new Date().toLocaleTimeString("es-ES", { hour12: false });
   }, 1000);

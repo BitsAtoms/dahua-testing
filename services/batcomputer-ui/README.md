@@ -96,8 +96,8 @@ dominate, yellow gives the contrast.
 |---|---|
 | `top_left` | video wall: live streams of every registered camera, with the analysis (person boxes, track number) drawn over them |
 | `top_right` | tracking map of the spaces (the space mapper's monitor in this style) |
-| `side_left` | Dahua collector events with their body, face and context thumbnails, and the collector's log |
-| `side_right` | to be decided; proposal: journeys between rooms (handoffs) and the day's summary |
+| `side_left` | events of every source with their thumbnails (Dahua body, face and context; Frigate snapshot), and the Dahua collector's log |
+| `side_right` | journeys between rooms (handoff candidates) and the day's summary |
 | `bottom_left`, `bottom_right` | free: normal Windows desktops for work |
 | `mini_left` | health of the system parts (Docker, MQTT, Frigate and its detector, services, transport delay) |
 | `mini_center` | supervisor console: black background, yellow monospace text only |
@@ -110,6 +110,11 @@ and ignore the pointer, so the cursor is confined to `bottom_left` and
 `Ctrl+Alt+L` locks and unlocks the cursor, `Ctrl+Alt+M` brings it to the
 centre of `bottom_left`. Windows' own "show the pointer when Ctrl is pressed"
 and a larger yellow pointer help to find it.
+
+**Censorship.** `Ctrl+Alt+X` toggles static over every stream of the video
+wall ("SEÑAL CENSURADA"); a Stream Deck key sends that shortcut. It is a
+global shortcut, so it works whichever window has the focus. The style sample
+previews it with `X` or the `?censored` address.
 
 Video wall notes: the Dahua cameras are not in Frigate today; their sub-streams
 would be added to go2rtc for viewing only, like the door intercom. Tiles use

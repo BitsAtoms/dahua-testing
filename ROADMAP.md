@@ -358,7 +358,16 @@ hace aquí. Detalle en `services/batcomputer-ui/README.md`.
   - `side_left`: eventos de Dahua con miniaturas y el registro del colector;
   - `bottom_left` y `bottom_right`: libres, para trabajar.
 
-  Falta `side_right`; la propuesta es recorridos entre salas y resumen del día.
+  - `side_right` (aprobado el mismo día): recorridos entre salas y resumen
+    del día;
+  - `side_left` reúne los eventos de todas las fuentes, Dahua y Frigate.
+
+  La idea es que cada pantalla muestre una parte distinta del sistema.
+- [ ] Censura de la videovigilancia: `Ctrl+Alt+X` (una tecla de la Stream
+  Deck) alterna entre las imágenes y estática.
+- [ ] Editor de espacios nuevo, en una pantalla de trabajo, para crear las
+  salas, colocar las cámaras y unir las salas. El actual no convence al
+  propietario y arrastra herramientas de pruebas anteriores.
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
 - [ ] Documento de diseño para que lo apruebe el propietario, y después la
@@ -439,6 +448,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | Pantallas pequeñas: salud de las partes, consola del supervisor y salud de las cámaras, sin interacción ni ratón | Decisión del propietario |
 | 2026-10-01 | `bottom_left` y `bottom_right` quedan libres para trabajar; `top_left` muestra la videovigilancia, `top_right` el mapa y `side_left` los eventos de Dahua con miniaturas y registro | Decisión del propietario |
 | 2026-10-01 | El ratón se encierra por software en las dos pantallas de trabajo, con atajos para soltarlo y centrarlo | Decisión del propietario: no es fácil alinear las pantallas en Windows sin ver dónde quedan |
+| 2026-10-01 | `side_right`: recorridos y resumen del día; `side_left`: eventos de todas las fuentes; `Ctrl+Alt+X` (Stream Deck) censura los streams con estática | Decisión del propietario: cada pantalla muestra una parte del sistema |
 
 ## Trabajo actual
 
