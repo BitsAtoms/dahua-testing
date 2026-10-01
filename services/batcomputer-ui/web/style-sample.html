@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batcomputer · muestra de estilo</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Preview page only: the nine screens drawn to scale on one display. */
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: var(--font-display); color: var(--text); }
+  .page-header {
+    height: 64px; display: flex; align-items: center; gap: 28px; padding: 0 28px;
+    border-bottom: 2px solid var(--line); text-transform: uppercase; letter-spacing: 0.16em;
+    font-stretch: condensed; font-variation-settings: "wdth" 75; font-size: 22px;
+  }
+  .page-header strong { font-size: 28px; }
+  .page-header .note { color: var(--text-muted); letter-spacing: 0.06em; text-transform: none; font-size: 18px; flex: 1; }
+  .swatches { display: flex; gap: 10px; }
+  .swatch { width: 92px; height: 40px; display: flex; align-items: end; padding: 3px 6px; box-sizing: border-box;
+    font-family: var(--font-mono); font-size: 13px; letter-spacing: 0; border: 1px solid #333; }
+  .wall { position: relative; margin: 0 auto; }
+  .bezel { position: absolute; background: #000; outline: 1px solid #1c1c1c; box-shadow: 0 0 18px rgba(80, 92, 124, 0.25); }
+  .bezel > .bc-screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .tag { position: absolute; transform: translateY(-100%); padding-bottom: 3px; font-family: var(--font-mono);
+    font-size: 12px; color: var(--line-quiet); white-space: nowrap; }
+
+  /* Content of the sample screens. */
+  .map svg { width: 100%; height: 100%; display: block; }
+  .events { display: grid; gap: 22px; }
+  .event { display: grid; grid-template-columns: 300px 1fr; gap: 26px; align-items: center; }
+  .event.new { box-shadow: inset 8px 0 0 var(--text); padding-left: 30px; }
+  .shot { height: 168px; background: var(--panel);
+    background-image: repeating-linear-gradient(45deg, rgba(80, 92, 124, 0.35) 0 2px, transparent 2px 14px);
+    display: grid; place-items: center; color: var(--line-quiet); font-family: var(--font-mono); font-size: 20px; }
+  .event .time { font-family: var(--font-mono); font-size: 40px; }
+  .event .what { font-size: 34px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .chip { display: inline-block; margin-top: 8px; padding: 2px 12px; border: 2px solid var(--line); color: var(--text-muted);
+    font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; }
+  .chip.strong { border-color: var(--text); color: var(--text); }
+  .cams { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 18px; height: 100%; }
+  .cam { position: relative; background: var(--panel);
+    background-image: repeating-linear-gradient(to bottom, rgba(80, 92, 124, 0.25) 0 2px, transparent 2px 6px); }
+  .cam .name { position: absolute; left: 0; top: 0; padding: 6px 16px 6px 12px; background: var(--bc-black);
+    border-right: 2px solid var(--line); border-bottom: 2px solid var(--line); font-size: 24px; letter-spacing: 0.14em; }
+  .cam .fps { position: absolute; right: 14px; bottom: 10px; font-family: var(--font-mono); font-size: 22px; color: var(--text); }
+  .cam.down { display: grid; place-items: center; }
+  .cam.down .alarm { padding: 12px 28px; background: var(--invert-bg); color: var(--invert-text); font-weight: 700;
+    letter-spacing: 0.16em; font-size: 34px; animation: bc-blink 1s steps(1, end) infinite; }
+  .health { display: grid; gap: 14px; font-size: 30px; }
+  .rooms { display: grid; gap: 0; }
+  .room { display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 26px 0; border-bottom: 2px solid var(--line-quiet); }
+  .room .name { font-size: 40px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .room .since { font-family: var(--font-mono); font-size: 22px; color: var(--text-muted); }
+  .room .count { font-size: 120px; font-weight: 700; line-height: 0.85; font-variant-numeric: tabular-nums; }
+  .room.empty .name, .room.empty .count { color: var(--text-muted); }
+  .timeline { position: relative; padding-left: 64px; }
+  .timeline::before { content: ""; position: absolute; left: 18px; top: 10px; bottom: 10px; width: 2px; background: var(--line-quiet); }
+  .hop { position: relative; padding: 0 0 46px; }
+  .hop::before { content: ""; position: absolute; left: -56px; top: 12px; width: 22px; height: 22px; background: var(--bg);
+    border: 3px solid var(--text); transform: rotate(45deg); }
+  .hop.pending::before { border-color: var(--line-quiet); }
+  .hop .time { font-family: var(--font-mono); font-size: 30px; color: var(--text-muted); }
+  .hop .route { font-size: 46px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .hop .why { font-family: var(--font-mono); font-size: 24px; color: var(--text-muted); }
+  .clock { display: grid; place-items: center; align-content: center; height: 100%; gap: 10px; }
+  .clock .time { font-family: var(--font-mono); font-size: 190px; line-height: 1; text-shadow: 0 0 0.2em rgba(253, 227, 17, 0.4); }
+  .clock .date { font-size: 44px; letter-spacing: 0.3em; color: var(--text-muted); text-transform: uppercase; }
+  .state { display: grid; place-items: center; align-content: center; height: 100%; gap: 18px; text-align: center; }
+  .state .big { font-size: 120px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-stretch: condensed; font-variation-settings: "wdth" 75; }
+  .state .small { font-family: var(--font-mono); font-size: 34px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <strong>Batcomputer · muestra de estilo</strong>
+  <span class="note">Borrador. Disposición aproximada según la foto y resoluciones provisionales, hasta tener las del PC final. El reparto de contenidos es solo un ejemplo.</span>
+  <div class="swatches">
+    <div class="swatch" style="background:#FDE311;color:#020202">#FDE311</div>
+    <div class="swatch" style="background:#988829;color:#020202">#988829</div>
+    <div class="swatch" style="background:#505c7c;color:#FDE311">#505C7C</div>
+    <div class="swatch" style="background:#282e3c;color:#FDE311">#282E3C</div>
+    <div class="swatch" style="background:#242424;color:#FDE311">#242424</div>
+    <div class="swatch" style="background:#020202;color:#FDE311">#020202</div>
+  </div>
+</header>
+
+<main class="wall" id="wall">
+
+  <!-- side_left: occupancy -->
+  <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-cm="0,12,34,60">
+    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Ocupación</span><span class="bc-meta">EN VIVO</span></div>
+    <div class="bc-body">
+      <div class="bc-panel" style="padding:40px 44px">
+        <div class="bc-label">Total en el edificio</div>
+        <div class="bc-figure" style="font-size:300px">3</div>
+        <div class="bc-label" style="margin-top:14px">Presencias confirmadas</div>
+      </div>
+      <div class="rooms" style="padding:20px 10px 0">
+        <div class="room"><div><div class="name">Recepción</div><div class="since">desde 10:31</div></div><div class="count">1</div></div>
+        <div class="room"><div><div class="name">Reuniones</div><div class="since">desde 10:36</div></div><div class="count">2</div></div>
+        <div class="room empty"><div><div class="name">Showroom</div><div class="since">vacío</div></div><div class="count">0</div></div>
+        <div class="room empty"><div><div class="name">Almacén</div><div class="since">vacío</div></div><div class="count">0</div></div>
+        <div class="room empty"><div><div class="name">Pasillo</div><div class="since">sin cámara</div></div><div class="count">–</div></div>
+      </div>
+    </div>
+    <div class="bc-hazard"></div>
+  </section>
+
+  <!-- top_left: live map -->
+  <section class="bc-screen" data-id="top_left" data-native="1920x1080" data-cm="40,0,60,34">
+    <div class="bc-header"><span class="bc-code">TL</span><span class="bc-title">Mapa en vivo</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
+    <div class="bc-body map">
+      <svg viewBox="0 0 1800 900" aria-label="Plano de ejemplo">
+        <defs>
+          <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="2" fill="#505c7c" opacity="0.35"/></pattern>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#FDE311"/></marker>
+        </defs>
+        <rect width="1800" height="900" fill="url(#dots)"/>
+        <g font-family="Bahnschrift" letter-spacing="5" font-size="30">
+          <polygon points="40,40 680,40 680,500 40,500" fill="#242424" stroke="#FDE311" stroke-width="4"/>
+          <polygon points="740,40 1280,40 1280,420 740,420" fill="#242424" stroke="#FDE311" stroke-width="4"/>
+          <polygon points="1340,40 1760,40 1760,420 1340,420" fill="#242424" stroke="#505c7c" stroke-width="2"/>
+          <polygon points="740,480 1760,480 1760,860 740,860" fill="#242424" stroke="#505c7c" stroke-width="2"/>
+          <polygon points="40,560 680,560 680,860 40,860" fill="#242424" stroke="#505c7c" stroke-width="2" stroke-dasharray="10 8"/>
+          <text x="70" y="90" fill="#FDE311">RECEPCIÓN</text>
+          <text x="770" y="90" fill="#FDE311">REUNIONES</text>
+          <text x="1370" y="90" fill="#988829">ALMACÉN</text>
+          <text x="770" y="530" fill="#988829">SHOWROOM</text>
+          <text x="70" y="610" fill="#988829">PASILLO</text>
+          <text x="600" y="470" fill="#FDE311" font-size="110" font-weight="700" text-anchor="end">1</text>
+          <text x="1210" y="395" fill="#FDE311" font-size="110" font-weight="700" text-anchor="end">2</text>
+          <!-- cameras: field of view wedges -->
+          <path d="M60,480 L330,240 L190,170 z" fill="#988829" opacity="0.18"/>
+          <path d="M1260,60 L1000,330 L1150,380 z" fill="#988829" opacity="0.18"/>
+          <path d="M1740,840 L1400,560 L1560,520 z" fill="#988829" opacity="0.18"/>
+          <!-- transitions -->
+          <line x1="680" y1="270" x2="740" y2="270" stroke="#988829" stroke-width="3" stroke-dasharray="8 6"/>
+          <line x1="1000" y1="420" x2="1000" y2="480" stroke="#988829" stroke-width="3" stroke-dasharray="8 6"/>
+          <path d="M470,300 C620,250 720,220 900,250" fill="none" stroke="#FDE311" stroke-width="4" stroke-dasharray="14 10" marker-end="url(#arrow)"/>
+          <text x="560" y="215" fill="#FDE311" font-size="26">→ 4 s</text>
+          <!-- people -->
+          <g filter="url(#glow)" fill="#FDE311">
+            <circle cx="300" cy="330" r="14"/>
+            <circle cx="930" cy="270" r="14"/>
+            <circle cx="1040" cy="200" r="14"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- top_right: events -->
+  <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-cm="101,0,60,34">
+    <div class="bc-header"><span class="bc-code">TR</span><span class="bc-title">Eventos recientes</span><span class="bc-meta">ÚLTIMOS 10 MIN</span></div>
+    <div class="bc-body events">
+      <div class="event new"><div class="shot">FOTO</div><div><div class="time">10:36:12</div><div class="what">Persona · Reuniones</div><span class="chip strong">Nuevo</span> <span class="chip">Dahua · cuerpo + cara</span></div></div>
+      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:35:58</div><div class="what">Persona · Recepción</div><span class="chip">Frigate</span></div></div>
+      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:31:04</div><div class="what">Persona · Recepción</div><span class="chip">Frigate</span></div></div>
+      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:27:40</div><div class="what">Persona · Reuniones</div><span class="chip">Dahua · cuerpo</span></div></div>
+    </div>
+  </section>
+
+  <!-- bottom_left: cameras -->
+  <section class="bc-screen" data-id="bottom_left" data-native="1920x1080" data-cm="40,35,60,34">
+    <div class="bc-header"><span class="bc-code">BL</span><span class="bc-title">Cámaras</span><span class="bc-meta">3 DE 4 CON IMAGEN</span></div>
+    <div class="bc-body">
+      <div class="cams">
+        <div class="cam"><span class="name">CAM-01 RECEPCIÓN</span><span class="fps">5,1 img/s</span></div>
+        <div class="cam"><span class="name">CAM-02 REUNIONES</span><span class="fps">5,0 img/s</span></div>
+        <div class="cam"><span class="name">CAM-03 SHOWROOM</span><span class="fps">10 img/s</span></div>
+        <div class="cam down"><span class="name">CAM-04 ALMACÉN</span><span class="alarm">■ SIN IMAGEN</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- bottom_right: system health -->
+  <section class="bc-screen" data-id="bottom_right" data-native="1920x1080" data-cm="101,35,60,34">
+    <div class="bc-header"><span class="bc-code">BR</span><span class="bc-title">Salud del sistema</span><span class="bc-meta">ACTUALIZADO HACE 3 S</span></div>
+    <div class="bc-body health">
+      <div class="bc-status error"><span class="bc-icon">■</span><span>Detector de Frigate · ciego</span><span class="bc-value">0,5 ms/imagen</span></div>
+      <div class="bc-status warning"><span class="bc-icon">▲</span><span>Retraso del transporte</span><span class="bc-value">p95 2,4 s</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Docker · Mosquitto · Frigate</span><span class="bc-value">en marcha</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Programa detector GPU</span><span class="bc-value">escuchando</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>Servicios propios (7)</span><span class="bc-value">0 reinicios</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>dahua_212</span><span class="bc-value">NetSDK conectado · CGI ok</span></div>
+      <div class="bc-status unknown"><span class="bc-icon">○</span><span>dahua_213</span><span class="bc-value">desactivada</span></div>
+    </div>
+  </section>
+
+  <!-- side_right: transitions -->
+  <section class="bc-screen" data-id="side_right" data-native="1080x1920" data-cm="167,12,34,60">
+    <div class="bc-header"><span class="bc-code">SR</span><span class="bc-title">Transiciones</span><span class="bc-meta">HOY</span></div>
+    <div class="bc-body" style="padding:50px 40px">
+      <div class="timeline">
+        <div class="hop"><div class="time">10:36:12</div><div class="route">Recepción → Reuniones</div><div class="why">4 s · tiempo encaja 0,92</div><span class="chip strong">Probable</span></div>
+        <div class="hop"><div class="time">10:31:40</div><div class="route">Pasillo → Recepción</div><div class="why">7 s · tiempo encaja 0,81</div><span class="chip strong">Probable</span></div>
+        <div class="hop pending"><div class="time">10:22:05</div><div class="route">Reuniones → Showroom</div><div class="why">31 s · fuera de margen</div><span class="chip">Pendiente</span></div>
+        <div class="hop"><div class="time">10:14:51</div><div class="route">Recepción → Reuniones</div><div class="why">5 s · tiempo encaja 0,88</div><span class="chip strong">Probable</span></div>
+      </div>
+    </div>
+    <div class="bc-hazard"></div>
+  </section>
+
+  <!-- mini_left: clock -->
+  <section class="bc-screen" data-id="mini_left" data-native="1280x800" data-cm="6,76,22,14">
+    <div class="bc-header"><span class="bc-code">ML</span><span class="bc-title">Reloj</span><span class="bc-meta">EN MARCHA 02:14:33</span></div>
+    <div class="bc-body"><div class="clock"><div class="time" id="clock">10:36:12</div><div class="date">Jueves 1 oct 2026</div></div></div>
+    <div class="bc-hazard"></div>
+  </section>
+
+  <!-- mini_center: supervisor console (owner's example: black, yellow only) -->
+  <section class="bc-screen" data-id="mini_center" data-native="1280x800" data-cm="89,74,22,14">
+    <div class="bc-header"><span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span><span class="bc-meta">EN VIVO</span></div>
+    <div class="bc-body bc-console">[infrastructure] docker engine=ready after=9.6s
+[infrastructure] mqtt ready after=0.0s
+[infrastructure] frigate_gpu_detector ready after=6.0s
+[infrastructure] frigate action=restart reason=started_before_detector
+[infrastructure] frigate ready after=6.1s
+[infrastructure] frigate detector=zmq expected=gpu
+stack_starting services=7
+[track_receiver] started pid=15302
+[space_mapper] started pid=15318
+[tracking_engine] started pid=15334
+[dahua_dashboard] started pid=15350
+stack_status mqtt=up frigate_gpu_detector=running frigate=up
+<span class="bc-cursor"></span></div>
+  </section>
+
+  <!-- mini_right: overall state -->
+  <section class="bc-screen" data-id="mini_right" data-native="1280x800" data-cm="173,76,22,14">
+    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Estado</span><span class="bc-meta">9 PANTALLAS</span></div>
+    <div class="bc-body"><div class="state"><div class="big">▲ 1 AVISO</div><div class="small">1 error · 1 aviso · 5 ok</div></div></div>
+    <div class="bc-hazard"></div>
+  </section>
+
+</main>
+
+<script>
+  // Lay the screens out to scale: physical centimetres -> pixels of this page.
+  const wall = document.getElementById("wall");
+  const screens = [...wall.querySelectorAll(".bc-screen")];
+  function layout() {
+    const rects = screens.map(s => s.dataset.cm.split(",").map(Number));
+    const width = Math.max(...rects.map(r => r[0] + r[2]));
+    const height = Math.max(...rects.map(r => r[1] + r[3]));
+    const available = { w: innerWidth - 40, h: innerHeight - 64 - 44 };
+    const k = Math.min(available.w / width, available.h / height);
+    wall.style.width = `${width * k}px`;
+    wall.style.height = `${height * k}px`;
+    wall.style.marginTop = "28px";
+    screens.forEach((screen, i) => {
+      const [x, y, w, h] = rects[i];
+      const [nw, nh] = screen.dataset.native.split("x").map(Number);
+      let bezel = screen.parentElement;
+      if (!bezel.classList.contains("bezel")) {
+        bezel = document.createElement("div");
+        bezel.className = "bezel";
+        const tag = document.createElement("div");
+        tag.className = "tag";
+        tag.textContent = `${screen.dataset.id} · ${nw}×${nh}`;
+        screen.replaceWith(bezel);
+        bezel.append(screen, tag);
+      }
+      Object.assign(bezel.style, { left: `${x * k}px`, top: `${y * k}px`, width: `${w * k}px`, height: `${h * k}px` });
+      Object.assign(screen.style, { width: `${nw}px`, height: `${nh}px`, transform: `scale(${(w * k) / nw})` });
+    });
+  }
+  addEventListener("resize", layout);
+  layout();
+  setInterval(() => {
+    document.getElementById("clock").textContent = new Date().toLocaleTimeString("es-ES", { hour12: false });
+  }, 1000);
+</script>
+</body>
+</html>

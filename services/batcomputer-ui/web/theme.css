@@ -1,0 +1,204 @@
+/*
+ * Batcomputer UI theme: the owner's palette (2026-10-01) and shared components.
+ *
+ * Contrast measured on 2026-10-01 (WCAG):
+ *   yellow on black 16.0:1, on washed black 12.0:1, on dark steel 10.5:1
+ *   ochre on black 5.8:1 (secondary text); on washed black 4.4:1 (large text only)
+ *   light steel on black 3.1:1, on washed black 2.3:1 (lines only, never text)
+ *   black on yellow 16.0:1 (alarms and highlights)
+ * Fonts ship with Windows 11 (Bahnschrift, Cascadia Mono): nothing is downloaded.
+ */
+
+:root {
+  --bc-yellow: #FDE311;
+  --bc-ochre: #988829;
+  --bc-steel-dark: #282e3c;
+  --bc-steel-light: #505c7c;
+  --bc-black-washed: #242424;
+  --bc-black: #020202;
+
+  --bg: var(--bc-black);
+  --panel: var(--bc-black-washed);
+  --floor: var(--bc-steel-dark);   /* accents only: the owner wants black to dominate */
+  --text: var(--bc-yellow);
+  --text-muted: var(--bc-ochre);
+  --line: var(--bc-ochre);
+  --line-quiet: var(--bc-steel-light);
+  --invert-bg: var(--bc-yellow);
+  --invert-text: var(--bc-black);
+
+  --font-display: Bahnschrift, "Arial Narrow", sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+}
+
+/* One physical screen, laid out at its native resolution. */
+.bc-screen {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 30px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Faint CRT scanlines: the 90s tint, kept below the text. */
+.bc-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(253, 227, 17, 0.035) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+/* Header: a chamfered yellow code chip, the title in wide-spaced capitals. */
+.bc-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 2.6em;
+  padding: 0 0.8em 0 0;
+  border-bottom: 2px solid var(--line);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  font-stretch: condensed;
+  font-variation-settings: "wdth" 75;
+  flex: none;
+}
+.bc-code {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 1.1em 0 0.7em;
+  background: var(--invert-bg);
+  color: var(--invert-text);
+  letter-spacing: 0.08em;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.9em) 100%, 0 100%);
+}
+.bc-title { flex: 1; }
+.bc-meta {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.bc-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0.8em;
+}
+
+/* Panel with HUD corner brackets. */
+.bc-panel {
+  position: relative;
+  background: var(--panel);
+  padding: 0.7em 0.9em;
+  --bracket: 0.9em;
+  background-image:
+    linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line));
+  background-repeat: no-repeat;
+  background-size:
+    var(--bracket) 2px, 2px var(--bracket), var(--bracket) 2px, 2px var(--bracket),
+    var(--bracket) 2px, 2px var(--bracket), var(--bracket) 2px, 2px var(--bracket);
+  background-position:
+    top left, top left, top right, top right,
+    bottom left, bottom left, bottom right, bottom right;
+}
+
+.bc-label {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.7em;
+  color: var(--text-muted);
+  font-stretch: condensed;
+  font-variation-settings: "wdth" 75;
+}
+
+/* The one number a screen leads with. */
+.bc-figure {
+  font-weight: 700;
+  font-size: 5em;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 0.25em rgba(253, 227, 17, 0.35);
+}
+
+/* Yellow and black hazard stripes, like the physical console. */
+.bc-hazard {
+  height: 0.6em;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bc-yellow) 0 0.55em,
+    var(--bc-black) 0.55em 1.1em
+  );
+  flex: none;
+}
+
+/*
+ * Status: never color alone. Each state has its own icon, word and shape:
+ *   ok       ochre dot, quiet
+ *   warning  yellow triangle, outlined row
+ *   error    black on yellow, hazard edge, slow blink
+ *   unknown  hollow light-steel ring, dashed
+ */
+.bc-status {
+  display: grid;
+  grid-template-columns: 1.6em 1fr auto;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.6em;
+  border: 2px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bc-status .bc-icon { text-align: center; }
+.bc-status .bc-value { font-family: var(--font-mono); letter-spacing: 0; text-transform: none; }
+.bc-status.ok .bc-icon { color: var(--text-muted); }
+.bc-status.ok .bc-value { color: var(--text-muted); }
+.bc-status.warning { border-color: var(--text); }
+.bc-status.error {
+  background: var(--invert-bg);
+  color: var(--invert-text);
+  font-weight: 700;
+  border-left: 0.6em solid transparent;
+  border-image: repeating-linear-gradient(-45deg, var(--bc-black) 0 0.3em, var(--bc-yellow) 0.3em 0.6em) 1;
+  animation: bc-blink 1s steps(1, end) infinite;
+}
+.bc-status.unknown { border: 2px dashed var(--line-quiet); color: var(--text-muted); }
+.bc-status.unknown .bc-icon { color: var(--line-quiet); }
+
+/* Console: black, yellow monospace only (owner's example for mini_center). */
+.bc-console {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  line-height: 1.35;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow: hidden;
+  text-shadow: 0 0 0.3em rgba(253, 227, 17, 0.45);
+}
+.bc-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: text-bottom;
+  background: var(--text);
+  animation: bc-blink 1s steps(1, end) infinite;
+}
+
+@keyframes bc-blink { 50% { opacity: 0.25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-status.error, .bc-cursor { animation: none; }
+}
