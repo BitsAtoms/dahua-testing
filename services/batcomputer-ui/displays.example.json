@@ -1,0 +1,168 @@
+{
+  "schema_version": "batcomputer_displays.v1",
+  "note": "Geometry of the final PC's nine displays (inventory of 2026-10-01). The real inventory, with Windows device names and stable ids, is the ignored displays.local.json.",
+  "displays": [
+    {
+      "position_id": "side_left",
+      "resolution": [
+        2160,
+        3840
+      ],
+      "orientation": "portrait",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        39.2,
+        69.8
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_left",
+      "interactive": true
+    },
+    {
+      "position_id": "top_left",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        69.8,
+        39.2
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_left",
+      "interactive": true
+    },
+    {
+      "position_id": "top_right",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        69.8,
+        39.2
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_right",
+      "interactive": true
+    },
+    {
+      "position_id": "bottom_left",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "orientation": "landscape",
+      "scale_percent": 150,
+      "primary": true,
+      "size_cm": [
+        69.8,
+        39.2
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_left",
+      "interactive": true
+    },
+    {
+      "position_id": "bottom_right",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        69.8,
+        39.2
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_right",
+      "interactive": true
+    },
+    {
+      "position_id": "side_right",
+      "resolution": [
+        2160,
+        3840
+      ],
+      "orientation": "portrait_flipped",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        39.2,
+        69.8
+      ],
+      "size_estimated": false,
+      "connector": "DisplayPort",
+      "gpu": "rx_right",
+      "interactive": true
+    },
+    {
+      "position_id": "mini_left",
+      "resolution": [
+        1920,
+        1080
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        34.5,
+        19.4
+      ],
+      "size_estimated": true,
+      "connector": "HDMI",
+      "gpu": "rx_left",
+      "interactive": false
+    },
+    {
+      "position_id": "mini_center",
+      "resolution": [
+        1920,
+        1080
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        34.5,
+        19.4
+      ],
+      "size_estimated": true,
+      "connector": "HDMI",
+      "gpu": "integrated",
+      "interactive": false
+    },
+    {
+      "position_id": "mini_right",
+      "resolution": [
+        1920,
+        1080
+      ],
+      "orientation": "landscape",
+      "scale_percent": 100,
+      "primary": false,
+      "size_cm": [
+        34.5,
+        19.4
+      ],
+      "size_estimated": true,
+      "connector": "HDMI",
+      "gpu": "rx_right",
+      "interactive": false
+    }
+  ]
+}

@@ -3,8 +3,8 @@
 The final PC drives nine displays in a replica Batman computer: two portrait
 side screens, a 2x2 landscape block and three small console screens. This
 module will show the system on all of them, one window per display, in the
-owner's style. It starts with the visual style; the display inventory of the
-final PC and the content of each screen are pending (roadmap).
+owner's style. It starts with the visual style; the content of the six large
+screens is pending (roadmap).
 
 ```text
 side_left    top_left     top_right     side_right
@@ -15,9 +15,41 @@ side_left    top_left     top_right     side_right
 ## Files
 
 ```text
-web/theme.css         palette, contrast roles and shared components
-web/style-sample.html the nine screens to scale with example content
+web/theme.css           palette, contrast roles and shared components
+web/style-sample.html   the nine screens to scale with example content
+displays.example.json   geometry of the final PC's displays (versioned)
+displays.local.json     full inventory of the final PC (ignored: device names, stable ids)
+displays.local.md       the same inventory, readable (ignored)
 ```
+
+## Displays of the final PC (inventory of 2026-10-01)
+
+| Screen | Resolution | Size | Scale | Link | GPU |
+|---|---|---|---|---|---|
+| `side_left` | 2160×3840 (rotated 90°) | 32" | 100 % | DisplayPort | RX on PCI bus 6 |
+| `top_left`, `bottom_left` | 3840×2160 | 32" | 100 %, **150 %** on `bottom_left` (primary) | DisplayPort | RX on PCI bus 6 |
+| `top_right`, `bottom_right` | 3840×2160 | 32" | 100 % | DisplayPort | RX on PCI bus 3 |
+| `side_right` | 2160×3840 (rotated 270°) | 32" | 100 % | DisplayPort | RX on PCI bus 3 |
+| `mini_left`, `mini_right` | 1920×1080 | about 15.6" (EDID wrong) | 100 % | HDMI | RX of their column |
+| `mini_center` | 1920×1080 | about 15.6" | 100 % | HDMI | Ryzen integrated GPU |
+
+The six large screens are the same 32" 4K Samsung monitor. None is touch.
+Windows numbers (`\.\DISPLAYn`) can change after reboots or driver
+updates; the inventory's `stable_id` (adapter plus connector) is the reliable
+key, and positions are checked again at start.
+
+**Design canvas.** All nine screens have almost the same pixel pitch (about
+0.18 mm), so every window renders at a fixed device scale factor of 2: large
+screens are designed at 1920×1080 CSS pixels, side screens at 1080×1920 and
+small screens at 960×540. One CSS pixel is then about 0.36 mm on every screen,
+and Windows' 150 % on `bottom_left` does not change the layout.
+
+**Mouse.** `bottom_right`, `top_right` and `mini_right` sit 14 px lower than the
+left column in the Windows layout, so no single `ClipCursor` rectangle keeps
+the cursor out of `mini_left` and `mini_center` without cutting 14 rows of
+`bottom_right`. Aligning the rows in Settings → Display fixes it; otherwise a
+low-level mouse hook is needed. Gaps of 5 to 31 px also stop the cursor
+between some large screens.
 
 Open the sample directly in Chrome; it needs no server:
 
@@ -25,10 +57,9 @@ Open the sample directly in Chrome; it needs no server:
 start chrome "$PWD\services\batcomputer-ui\web\style-sample.html"
 ```
 
-Each screen is laid out at its native resolution and scaled into a preview of
-the whole wall, so sizes are designed in real pixels. The layout follows the
-owner's photo and the resolutions are provisional until the final PC's
-display inventory arrives.
+Each screen is laid out at its design canvas and scaled into a preview of the
+whole wall. Sizes come from the inventory and the arrangement from the
+owner's photo.
 
 ## Style rules (owner, 2026-10-01)
 

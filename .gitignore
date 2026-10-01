@@ -28,3 +28,5 @@ experiments/frigate-zmq-detector/models/
 experiments/frigate-zmq-detector/output/
 deploy/camera-inventory.local.json
 experiments/frigate-replay-bench/output/
+services/batcomputer-ui/displays.local.json
+services/batcomputer-ui/displays.local.md

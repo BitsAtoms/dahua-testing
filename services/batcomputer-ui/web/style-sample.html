@@ -69,7 +69,9 @@
   .state { display: grid; place-items: center; align-content: center; height: 100%; gap: 18px; text-align: center; }
   .state .big { font-size: 120px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-stretch: condensed; font-variation-settings: "wdth" 75; }
   .state .small { font-family: var(--font-mono); font-size: 34px; color: var(--text-muted); }
-  .mini-list { gap: 12px; font-size: 34px; }
+  /* Minis: 960x540 design canvas (1920x1080 at scale factor 2), read from closer. */
+  .bc-screen.mini, .bc-screen[data-id="mini_center"] { font-size: 20px; }
+  .mini-list { gap: 8px; font-size: 22px; padding: 12px 14px; }
   /* Display-only screens: no pointer interaction (owner 2026-10-01). */
   .bc-screen.mini, .bc-screen[data-id="mini_center"] { pointer-events: none; cursor: none; }
 </style>
@@ -77,7 +79,7 @@
 <body>
 <header class="page-header">
   <strong>Batcomputer · muestra de estilo</strong>
-  <span class="note">Borrador. Disposición aproximada según la foto y resoluciones provisionales, hasta tener las del PC final. El reparto de contenidos es solo un ejemplo.</span>
+  <span class="note">Borrador. Resoluciones y tamaños reales del PC final (inventario del 1 oct; el tamaño de las minis es estimado) y disposición según la foto. Lienzo de diseño = resolución / 2. Pantallas grandes: contenido de ejemplo.</span>
   <div class="swatches">
     <div class="swatch" style="background:#FDE311;color:#020202">#FDE311</div>
     <div class="swatch" style="background:#988829;color:#020202">#988829</div>
@@ -91,7 +93,7 @@
 <main class="wall" id="wall">
 
   <!-- side_left: occupancy -->
-  <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-cm="0,12,34,60">
+  <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-device="2160×3840" data-cm="0,18,39.2,69.8">
     <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Ocupación</span><span class="bc-meta">EN VIVO</span></div>
     <div class="bc-body">
       <div class="bc-panel" style="padding:40px 44px">
@@ -111,7 +113,7 @@
   </section>
 
   <!-- top_left: live map -->
-  <section class="bc-screen" data-id="top_left" data-native="1920x1080" data-cm="40,0,60,34">
+  <section class="bc-screen" data-id="top_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,0,69.8,39.2">
     <div class="bc-header"><span class="bc-code">TL</span><span class="bc-title">Mapa en vivo</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
     <div class="bc-body map">
       <svg viewBox="0 0 1800 900" aria-label="Plano de ejemplo">
@@ -155,7 +157,7 @@
   </section>
 
   <!-- top_right: events -->
-  <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-cm="101,0,60,34">
+  <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,0,69.8,39.2">
     <div class="bc-header"><span class="bc-code">TR</span><span class="bc-title">Eventos recientes</span><span class="bc-meta">ÚLTIMOS 10 MIN</span></div>
     <div class="bc-body events">
       <div class="event new"><div class="shot">FOTO</div><div><div class="time">10:36:12</div><div class="what">Persona · Reuniones</div><span class="chip strong">Nuevo</span> <span class="chip">Dahua · cuerpo + cara</span></div></div>
@@ -166,7 +168,7 @@
   </section>
 
   <!-- bottom_left: cameras -->
-  <section class="bc-screen" data-id="bottom_left" data-native="1920x1080" data-cm="40,35,60,34">
+  <section class="bc-screen" data-id="bottom_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,40.2,69.8,39.2">
     <div class="bc-header"><span class="bc-code">BL</span><span class="bc-title">Cámaras</span><span class="bc-meta">3 DE 4 CON IMAGEN</span></div>
     <div class="bc-body">
       <div class="cams">
@@ -179,7 +181,7 @@
   </section>
 
   <!-- bottom_right: content to be decided; shows the status legend for review -->
-  <section class="bc-screen" data-id="bottom_right" data-native="1920x1080" data-cm="101,35,60,34">
+  <section class="bc-screen" data-id="bottom_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,40.2,69.8,39.2">
     <div class="bc-header"><span class="bc-code">BR</span><span class="bc-title">Leyenda de estados</span><span class="bc-meta">CONTENIDO POR DEFINIR</span></div>
     <div class="bc-body health">
       <div class="bc-status critical"><span class="bc-icon">✕</span><span>Crítico · solo situaciones especiales</span><span class="bc-value">rojo, parpadeo rápido</span></div>
@@ -191,7 +193,7 @@
   </section>
 
   <!-- side_right: transitions -->
-  <section class="bc-screen" data-id="side_right" data-native="1080x1920" data-cm="167,12,34,60">
+  <section class="bc-screen" data-id="side_right" data-native="1080x1920" data-device="2160×3840" data-cm="191.4,18,39.2,69.8">
     <div class="bc-header"><span class="bc-code">SR</span><span class="bc-title">Transiciones</span><span class="bc-meta">HOY</span></div>
     <div class="bc-body" style="padding:50px 40px">
       <div class="timeline">
@@ -205,7 +207,7 @@
   </section>
 
   <!-- mini_left: health of the system parts (display only, owner 2026-10-01) -->
-  <section class="bc-screen mini" data-id="mini_left" data-native="1280x800" data-cm="6,76,22,14">
+  <section class="bc-screen mini" data-id="mini_left" data-native="960x540" data-device="1920×1080" data-cm="2.35,93,34.5,19.4">
     <div class="bc-header"><span class="bc-code">ML</span><span class="bc-title">Salud · partes</span><span class="bc-meta" id="clock">10:36:12</span></div>
     <div class="bc-body health mini-list">
       <div class="bc-status error"><span class="bc-icon">■</span><span>Detector · ciego</span><span class="bc-value">0,5 ms</span></div>
@@ -218,9 +220,9 @@
   </section>
 
   <!-- mini_center: supervisor console (owner's example: black, yellow only) -->
-  <section class="bc-screen" data-id="mini_center" data-native="1280x800" data-cm="89,74,22,14">
+  <section class="bc-screen" data-id="mini_center" data-native="960x540" data-device="1920×1080" data-cm="98.05,84,34.5,19.4">
     <div class="bc-header"><span class="bc-code">MC</span><span class="bc-title">Consola · supervisor</span><span class="bc-meta">EN VIVO</span></div>
-    <div class="bc-body bc-console" style="font-size:28px">[infrastructure] docker engine=ready after=9.6s
+    <div class="bc-body bc-console" style="font-size:17px; padding:12px 14px">[infrastructure] docker engine=ready after=9.6s
 [infrastructure] mqtt ready after=0.0s
 [infrastructure] frigate_gpu_detector ready after=6.0s
 [infrastructure] frigate action=restart reason=started_before_detector
@@ -236,7 +238,7 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
   </section>
 
   <!-- mini_right: camera connections (display only, owner 2026-10-01) -->
-  <section class="bc-screen mini" data-id="mini_right" data-native="1280x800" data-cm="173,76,22,14">
+  <section class="bc-screen mini" data-id="mini_right" data-native="960x540" data-device="1920×1080" data-cm="193.75,93,34.5,19.4">
     <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">3 DE 4 CONECTADAS</span></div>
     <div class="bc-body health mini-list">
       <div class="bc-status critical"><span class="bc-icon">✕</span><span>CAM-04 Almacén</span><span class="bc-value">sin conexión 2 min</span></div>
@@ -272,7 +274,7 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
         bezel.className = "bezel";
         const tag = document.createElement("div");
         tag.className = "tag";
-        tag.textContent = `${screen.dataset.id} · ${nw}×${nh}`;
+        tag.textContent = `${screen.dataset.id} · ${screen.dataset.device}`;
         screen.replaceWith(bezel);
         bezel.append(screen, tag);
       }
