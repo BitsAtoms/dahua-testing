@@ -34,8 +34,20 @@ class GothamAlertsTests(unittest.TestCase):
                 # One row on a 15" screen: label and value must fit.
                 self.assertLessEqual(len(message["label"]) + len(message["value"]), 60)
 
+    def test_enigma_easter_egg_is_rare_and_fits_two_lines(self) -> None:
+        egg = self.data["easter_egg"]
+        self.assertGreater(egg["odds"], 0)
+        self.assertLessEqual(egg["odds"], 0.05)
+        self.assertGreaterEqual(len(egg["messages"]), 2)
+        for message in egg["messages"]:
+            with self.subTest(message=message["label"]):
+                self.assertEqual(set(message), {"label", "value"})
+                # Question and answer each take one line; letters shrink to fit.
+                self.assertLessEqual(len(message["label"]), 50)
+                self.assertLessEqual(len(message["value"]), 40)
+
     def test_placeholders_are_ranges_or_choices(self) -> None:
-        for message in self.data["messages"]:
+        for message in self.data["messages"] + self.data["easter_egg"]["messages"]:
             for text in (message["label"], message["value"]):
                 self.assertEqual(text.count("{"), text.count("}"), text)
                 for body in PLACEHOLDER.findall(text):

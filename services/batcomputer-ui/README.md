@@ -110,6 +110,14 @@ the next one. They never count in the header summary. The messages, their
 state and the odds of each state are in `web/data/gotham-alerts.json`: in a
 label or value, `{a-b}` is a random whole number and `{x|y}` a random choice.
 `tests/batcomputer-ui/test_gotham_alerts.py` checks the file after editing.
+
+**Enigma's easter egg.** With a 1 % chance per message (about once every 15
+minutes), one of Enigma's riddles appears instead, tagged `ENIGMA`, with a
+`?` icon on Enigma's green `#39D353` (black on it 10.5:1), the only green of
+the interface (owner, 2026-10-01). The question takes one line and the answer
+the line below it; their letters shrink until both fit whole. The riddles and
+the odds are in the file's `easter_egg` section; the `?enigma` address forces
+them to review their look.
 The supervisor will reuse these detector rules for automatic recovery
 (roadmap step 4.4).
 

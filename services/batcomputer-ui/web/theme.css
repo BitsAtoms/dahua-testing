@@ -21,6 +21,8 @@
   --bc-black-washed: #242424;
   --bc-black: #020202;
   --bc-red: #FF4D3A;
+  /* Enigma's green: only the GOTHAM row's 1 % easter egg (owner, 2026-10-01). Black on it 10.5:1. */
+  --bc-riddle: #39D353;
 
   --bg: var(--bc-black);
   --panel: var(--bc-black-washed);
@@ -194,6 +196,7 @@
   animation: bc-blink 0.6s steps(1, end) infinite;
 }
 .bc-status.unknown { border: 2px dashed var(--line-quiet); color: var(--text-muted); }
+.bc-status.riddle { background: var(--bc-riddle); color: var(--bc-black); font-weight: 700; }
 .bc-status.unknown .bc-icon { color: var(--line-quiet); }
 
 /* Console: black, yellow monospace only (owner's example for mini_center). */

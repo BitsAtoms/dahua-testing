@@ -21,6 +21,12 @@
   .gotham-tag { flex: none; font-size: 0.6em; letter-spacing: 0.24em; padding: 0.15em 0.5em; border: 2px solid currentColor; font-weight: 700; }
   .gotham-label { overflow: hidden; text-overflow: ellipsis; }
   .gotham .bc-value { white-space: nowrap; }
+  /* Enigma's riddle (1 %): question on one line, answer below it, letters shrunk until both fit whole. */
+  .gotham.riddle { grid-template-columns: 1.6em 1fr; grid-template-rows: 1fr 1fr; row-gap: 0.1em; align-content: stretch; }
+  .gotham.riddle .bc-icon { grid-row: 1 / span 2; align-self: center; font-size: 1.3em; }
+  .gotham.riddle .gotham-text { grid-column: 2; grid-row: 1; align-self: end; }
+  .gotham.riddle .gotham-label { overflow: visible; text-overflow: clip; }
+  .gotham.riddle .bc-value { grid-column: 2; grid-row: 2; justify-self: end; align-self: start; font-style: italic; }
   .gotham-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: currentColor; opacity: 0.6; transform-origin: left; }
   .gotham.arriving::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: repeating-linear-gradient(to bottom, rgba(253, 227, 17, 0.55) 0 2px, transparent 2px 7px);

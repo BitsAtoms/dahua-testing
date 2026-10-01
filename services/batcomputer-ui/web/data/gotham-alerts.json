@@ -1,5 +1,5 @@
 {
-  "about": "Fictional live notifications from Batman's universe for the GOTHAM row (owner, 2026-10-01). They never count as system alarms. In label and value, {a-b} is a random whole number between a and b and {x|y} a random choice. States: critical, error, warning, unknown, ok.",
+  "about": "Fictional live notifications from Batman's universe for the GOTHAM row (owner, 2026-10-01). They never count as system alarms. In label and value, {a-b} is a random whole number between a and b and {x|y} a random choice. States: critical, error, warning, unknown, ok. The easter egg (owner, 2026-10-01): with 'odds' per message, one of Enigma's riddles appears in green instead; ?enigma forces it.",
   "weights": { "critical": 0.12, "error": 0.2, "warning": 0.28, "unknown": 0.25, "ok": 0.15 },
   "messages": [
     { "state": "critical", "label": "Fuga en Arkham", "value": "celda {3-48} abierta" },
@@ -16,7 +16,7 @@
     { "state": "error", "label": "Traje dañado", "value": "placa pectoral al {10-60} %" },
     { "state": "warning", "label": "Niebla tóxica en los Narrows", "value": "Espantapájaros activo" },
     { "state": "warning", "label": "Combustible del Batmóvil bajo", "value": "{8-25} %" },
-    { "state": "warning", "label": "El Acertijo envía un enigma", "value": "pista {1-12} de 12" },
+    { "state": "warning", "label": "Enigma envía un acertijo", "value": "pista {1-12} de 12" },
     { "state": "warning", "label": "Hiedra Venenosa en el parque Robinson", "value": "esporas detectadas" },
     { "state": "warning", "label": "Dos Caras lanza su moneda", "value": "{cara|cruz}" },
     { "state": "warning", "label": "Harley Quinn en el Iceberg Lounge", "value": "hace {2-50} min" },
@@ -34,5 +34,13 @@
     { "state": "ok", "label": "Gordon informado", "value": "línea segura" },
     { "state": "ok", "label": "Satélite Wayne", "value": "en órbita" },
     { "state": "ok", "label": "Lucius Fox", "value": "prototipo {2-9} listo" }
-  ]
+  ],
+  "easter_egg": {
+    "odds": 0.01,
+    "messages": [
+      { "label": "¿Qué tiene nueve ojos y no ve a nadie?", "value": "el Batcomputer en modo privado" },
+      { "label": "Si me nombras, desaparezco. ¿Quién soy?", "value": "el silencio de la Baticueva" },
+      { "label": "Cuanto más me quitas, más grande soy.", "value": "un agujero en tu seguridad, Batman" }
+    ]
+  }
 }
