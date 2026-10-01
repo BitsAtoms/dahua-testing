@@ -94,13 +94,24 @@ dominate, yellow gives the contrast.
 
 | Screen | Content |
 |---|---|
+| `top_left` | video wall: live streams of every registered camera, with the analysis (person boxes, track number) drawn over them |
+| `top_right` | tracking map of the spaces (the space mapper's monitor in this style) |
+| `side_left` | Dahua collector events with their body, face and context thumbnails, and the collector's log |
+| `side_right` | to be decided; proposal: journeys between rooms (handoffs) and the day's summary |
+| `bottom_left`, `bottom_right` | free: normal Windows desktops for work |
 | `mini_left` | health of the system parts (Docker, MQTT, Frigate and its detector, services, transport delay) |
 | `mini_center` | supervisor console: black background, yellow monospace text only |
 | `mini_right` | health of the cameras: whether each one is connected |
 
-The three small screens only show information: they are not interactive and
-the mouse should not reach them. On the final PC's Windows layout the six
-large screens form one block and the small ones sit below it, so the cursor
-can be confined to that block with `ClipCursor` (to confirm with the display
-inventory), and their windows ignore clicks. The large screens' content is
-still to be decided; the sample shows examples.
+Only the two work screens are interactive. The other seven show information
+and ignore the pointer, so the cursor is confined to `bottom_left` and
+`bottom_right` by software (a low-level mouse hook), which also avoids the
+14 px row offset and the gaps of the Windows layout. Planned keys:
+`Ctrl+Alt+L` locks and unlocks the cursor, `Ctrl+Alt+M` brings it to the
+centre of `bottom_left`. Windows' own "show the pointer when Ctrl is pressed"
+and a larger yellow pointer help to find it.
+
+Video wall notes: the Dahua cameras are not in Frigate today; their sub-streams
+would be added to go2rtc for viewing only, like the door intercom. Tiles use
+sub-streams so nine videos stay cheap to decode, and the boxes come from the
+system's own tracks, so Dahua and Frigate cameras look the same.

@@ -345,10 +345,22 @@ hace aquí. Detalle en `services/batcomputer-ui/README.md`.
   consola del supervisor (`mini_center`) y salud de las cámaras
   (`mini_right`). Solo muestran información: no son interactivas y el ratón
   no debe llegar a ellas.
-- [ ] Inventario de las pantallas del PC final (resolución, orientación,
-  escala, conexión, tarjeta gráfica y posición física de cada una), con el
-  prompt preparado para ejecutarlo allí.
-- [ ] Contenido de las 6 pantallas grandes.
+- [x] Inventario de las pantallas del PC final (2026-10-01): seis monitores
+  iguales de 32" 4K (las laterales giradas) y tres pequeñas de 1080p por HDMI.
+  Cada RX lleva una columna y la gráfica integrada, `mini_center`. La
+  principal, `bottom_left`, está al 150 %. Todas tienen casi la misma densidad
+  de píxeles, así que todas las ventanas se dibujan con una escala fija ×2. El
+  inventario completo está en `services/batcomputer-ui/displays.local.json`,
+  que Git ignora.
+- [~] Contenido de las pantallas grandes (2026-10-01):
+  - `top_left`: videovigilancia con todas las cámaras;
+  - `top_right`: mapa de seguimiento;
+  - `side_left`: eventos de Dahua con miniaturas y el registro del colector;
+  - `bottom_left` y `bottom_right`: libres, para trabajar.
+
+  Falta `side_right`; la propuesta es recorridos entre salas y resumen del día.
+- [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
+  atajos para soltarlo y para centrarlo.
 - [ ] Documento de diseño para que lo apruebe el propietario, y después la
   construcción: las ventanas, su colocación y el ratón limitado al bloque de
   las pantallas grandes.
@@ -425,6 +437,8 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | Estilo de las pantallas: Batcomputer moderno con toques del Batman clásico y de los 90. Paleta amarillo `#FDE311`, ocre `#988829`, azul grisáceo oscuro `#282e3c` y claro `#505c7c`, negro lavado `#242424` y negro `#020202`; predominan los negros | Decisión del propietario |
 | 2026-10-01 | Rojo `#FF4D3A` solo para alarmas y situaciones críticas o especiales; sin logotipos de Batman por ahora (un detector de batiseñal queda como idea para más adelante) | Decisión del propietario |
 | 2026-10-01 | Pantallas pequeñas: salud de las partes, consola del supervisor y salud de las cámaras, sin interacción ni ratón | Decisión del propietario |
+| 2026-10-01 | `bottom_left` y `bottom_right` quedan libres para trabajar; `top_left` muestra la videovigilancia, `top_right` el mapa y `side_left` los eventos de Dahua con miniaturas y registro | Decisión del propietario |
+| 2026-10-01 | El ratón se encierra por software en las dos pantallas de trabajo, con atajos para soltarlo y centrarlo | Decisión del propietario: no es fácil alinear las pantallas en Windows sin ver dónde quedan |
 
 ## Trabajo actual
 

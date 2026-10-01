@@ -69,6 +69,46 @@
   .state { display: grid; place-items: center; align-content: center; height: 100%; gap: 18px; text-align: center; }
   .state .big { font-size: 120px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-stretch: condensed; font-variation-settings: "wdth" 75; }
   .state .small { font-family: var(--font-mono); font-size: 34px; color: var(--text-muted); }
+  /* Video wall: 3x3 tiles of 16:9 streams with analysis boxes. */
+  .videowall { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; padding: 10px; }
+  .tile { position: relative; overflow: hidden; background: var(--panel);
+    background-image: repeating-linear-gradient(to bottom, rgba(80, 92, 124, 0.22) 0 2px, transparent 2px 6px); }
+  .tile .name { position: absolute; left: 0; top: 0; padding: 4px 12px 4px 10px; background: var(--bc-black);
+    border-right: 2px solid var(--line); border-bottom: 2px solid var(--line); font-size: 18px; letter-spacing: 0.12em; }
+  .tile .src { position: absolute; right: 8px; top: 6px; font-size: 14px; letter-spacing: 0.16em; color: var(--text-muted); }
+  .tile .fps { position: absolute; right: 10px; bottom: 6px; font-family: var(--font-mono); font-size: 16px; }
+  .tile .box { position: absolute; border: 2px solid var(--text); box-shadow: 0 0 10px rgba(253, 227, 17, 0.45); }
+  .tile .box-label { position: absolute; left: -2px; top: -24px; padding: 1px 6px; background: var(--invert-bg); color: var(--invert-text);
+    font-family: var(--font-mono); font-size: 14px; white-space: nowrap; }
+  .tile.down { display: grid; place-items: center; }
+  .tile.down .alarm { padding: 8px 18px; background: var(--critical); color: var(--bc-black); font-weight: 700; letter-spacing: 0.14em;
+    font-size: 22px; animation: bc-blink 0.6s steps(1, end) infinite; }
+  .tile.free { background: var(--bg); border: 2px dashed var(--line-quiet); display: grid; place-items: center; }
+  .tile.free .free-label { color: var(--line-quiet); letter-spacing: 0.3em; font-size: 18px; }
+  /* Dahua events: body, face and context thumbnails per track. */
+  .dahua { display: flex; flex-direction: column; gap: 18px; }
+  .dcard { padding: 14px 16px; border-left: 4px solid var(--line-quiet); }
+  .dcard.new { border-left-color: var(--text); background: var(--panel); }
+  .dhead { display: flex; gap: 18px; align-items: baseline; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .dhead .time { font-family: var(--font-mono); font-size: 30px; letter-spacing: 0; }
+  .dhead .track { margin-left: auto; font-family: var(--font-mono); font-size: 20px; color: var(--text-muted); text-transform: none; }
+  .thumbs { display: grid; grid-template-columns: 150px 150px 1fr; gap: 10px; height: 200px; }
+  .thumb { background: var(--panel); border: 1px solid var(--line-quiet); display: grid; place-items: end start; padding: 4px 6px;
+    background-image: repeating-linear-gradient(45deg, rgba(80, 92, 124, 0.3) 0 2px, transparent 2px 12px);
+    font-family: var(--font-mono); font-size: 13px; color: var(--line-quiet); }
+  .thumb.face { height: 150px; }
+  .collector { font-size: 20px; flex: 1; min-height: 0; padding: 10px 12px; border: 1px solid var(--line-quiet); }
+  /* Day summary: stat tiles. */
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .kpi { padding: 18px 20px; }
+  .kpi.wide { grid-column: 1 / -1; }
+  .kpi-value { font-size: 64px; font-weight: 700; line-height: 1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  /* Work screens: plain Windows desktops in the real wall. */
+  .bc-screen.work { background: #000; display: grid; place-items: center; }
+  .bc-screen.work::after { display: none; }
+  .work-label { display: grid; gap: 14px; text-align: center; color: var(--line-quiet); text-transform: uppercase; letter-spacing: 0.24em; }
+  .work-label strong { font-size: 44px; }
+  .work-label span { font-size: 22px; letter-spacing: 0.1em; text-transform: none; }
   /* Minis: 960x540 design canvas (1920x1080 at scale factor 2), read from closer. */
   .bc-screen.mini, .bc-screen[data-id="mini_center"] { font-size: 20px; }
   .mini-list { gap: 8px; font-size: 22px; padding: 12px 14px; }
@@ -79,7 +119,7 @@
 <body>
 <header class="page-header">
   <strong>Batcomputer · muestra de estilo</strong>
-  <span class="note">Borrador. Resoluciones y tamaños reales del PC final (inventario del 1 oct; el tamaño de las minis es estimado) y disposición según la foto. Lienzo de diseño = resolución / 2. Pantallas grandes: contenido de ejemplo.</span>
+  <span class="note">Borrador. Resoluciones y tamaños reales del PC final (inventario del 1 oct; el tamaño de las minis es estimado) y disposición según la foto. Lienzo de diseño = resolución / 2. Reparto del 1 oct: inferiores libres para trabajar; side_right por decidir.</span>
   <div class="swatches">
     <div class="swatch" style="background:#FDE311;color:#020202">#FDE311</div>
     <div class="swatch" style="background:#988829;color:#020202">#988829</div>
@@ -92,29 +132,48 @@
 
 <main class="wall" id="wall">
 
-  <!-- side_left: occupancy -->
+  <!-- side_left: Dahua collector events with thumbnails and its log (owner 2026-10-01) -->
   <section class="bc-screen" data-id="side_left" data-native="1080x1920" data-device="2160×3840" data-cm="0,18,39.2,69.8">
-    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Ocupación</span><span class="bc-meta">EN VIVO</span></div>
-    <div class="bc-body">
-      <div class="bc-panel" style="padding:40px 44px">
-        <div class="bc-label">Total en el edificio</div>
-        <div class="bc-figure" style="font-size:300px">3</div>
-        <div class="bc-label" style="margin-top:14px">Presencias confirmadas</div>
-      </div>
-      <div class="rooms" style="padding:20px 10px 0">
-        <div class="room"><div><div class="name">Recepción</div><div class="since">desde 10:31</div></div><div class="count">1</div></div>
-        <div class="room"><div><div class="name">Reuniones</div><div class="since">desde 10:36</div></div><div class="count">2</div></div>
-        <div class="room empty"><div><div class="name">Showroom</div><div class="since">vacío</div></div><div class="count">0</div></div>
-        <div class="room empty"><div><div class="name">Almacén</div><div class="since">vacío</div></div><div class="count">0</div></div>
-        <div class="room empty"><div><div class="name">Pasillo</div><div class="since">sin cámara</div></div><div class="count">–</div></div>
-      </div>
+    <div class="bc-header"><span class="bc-code">SL</span><span class="bc-title">Eventos · Dahua</span><span class="bc-meta">CON FOTOS</span></div>
+    <div class="bc-body dahua">
+      <div class="dcard new"><div class="dhead"><span class="time">10:36:12</span><span>CAM-03 SHOWROOM</span><span class="track">track 4646</span></div>
+        <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
+      <div class="dcard"><div class="dhead"><span class="time">10:31:40</span><span>CAM-06 ENTRADA</span><span class="track">track 4639</span></div>
+        <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
+      <div class="dcard"><div class="dhead"><span class="time">10:22:05</span><span>CAM-03 SHOWROOM</span><span class="track">track 4631</span></div>
+        <div class="thumbs"><div class="thumb body">CUERPO</div><div class="thumb face">CARA</div><div class="thumb ctx">CONTEXTO</div></div></div>
+      <div class="bc-label" style="margin-top:6px">Registro del colector</div>
+      <div class="bc-console collector">netsdk login ok channel=1
+cgi attach codes=[All] ok
+ivs live track=4646 boxes=1 age=0.1s
+HumanTrait Start track=4646 face=1004646
+HumanTrait End track=4646 with_snap=true
+snapshot body face panoramic correlated=GroupID
+published update track=4646 latency=3ms
+<span class="bc-cursor"></span></div>
     </div>
     <div class="bc-hazard"></div>
   </section>
 
-  <!-- top_left: live map -->
+  <!-- top_left: video wall of every registered camera, with analysis overlays (owner 2026-10-01) -->
   <section class="bc-screen" data-id="top_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,0,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">TL</span><span class="bc-title">Mapa en vivo</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
+    <div class="bc-header"><span class="bc-code">TL</span><span class="bc-title">Videovigilancia</span><span class="bc-meta">7 CÁMARAS · 6 CON IMAGEN · ANALIZANDO</span></div>
+    <div class="bc-body videowall">
+      <div class="tile"><span class="name">CAM-01 RECEPCIÓN</span><span class="src">FRIGATE</span><span class="box" style="left:30%;top:30%;width:14%;height:52%"><span class="box-label">PERSONA 0,97</span></span><span class="fps">5,1 img/s</span></div>
+      <div class="tile"><span class="name">CAM-02 REUNIONES</span><span class="src">FRIGATE</span><span class="box" style="left:52%;top:26%;width:12%;height:50%"><span class="box-label">PERSONA 0,91</span></span><span class="fps">5,0 img/s</span></div>
+      <div class="tile"><span class="name">CAM-03 SHOWROOM</span><span class="src">DAHUA</span><span class="box" style="left:22%;top:34%;width:13%;height:48%"><span class="box-label">#4646</span></span><span class="fps">IVS 10/s</span></div>
+      <div class="tile"><span class="name">CAM-04 PASILLO</span><span class="src">DAHUA</span><span class="fps">IVS 10/s</span></div>
+      <div class="tile down"><span class="name">CAM-05 ALMACÉN</span><span class="src">DAHUA</span><span class="alarm">✕ SIN CONEXIÓN</span></div>
+      <div class="tile"><span class="name">CAM-06 ENTRADA</span><span class="src">DAHUA</span><span class="fps">IVS 10/s</span></div>
+      <div class="tile"><span class="name">CAM-07 TERRAZA</span><span class="src">FRIGATE</span><span class="fps">5,0 img/s</span></div>
+      <div class="tile free"><span class="free-label">LIBRE</span></div>
+      <div class="tile free"><span class="free-label">LIBRE</span></div>
+    </div>
+  </section>
+
+  <!-- top_right: tracking map of the spaces (owner 2026-10-01) -->
+  <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,0,69.8,39.2">
+    <div class="bc-header"><span class="bc-code">TR</span><span class="bc-title">Mapa de seguimiento</span><span class="bc-meta">3 PERSONAS · 5 SALAS</span></div>
     <div class="bc-body map">
       <svg viewBox="0 0 1800 900" aria-label="Plano de ejemplo">
         <defs>
@@ -156,51 +215,30 @@
     </div>
   </section>
 
-  <!-- top_right: events -->
-  <section class="bc-screen" data-id="top_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,0,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">TR</span><span class="bc-title">Eventos recientes</span><span class="bc-meta">ÚLTIMOS 10 MIN</span></div>
-    <div class="bc-body events">
-      <div class="event new"><div class="shot">FOTO</div><div><div class="time">10:36:12</div><div class="what">Persona · Reuniones</div><span class="chip strong">Nuevo</span> <span class="chip">Dahua · cuerpo + cara</span></div></div>
-      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:35:58</div><div class="what">Persona · Recepción</div><span class="chip">Frigate</span></div></div>
-      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:31:04</div><div class="what">Persona · Recepción</div><span class="chip">Frigate</span></div></div>
-      <div class="event"><div class="shot">FOTO</div><div><div class="time">10:27:40</div><div class="what">Persona · Reuniones</div><span class="chip">Dahua · cuerpo</span></div></div>
-    </div>
+  <!-- bottom_left and bottom_right: free Windows desktops for work (owner 2026-10-01) -->
+  <section class="bc-screen work" data-id="bottom_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,40.2,69.8,39.2">
+    <div class="work-label"><strong>Pantalla de trabajo</strong><span>escritorio de Windows · el ratón se queda en estas dos</span></div>
+  </section>
+  <section class="bc-screen work" data-id="bottom_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,40.2,69.8,39.2">
+    <div class="work-label"><strong>Pantalla de trabajo</strong><span>escritorio de Windows</span></div>
   </section>
 
-  <!-- bottom_left: cameras -->
-  <section class="bc-screen" data-id="bottom_left" data-native="1920x1080" data-device="3840×2160" data-cm="45,40.2,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">BL</span><span class="bc-title">Cámaras</span><span class="bc-meta">3 DE 4 CON IMAGEN</span></div>
-    <div class="bc-body">
-      <div class="cams">
-        <div class="cam"><span class="name">CAM-01 RECEPCIÓN</span><span class="fps">5,1 img/s</span></div>
-        <div class="cam"><span class="name">CAM-02 REUNIONES</span><span class="fps">5,0 img/s</span></div>
-        <div class="cam"><span class="name">CAM-03 SHOWROOM</span><span class="fps">10 img/s</span></div>
-        <div class="cam down"><span class="name">CAM-04 ALMACÉN</span><span class="alarm">■ SIN IMAGEN</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- bottom_right: content to be decided; shows the status legend for review -->
-  <section class="bc-screen" data-id="bottom_right" data-native="1920x1080" data-device="3840×2160" data-cm="115.8,40.2,69.8,39.2">
-    <div class="bc-header"><span class="bc-code">BR</span><span class="bc-title">Leyenda de estados</span><span class="bc-meta">CONTENIDO POR DEFINIR</span></div>
-    <div class="bc-body health">
-      <div class="bc-status critical"><span class="bc-icon">✕</span><span>Crítico · solo situaciones especiales</span><span class="bc-value">rojo, parpadeo rápido</span></div>
-      <div class="bc-status error"><span class="bc-icon">■</span><span>Error</span><span class="bc-value">negro sobre amarillo</span></div>
-      <div class="bc-status warning"><span class="bc-icon">▲</span><span>Aviso</span><span class="bc-value">recuadro amarillo</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>Correcto</span><span class="bc-value">punto ocre, discreto</span></div>
-      <div class="bc-status unknown"><span class="bc-icon">○</span><span>Sin datos o desactivado</span><span class="bc-value">borde punteado</span></div>
-    </div>
-  </section>
-
-  <!-- side_right: transitions -->
+  <!-- side_right: to be decided; proposal A + B (journeys and the day's summary) -->
   <section class="bc-screen" data-id="side_right" data-native="1080x1920" data-device="2160×3840" data-cm="191.4,18,39.2,69.8">
-    <div class="bc-header"><span class="bc-code">SR</span><span class="bc-title">Transiciones</span><span class="bc-meta">HOY</span></div>
-    <div class="bc-body" style="padding:50px 40px">
+    <div class="bc-header"><span class="bc-code">SR</span><span class="bc-title">Recorridos · resumen</span><span class="bc-meta">PROPUESTA</span></div>
+    <div class="bc-body" style="padding:40px 40px 20px">
       <div class="timeline">
         <div class="hop"><div class="time">10:36:12</div><div class="route">Recepción → Reuniones</div><div class="why">4 s · tiempo encaja 0,92</div><span class="chip strong">Probable</span></div>
         <div class="hop"><div class="time">10:31:40</div><div class="route">Pasillo → Recepción</div><div class="why">7 s · tiempo encaja 0,81</div><span class="chip strong">Probable</span></div>
         <div class="hop pending"><div class="time">10:22:05</div><div class="route">Reuniones → Showroom</div><div class="why">31 s · fuera de margen</div><span class="chip">Pendiente</span></div>
-        <div class="hop"><div class="time">10:14:51</div><div class="route">Recepción → Reuniones</div><div class="why">5 s · tiempo encaja 0,88</div><span class="chip strong">Probable</span></div>
+      </div>
+      <div class="bc-label" style="margin:10px 0 14px">Resumen del día</div>
+      <div class="kpis">
+        <div class="bc-panel kpi"><div class="bc-label">Visitas</div><div class="kpi-value">42</div></div>
+        <div class="bc-panel kpi"><div class="bc-label">Ahora</div><div class="kpi-value">3</div></div>
+        <div class="bc-panel kpi"><div class="bc-label">Hora punta</div><div class="kpi-value">11–12 h</div></div>
+        <div class="bc-panel kpi"><div class="bc-label">Estancia media</div><div class="kpi-value">14 min</div></div>
+        <div class="bc-panel kpi wide"><div class="bc-label">Sala más concurrida</div><div class="kpi-value">Reuniones</div></div>
       </div>
     </div>
     <div class="bc-hazard"></div>
@@ -239,17 +277,15 @@ stack_status mqtt=up frigate_gpu_detector=running frigate=up
 
   <!-- mini_right: camera connections (display only, owner 2026-10-01) -->
   <section class="bc-screen mini" data-id="mini_right" data-native="960x540" data-device="1920×1080" data-cm="193.75,93,34.5,19.4">
-    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">3 DE 4 CONECTADAS</span></div>
+    <div class="bc-header"><span class="bc-code">MR</span><span class="bc-title">Salud · cámaras</span><span class="bc-meta">6 DE 7 CONECTADAS</span></div>
     <div class="bc-body health mini-list">
-      <div class="bc-status critical"><span class="bc-icon">✕</span><span>CAM-04 Almacén</span><span class="bc-value">sin conexión 2 min</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-01 Recepción</span><span class="bc-value">5,1 img/s</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-02 Reuniones</span><span class="bc-value">5,0 img/s</span></div>
-      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-03 Showroom</span><span class="bc-value">NetSDK · CGI</span></div>
-      <div class="bc-status unknown"><span class="bc-icon">○</span><span>CAM-05 Puerta</span><span class="bc-value">desactivada</span></div>
+      <div class="bc-status critical"><span class="bc-icon">✕</span><span>CAM-05 Almacén</span><span class="bc-value">sin conexión 2 min</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-01 · 02 · 07</span><span class="bc-value">Frigate · 5 img/s</span></div>
+      <div class="bc-status ok"><span class="bc-icon">●</span><span>CAM-03 · 04 · 06</span><span class="bc-value">Dahua · NetSDK + CGI</span></div>
+      <div class="bc-status unknown"><span class="bc-icon">○</span><span>Puerta (portero)</span><span class="bc-value">solo vista</span></div>
     </div>
     <div class="bc-hazard"></div>
   </section>
-
 </main>
 
 <script>
