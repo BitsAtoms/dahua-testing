@@ -376,9 +376,33 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
   dónde sale y entra cada persona en la imagen de cada cámara.
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
-- [ ] Documento de diseño para que lo apruebe el propietario, y después la
-  construcción: las ventanas, su colocación y el ratón limitado al bloque de
-  las pantallas grandes.
+- [x] Documento de diseño aprobado por el propietario el 2026-10-01. Se
+  construye **pantalla a pantalla**: cada una se revisa y se ajusta en este PC
+  antes de pasar a la siguiente, y el arranque de las 9 ventanas en su sitio
+  queda para el final.
+- [x] **Base** (2026-10-01): el servicio `services/batcomputer-ui` (puerto
+  8092, ya incluido en el supervisor) sirve una página por pantalla y una
+  vista previa de las 9 a escala con datos reales
+  (`http://127.0.0.1:8092/preview`). El bloque amarillo de las cabeceras es
+  decorativo, con un icono y sin letras.
+- [x] **`mini_center`, consola del supervisor** (aprobada el 2026-10-01).
+  Cuenta en palabras sencillas lo que pasa de verdad: "Recepción · nueva
+  persona a la vista (#4509)". Se descarta el ruido interno: 4000 líneas
+  técnicas en 12 minutos se quedaron en 41 frases.
+- [x] **`mini_left`, salud de las partes** (aprobada el 2026-10-01). Seis
+  filas reales: contenedores, mensajería, Frigate, el detector con las alarmas
+  de ciego, atascado, congelado y roto, los servicios y el retraso. Además:
+  - una fila **GOTHAM** con avisos inventados del universo de Batman, que no
+    cuentan como alarmas;
+  - con un 1 % de probabilidad, un acertijo de **Enigma** en verde.
+
+  Es la parte de datos del paso 4.2.
+- [~] **`mini_right`, salud de las cámaras** (2026-10-01, pendiente de
+  revisión): si cada cámara tiene conexión y cuándo vio a alguien por última
+  vez ("viendo personas").
+- [ ] Siguientes: el editor de espacios con el mapa en vivo, la
+  videovigilancia, los eventos y los recorridos. Al final, las ventanas
+  colocadas en sus pantallas al arrancar y el ratón encerrado.
 
 ### Fase 5 — Preparación para el PC final `[ ]`
 
@@ -555,10 +579,17 @@ rama `codex/health-panel`.
    XT). No se da por validado nada de GPU AMD desde aquí.
 
 En curso: la presentación en las 9 pantallas, en la rama
-`codex/batcomputer-presentation`. Siguiente paso: traer el inventario de
-pantallas del PC final (prompt en la carpeta Descargas de este PC) y decidir
-el contenido de las 6 pantallas grandes. La recuperación ante fallos (4.4)
-sigue pendiente y no depende de la estética.
+`codex/batcomputer-presentation`, sin mergear ni subir. Ya están hechas las tres
+pantallas pequeñas; `mini_right` está pendiente del visto bueno del
+propietario. Siguiente paso: el editor de espacios (espacios de trabajo,
+plantas, salas sobre rejilla, puertas, Exterior) junto con el mapa en vivo de
+`top_right`, según `docs/diseno-batcomputer.md`.
+
+Para verlas en este PC: `http://127.0.0.1:8092/preview`, o una pantalla en
+`http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud). El
+supervisor arranca el servicio de pantallas desde el siguiente inicio de
+sesión; a mano: `python servicesatcomputer-ui\server.py`. La recuperación
+ante fallos (4.4) sigue pendiente y no depende de la estética.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la
 comparación facial (ocupación v2) con visitantes.
