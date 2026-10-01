@@ -28,7 +28,9 @@ The editor supports:
 ## Live monitor
 
 Use `[ MONITOR ]` in the header to switch from editing to the operational 2D
-view. It refreshes once per second and displays:
+view, or open `http://127.0.0.1:8091/?view=monitor` to start in it (the map
+window of the unattended start does). If the page cannot load the map, it
+retries every 5 s. It refreshes once per second and displays:
 
 - **people per space and in total**, counted as presences (consecutive camera
   tracks of one person joined; see `services/tracking-engine/README.md`);

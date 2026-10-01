@@ -45,19 +45,26 @@ Supervisor: arranca y vigila todas las piezas
 | Prueba de GPU en Windows | `experiments/windows-onnx-gpu/` |
 | SDK oficial de Dahua (sin modificar) | `NetSDK/` |
 
-## Arranque actual (desarrollo)
+## Arranque
 
-Frigate y Mosquitto se levantan antes, con Docker (después Docker Desktop los
-vuelve a arrancar solo):
+El supervisor lo levanta todo, en este orden: Docker Desktop, Mosquitto, el
+programa detector con GPU (si Frigate lo usa), Frigate y los servicios
+propios. Espera a que cada pieza responda antes de pasar a la siguiente:
 
 ```powershell
-docker compose -f deploy\docker\compose.yml up -d
 python services\local-supervisor\run.py --check
 python services\local-supervisor\run.py
 ```
 
-El arranque único en el PC final es un objetivo pendiente (fase 4 del
-roadmap).
+`Ctrl+C` lo para todo menos Mosquitto y Docker Desktop.
+
+Para que todo arranque solo al iniciar la sesión de Windows, con el mapa a
+pantalla completa (`F11` alterna la pantalla completa y `Ctrl+Alt+B` vuelve a
+abrir el mapa), ver [`deploy/windows/README.md`](deploy/windows/README.md):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\install-autostart.ps1
+```
 
 ## Tests
 

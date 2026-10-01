@@ -13,5 +13,8 @@
   "log_root": "runtime/local-supervisor/logs",
   "visual_device": "CPU",
   "status_seconds": 10,
-  "startup_delay_seconds": 0.4
+  "startup_delay_seconds": 0.4,
+  "docker_stack": true,
+  "frigate_detector": "cpu",
+  "docker_start_timeout_seconds": 240
 }

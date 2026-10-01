@@ -15,6 +15,7 @@ sys.path.insert(0, str(SUPERVISOR_ROOT))
 
 from local_supervisor.configuration import (  # noqa: E402
     SERVICE_NAMES,
+    build_gpu_detector_spec,
     build_specs,
     load_config,
 )
@@ -86,6 +87,51 @@ class ConfigurationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "must be true or false"):
+                load_config(path, root)
+
+    def test_default_stack_manages_docker_with_cpu_detector(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = load_config(root / "local-stack.json", root)
+
+        self.assertTrue(config.docker_stack)
+        self.assertEqual(config.frigate_detector, "cpu")
+        self.assertEqual(config.compose_file, (root / "deploy/docker/compose.yml").resolve())
+        self.assertIsNone(build_gpu_detector_spec(config, REPOSITORY_ROOT))
+
+    def test_gpu_detector_client_listens_on_loopback_with_directml_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "custom.json"
+            path.write_text(json.dumps({"frigate_detector": "gpu"}), encoding="utf-8")
+            config = load_config(path, root)
+
+        spec = build_gpu_detector_spec(config, REPOSITORY_ROOT)
+        assert spec is not None
+        self.assertEqual(spec.name, "frigate_gpu_detector")
+        command = list(spec.command)
+        self.assertEqual(command[command.index("--endpoint") + 1], "tcp://127.0.0.1:5555")
+        self.assertEqual(command[command.index("--providers") + 1:], ["DmlExecutionProvider"])
+        self.assertEqual(spec.listen_endpoints, (("127.0.0.1", 5555),))
+        self.assertNotIn("frigate_gpu_detector", [s.name for s in build_specs(config, REPOSITORY_ROOT)])
+
+    def test_gpu_detector_requires_the_docker_stack(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "custom.json"
+            path.write_text(
+                json.dumps({"frigate_detector": "gpu", "docker_stack": False}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "requires docker_stack"):
+                load_config(path, root)
+
+    def test_unknown_frigate_detector_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "custom.json"
+            path.write_text(json.dumps({"frigate_detector": "rx9070"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "frigate_detector must be one of"):
                 load_config(path, root)
 
     def test_supervisor_logs_follow_seven_day_retention(self) -> None:
