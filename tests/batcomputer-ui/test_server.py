@@ -106,6 +106,14 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["cameras"], [])
 
+    def test_editor_page_is_served(self) -> None:
+        status, content_type, body = self.get("/editor")
+        self.assertEqual(status, 200)
+        self.assertTrue(content_type.startswith("text/html"))
+        self.assertIn(b"/web/editor/editor.js", body)
+        status, content_type, _ = self.get("/web/editor/geometry.js")
+        self.assertEqual((status, content_type), (200, "text/javascript; charset=utf-8"))
+
     def test_space_map_is_not_served_without_a_store(self) -> None:
         status, _, _ = self.get("/api/space-map")
 

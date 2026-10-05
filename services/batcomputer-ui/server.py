@@ -58,6 +58,8 @@ class UiHandler(BaseHTTPRequestHandler):
             self.end_headers()
         elif path == "/preview":
             self._file(WEB_ROOT / "preview.html")
+        elif path == "/editor":
+            self._file(WEB_ROOT / "editor" / "editor.html")
         elif path.startswith("/screen/"):
             position_id = path.removeprefix("/screen/")
             if position_id not in SCREENS:

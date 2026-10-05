@@ -25,6 +25,7 @@ python services\batcomputer-ui\server.py
 |---|---|
 | `http://127.0.0.1:8092/preview` | the nine screens to scale on one display, with live data |
 | `http://127.0.0.1:8092/screen/<position_id>` | one screen; on the final PC each display shows one of these |
+| `http://127.0.0.1:8092/editor` | the space editor, an ordinary window on a work screen |
 | `/api/screens` | screens, design canvases and which ones are built |
 | `/api/console?after=<seq>` | supervisor console lines after a sequence number |
 | `/api/system-health` | health of the system parts (cached 2 s) |
@@ -179,12 +180,42 @@ cannot silently overwrite each other (`409`). `PUT` is refused unless both
 `Host` and `Origin` are local, so another site open in the browser cannot
 write the plan.
 
+### Space editor (`/editor`)
+
+An ordinary window on a work screen: it fills the window instead of a fixed
+canvas. Part 2b-1 (2026-10-05) edits floors and rooms; cameras, doors,
+floor links and warnings come in part 2b-2. Doors, cameras and links already
+in the plan are kept, except that deleting a room or a floor removes what
+referred to it.
+
+| Control | What it does |
+|---|---|
+| floors column | open a floor; `+ Nueva planta` up to three |
+| `▭ Sala` (`S`) | drag: a rectangle; click corner by corner: any shape with straight walls (an L); click the first corner or `Intro` to close, `Retroceso` removes the last corner, `Esc` cancels |
+| `↖ Seleccionar` (`V`) | click a room; drag a corner (its neighbours follow, so walls stay straight), a wall, or the inside to move it; double click or the side panel renames it; `Supr` deletes it |
+| side panel | the room's name and size in grid cells; with no room selected, the floor's and the workspace's names and `Borrar planta` (asks twice when the floor has rooms) |
+| `Ctrl+Z` / `Ctrl+Y` | undo / redo (200 steps) |
+| `Ctrl+S`, `Guardar` | save; `● Cambios sin guardar` until then, and closing the window asks first |
+
+Corners snap to the grid. While drawing or dragging, the shape shows its size
+in cells, or in red with a cross and the reason ("se solapa con «Oficina»")
+when it cannot go there; releasing an invalid shape keeps the previous one.
+The floor before the current one is drawn dashed in grey, to line up the
+floors. A room's name is written in the largest rectangle inside it, so an L
+keeps it in its wider part. If another window saved meanwhile, saving is
+refused with a button to reload.
+
+`web/editor/geometry.js` holds the room rules and mirrors
+`batcomputer_ui/spaces.py`; `tests/batcomputer-ui/test_editor_geometry.py`
+runs its Node tests (`editor_geometry.test.mjs`) and checks on the same cases
+that the editor and the server accept the same rooms (skipped without Node).
+
 ### Header icons
 
 The yellow block of each header is decoration with an icon of what the
 screen shows, without letters (owner, 2026-10-01): `web/icons.js` draws a
 terminal, a pulse line, a video camera, four screens, a folded map, a photo
-and a route.
+a route, and a room with a pencil for the editor.
 
 ## Files
 
@@ -197,6 +228,7 @@ web/icons.js            header icons (classic script, also used by the style sam
 web/gotham.js           the GOTHAM row ticker
 web/data/gotham-alerts.json  its fictional messages (edit freely)
 web/screens/<id>.html   one page per built screen
+web/editor/             the space editor: page, style, logic and room geometry
 web/pending.html        placeholder for screens not built yet and the work screens
 web/preview.html        the nine screens to scale
 web/style-sample.html   the approved style sample, static

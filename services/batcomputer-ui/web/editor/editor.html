@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · editor de espacios</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/web/theme.css">
+<link rel="stylesheet" href="/web/editor/editor.css">
+<script src="/web/icons.js"></script>
+</head>
+<body>
+<div class="bc-screen editor mode-select" id="app">
+  <div class="bc-header">
+    <span class="bc-code" data-icon="editor"></span><span class="bc-title">Editor de espacios</span>
+    <span class="bc-meta" id="workspace-name"></span>
+    <span class="save-state" id="save-state">CARGANDO…</span>
+    <button id="undo" title="Ctrl+Z">↶ Deshacer</button>
+    <button id="redo" title="Ctrl+Y">↷ Rehacer</button>
+    <button id="save" class="primary" title="Ctrl+S">Guardar</button>
+  </div>
+  <div class="layout" id="layout">
+    <nav class="floors bc-panel">
+      <div class="bc-label">Plantas</div>
+      <ol id="floor-list"></ol>
+      <button id="add-floor">+ Nueva planta</button>
+    </nav>
+    <section class="work">
+      <div class="toolbar">
+        <button data-tool="select">↖ Seleccionar<kbd>V</kbd></button>
+        <button data-tool="room">▭ Sala<kbd>S</kbd></button>
+        <span class="floor-title" id="floor-title"></span>
+      </div>
+      <div class="canvas-wrap">
+        <svg id="plan" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+          <g id="layer-grid"></g>
+          <g id="layer-ghost"></g>
+          <g id="layer-rooms"></g>
+          <g id="layer-handles"></g>
+          <g id="layer-preview"></g>
+          <g id="layer-cursor"></g>
+        </svg>
+        <div class="empty-hint" id="empty-hint" hidden></div>
+      </div>
+    </section>
+    <aside class="inspector bc-panel" id="inspector"></aside>
+  </div>
+  <div class="footer"><span class="hint" id="hint"></span><span class="message" id="message"></span></div>
+  <div class="bc-hazard"></div>
+</div>
+<script type="module" src="/web/editor/editor.js"></script>
+</body>
+</html>

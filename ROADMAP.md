@@ -382,9 +382,17 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
     paredes compartidas y las puertas se comprueban sin aproximaciones. Se
     guarda aparte, en `runtime/spaces/space-map.json`: hasta la parte 2d nada
     más cambia.
-  - [ ] **2b. El editor**, en `http://127.0.0.1:8092/editor`. Las 3 salas de
+  - [~] **2b. El editor**, en `http://127.0.0.1:8092/editor`. Las 3 salas de
     prueba se dibujan de nuevo en él, sin importar el mapa actual (decisión
-    del propietario).
+    del propietario). En dos vueltas:
+    - [~] **2b-1, plantas y salas** (2026-10-05), pendiente de la revisión
+      del propietario. Permite crear y renombrar hasta 3 plantas, dibujar
+      rectángulos arrastrando o formas en L esquina a esquina, mover
+      esquinas, paredes y salas enteras, deshacer y guardar. Probado en Chrome
+      con clics y arrastres simulados: salas válidas, solapes rechazados con
+      su motivo, deshacer, borrar planta en dos pasos y aviso si otra ventana
+      guardó antes.
+    - [ ] **2b-2:** cámaras, puertas, Exterior, escaleras y avisos.
   - [ ] **2c. El mapa en vivo** de `top_right`.
   - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
     nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
@@ -599,8 +607,15 @@ En curso: la presentación en las 9 pantallas, en la rama
 `codex/batcomputer-presentation`, subida a GitHub el 2026-10-05 y sin mergear.
 Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
 de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
-arriba): la 2a, el plano, está hecha; sigue la 2b, el editor, según
-`docs/diseno-batcomputer.md`.
+arriba). La 2a, el plano, está hecha. La 2b-1 del editor (plantas y salas)
+espera la revisión del propietario; después viene la 2b-2 (cámaras, puertas,
+Exterior, escaleras y avisos), según `docs/diseno-batcomputer.md`.
+
+El editor está en `http://127.0.0.1:8092/editor` una vez reiniciado el
+servicio de pantallas (en el siguiente inicio de sesión). Mientras tanto se
+puede revisar con un servidor aparte que guarda en el mismo plano:
+`python services\batcomputer-ui\server.py --port 8093` y
+`http://127.0.0.1:8093/editor`.
 
 Para verlas en este PC: `http://127.0.0.1:8092/preview`, o una pantalla en
 `http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud). El

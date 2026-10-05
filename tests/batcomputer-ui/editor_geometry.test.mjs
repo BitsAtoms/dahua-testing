@@ -1,0 +1,68 @@
+// Run with: node --test tests/batcomputer-ui/editor_geometry.test.mjs
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  cells, largestRectangle, moveCorner, moveEdge, orthogonalStep, outlineProblem, rectangle,
+  roomProblem, simplify, translate,
+} from "../../services/batcomputer-ui/web/editor/geometry.js";
+
+const P = (...pairs) => pairs.map(([x, y]) => ({ x, y }));
+const GRID = { columns: 48, rows: 30 };
+const L_SHAPE = P([0, 0], [6, 0], [6, 3], [3, 3], [3, 6], [0, 6]);
+
+test("rectangles and L shapes are valid outlines", () => {
+  assert.equal(outlineProblem(rectangle({ x: 4, y: 1 }, { x: 0, y: 3 })), null);
+  assert.equal(outlineProblem(L_SHAPE), null);
+});
+
+test("invalid outlines say why", () => {
+  assert.match(outlineProblem(P([0, 0], [4, 0], [2, 3])), /4 esquinas/);
+  assert.match(outlineProblem(P([0, 0], [4, 0], [4, 4], [1, 3])), /diagonal/);
+  assert.match(outlineProblem(P([0, 0], [2, 0], [4, 0], [4, 4], [0, 4])), /mitad/);
+  assert.match(outlineProblem(P([0, 0], [2, 0], [2, 4], [4, 4], [4, 2], [0, 2])), /cruzan/);
+});
+
+test("cells of an L shape", () => {
+  assert.equal(cells(rectangle({ x: 0, y: 0 }, { x: 3, y: 2 })).size, 6);
+  assert.equal(cells(L_SHAPE).size, 6 * 3 + 3 * 3);
+});
+
+test("rooms may share a wall but not a cell", () => {
+  const left = { name: "Izquierda", polygon: rectangle({ x: 0, y: 0 }, { x: 4, y: 4 }) };
+  assert.equal(roomProblem(rectangle({ x: 4, y: 0 }, { x: 8, y: 4 }), [left], GRID), null);
+  assert.match(roomProblem(rectangle({ x: 3, y: 3 }, { x: 8, y: 8 }), [left], GRID), /«Izquierda»/);
+  assert.match(roomProblem(rectangle({ x: 40, y: 0 }, { x: 49, y: 4 }), [], GRID), /rejilla/);
+});
+
+test("simplify drops repeated and straight-through corners", () => {
+  assert.deepEqual(simplify(P([0, 0], [2, 0], [4, 0], [4, 4], [4, 4], [0, 4])),
+    P([0, 0], [4, 0], [4, 4], [0, 4]));
+});
+
+test("moving a corner keeps the walls straight", () => {
+  const square = rectangle({ x: 0, y: 0 }, { x: 4, y: 4 });
+  assert.deepEqual(moveCorner(square, 2, { x: 6, y: 5 }), P([0, 0], [6, 0], [6, 5], [0, 5]));
+  const moved = moveCorner(L_SHAPE, 3, { x: 4, y: 2 });
+  assert.equal(outlineProblem(moved), null);
+  assert.deepEqual(moved, P([0, 0], [6, 0], [6, 2], [4, 2], [4, 6], [0, 6]));
+});
+
+test("moving a wall moves both of its corners", () => {
+  const square = rectangle({ x: 0, y: 0 }, { x: 4, y: 4 });
+  assert.deepEqual(moveEdge(square, 1, 2), P([0, 0], [6, 0], [6, 4], [0, 4]));
+  assert.deepEqual(moveEdge(square, 2, -1), P([0, 0], [4, 0], [4, 3], [0, 3]));
+  assert.deepEqual(translate(square, 1, 2)[0], { x: 1, y: 2 });
+});
+
+test("drawing steps go straight across or down", () => {
+  assert.deepEqual(orthogonalStep({ x: 2, y: 2 }, { x: 9, y: 4 }), { x: 9, y: 2 });
+  assert.deepEqual(orthogonalStep({ x: 2, y: 2 }, { x: 3, y: 8 }), { x: 2, y: 8 });
+});
+
+test("the name goes in the largest rectangle inside the room", () => {
+  assert.deepEqual(largestRectangle(L_SHAPE), { x0: 0, y0: 0, x1: 6, y1: 3 });
+  const wide = P([14, 2], [30, 2], [30, 8], [22, 8], [22, 12], [14, 12]);
+  assert.deepEqual(largestRectangle(wide), { x0: 14, y0: 2, x1: 30, y1: 8 });
+  assert.deepEqual(largestRectangle(rectangle({ x: 1, y: 1 }, { x: 3, y: 5 })), { x0: 1, y0: 1, x1: 3, y1: 5 });
+});

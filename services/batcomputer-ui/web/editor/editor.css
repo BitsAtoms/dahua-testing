@@ -1,0 +1,112 @@
+/* Space editor: an ordinary window on a work screen, so it fills the window
+   instead of a fixed canvas. Colours and contrast roles come from theme.css. */
+
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+
+.editor { height: 100vh; font-size: 17px; }
+.editor .bc-header { font-size: 22px; }
+
+button {
+  font: inherit;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--line);
+  padding: 0.35em 0.8em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) { border-color: var(--text); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+button.on, button.primary { background: var(--invert-bg); color: var(--invert-text); border-color: var(--invert-bg); }
+button:disabled { color: var(--text-muted); border: 2px dashed var(--line-quiet); cursor: default; opacity: 0.7; }
+button.danger { border-style: dashed; }
+button.danger.armed { background: var(--critical); color: var(--bc-black); border: 2px solid var(--critical); }
+kbd { font-family: var(--font-mono); font-size: 0.8em; opacity: 0.75; margin-left: 0.4em; }
+
+.bc-header button { font-size: 0.62em; }
+.save-state { font-family: var(--font-mono); font-size: 0.62em; letter-spacing: 0.06em; padding: 0.2em 0.6em; color: var(--text-muted); }
+.save-state.dirty { background: var(--invert-bg); color: var(--invert-text); font-weight: 700; }
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 15em 1fr 19em;
+  gap: 0.8em;
+  padding: 0.8em;
+}
+
+.floors, .inspector { display: flex; flex-direction: column; gap: 0.6em; min-height: 0; overflow: auto; }
+.floors ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4em; }
+.floors li button { width: 100%; display: flex; justify-content: space-between; gap: 0.6em; text-align: left; }
+.floors li button .count { font-family: var(--font-mono); letter-spacing: 0; font-weight: 400; }
+
+.work { display: flex; flex-direction: column; gap: 0.6em; min-width: 0; min-height: 0; }
+.toolbar { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
+.toolbar .floor-title { margin-left: auto; color: var(--text-muted); font-size: 0.85em; letter-spacing: 0.1em; text-transform: uppercase; }
+.canvas-wrap { position: relative; flex: 1; min-height: 0; border: 2px solid var(--line-quiet); background: var(--bg); }
+#plan { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+.empty-hint {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; text-align: center; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-muted); background: var(--bg); padding: 0.6em 1em; border: 2px dashed var(--line-quiet);
+}
+.empty-hint[hidden] { display: none; }
+
+.inspector label { display: flex; flex-direction: column; gap: 0.3em; }
+.inspector input {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 2px solid var(--line); padding: 0.35em 0.5em;
+}
+.inspector .note { color: var(--text-muted); font-size: 0.85em; line-height: 1.35; }
+.inspector .section + .section { margin-top: 0.8em; padding-top: 0.8em; border-top: 2px solid var(--line-quiet); }
+.inspector .section { display: flex; flex-direction: column; gap: 0.6em; }
+
+.footer {
+  display: flex; align-items: center; gap: 1em; min-height: 2.2em;
+  padding: 0 0.8em 0.6em; font-size: 0.9em;
+}
+.footer .hint { flex: 1; color: var(--text-muted); }
+.footer .message { font-family: var(--font-mono); padding: 0.2em 0.6em; }
+.footer .message.error { background: var(--invert-bg); color: var(--invert-text); font-weight: 700; }
+.footer .message.done { color: var(--text); }
+.footer .message button { margin-left: 0.8em; font-size: 0.8em; }
+
+.fatal { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 1em; align-items: center; }
+
+/* Plan drawing: stroke widths in screen pixels whatever the zoom. */
+#plan * { vector-effect: non-scaling-stroke; }
+.grid-dot { fill: var(--line-quiet); }
+.grid-edge { fill: none; stroke: var(--line-quiet); stroke-width: 1; stroke-dasharray: 4 6; }
+.ghost { fill: none; stroke: var(--line-quiet); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.room polygon { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+.room.selected polygon { fill: #2e2c1c; stroke: var(--text); stroke-width: 3; }
+.room text, .preview-label {
+  fill: var(--text); font-family: var(--font-display); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em; pointer-events: none;
+}
+.mode-select .room { cursor: move; }
+.mode-room #plan { cursor: crosshair; }
+.edge-hit { stroke: transparent; stroke-width: 14; fill: none; }
+.edge-hit.across { cursor: ns-resize; }
+.edge-hit.along { cursor: ew-resize; }
+.edge-hit:hover { stroke: rgba(253, 227, 17, 0.35); stroke-width: 8; }
+.corner { fill: var(--bg); stroke: var(--text); stroke-width: 2; cursor: move; }
+.corner:hover { fill: var(--text); }
+.preview { fill: rgba(253, 227, 17, 0.1); stroke: var(--text); stroke-width: 2; stroke-dasharray: 8 5; }
+.preview.invalid { fill: rgba(255, 77, 58, 0.16); stroke: var(--critical); }
+.drawing-line { fill: none; stroke: var(--text); stroke-width: 2.5; }
+.drawing-next { fill: none; stroke: var(--text); stroke-width: 2; stroke-dasharray: 6 5; }
+.drawing-next.invalid { stroke: var(--critical); }
+.drawing-corner { fill: var(--text); }
+.drawing-start { fill: none; stroke: var(--text); stroke-width: 2; }
+.drawing-start.closing { fill: var(--text); }
+.cursor-line { stroke: var(--line-quiet); stroke-width: 1; stroke-dasharray: 3 5; pointer-events: none; }
+.cursor-point { fill: none; stroke: var(--text); stroke-width: 2; pointer-events: none; }
+.preview-label { font-family: var(--font-mono); letter-spacing: 0; }
+.preview-label.invalid { fill: var(--critical); }
+.label-plate { fill: var(--bg); opacity: 0.85; }
