@@ -81,6 +81,8 @@ class UiHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, self.server.cameras.snapshot())
         elif path == "/api/screens":
             self._json(HTTPStatus.OK, screens_document(built_screens()))
+        elif path == "/api/space-map/cameras":
+            self._json(HTTPStatus.OK, {"cameras": self.server.cameras.placeable()})
         elif path == "/api/space-map":
             store = self.server.spaces
             if store is None:

@@ -114,6 +114,11 @@ class ServerTests(unittest.TestCase):
         status, content_type, _ = self.get("/web/editor/geometry.js")
         self.assertEqual((status, content_type), (200, "text/javascript; charset=utf-8"))
 
+    def test_editor_camera_list_answers_without_sources(self) -> None:
+        status, _, body = self.get("/api/space-map/cameras")
+
+        self.assertEqual((status, json.loads(body)), (200, {"cameras": []}))
+
     def test_space_map_is_not_served_without_a_store(self) -> None:
         status, _, _ = self.get("/api/space-map")
 

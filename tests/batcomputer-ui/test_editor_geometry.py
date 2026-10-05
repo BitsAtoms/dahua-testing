@@ -56,6 +56,37 @@ console.log(JSON.stringify(answers));
 """
 
 
+# Plans the editor builds step by step: after each change it reconciles the
+# floor, and the server must accept whatever comes out.
+JS_RECONCILE = """
+import { reconcileFloor, rectangle, translate } from %s;
+const R = (id, a, b) => ({ id, name: id, polygon: rectangle(a, b) });
+const plans = [];
+const snapshot = floor => {
+  const plan = { schema_version: "space_map.v2", workspace: { id: "main", name: "Prueba" },
+    grid: { columns: 48, rows: 30 }, floors: [structuredClone(floor)], floor_links: [] };
+  plans.push(plan);
+};
+const floor = { id: "floor_0", name: "Planta 0", rooms: [R("a", { x: 0, y: 0 }, { x: 6, y: 6 })], doors: [],
+  cameras: [{ camera_id: "cam_a", room_id: "a", position: { x: 6, y: 3 }, heading_deg: 270 },
+    { camera_id: "cam_out", room_id: null, position: { x: 10.5, y: 2.5 }, heading_deg: 90 }] };
+floor.doors.push({ id: "d_out", rooms: ["a", "exterior"], segment: [{ x: 6, y: 1 }, { x: 6, y: 3 }] });
+floor.doors.push({ id: "d_south", rooms: ["a", "exterior"], segment: [{ x: 2, y: 6 }, { x: 4, y: 6 }] });
+reconcileFloor(floor); snapshot(floor);
+floor.rooms.push(R("b", { x: 6, y: 0 }, { x: 12, y: 4 }));            // drawn against the entrance
+reconcileFloor(floor); snapshot(floor);
+floor.rooms[1].polygon = rectangle({ x: 6, y: 1 }, { x: 12, y: 8 });   // reshaped, the door's wall still shared
+reconcileFloor(floor); snapshot(floor);
+floor.rooms[1].polygon = translate(floor.rooms[1].polygon, 1, 0);      // a room moves away
+reconcileFloor(floor); snapshot(floor);
+floor.rooms.splice(0, 1);                                               // a room is deleted
+floor.doors = floor.doors.filter(door => !door.rooms.includes("a"));
+for (const camera of floor.cameras) if (camera.room_id === "a") camera.room_id = null;
+reconcileFloor(floor); snapshot(floor);
+console.log(JSON.stringify(plans));
+"""
+
+
 def server_accepts(outlines: list[list[tuple[int, int]]]) -> bool:
     plan = default_space_map()
     plan["floors"][0]["rooms"] = [
@@ -91,6 +122,24 @@ class EditorGeometryTests(unittest.TestCase):
         self.assertEqual(editor, server)
         self.assertTrue(server["l_shape"] and server["neighbours"] and server["u_shape"])
         self.assertFalse(server["overlap"] or server["nested"] or server["touching_walls"])
+
+    def test_server_accepts_every_plan_the_editor_reconciles(self) -> None:
+        script = JS_RECONCILE % json.dumps(GEOMETRY.as_uri())
+        result = subprocess.run(
+            [NODE, "--input-type=module", "-e", script],
+            cwd=REPOSITORY_ROOT, capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        plans = json.loads(result.stdout)
+        self.assertEqual(len(plans), 5)
+        for index, plan in enumerate(plans):
+            with self.subTest(step=index):
+                validate_space_map(plan)
+        doors = [[door["rooms"] for door in plan["floors"][0]["doors"]] for plan in plans]
+        self.assertEqual(doors[1], [["a", "b"], ["a", "exterior"]])  # entrance became a door
+        self.assertEqual(doors[2], [["a", "b"], ["a", "exterior"]])  # wall still shared
+        self.assertEqual(doors[3], [["a", "exterior"]])              # moved away: door removed
+        self.assertEqual(plans[1]["floors"][0]["cameras"][1]["room_id"], "b")
 
 
 if __name__ == "__main__":

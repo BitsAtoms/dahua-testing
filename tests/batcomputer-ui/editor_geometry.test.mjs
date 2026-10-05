@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  cells, largestRectangle, moveCorner, moveEdge, orthogonalStep, outlineProblem, rectangle,
-  roomProblem, simplify, translate,
+  cameraRoom, cells, doorRooms, largestRectangle, moveCorner, moveEdge, orthogonalStep, outlineProblem,
+  reconcileFloor, rectangle, roomProblem, roomsAt, segmentUnits, simplify, translate, wallMap,
 } from "../../services/batcomputer-ui/web/editor/geometry.js";
 
 const P = (...pairs) => pairs.map(([x, y]) => ({ x, y }));
@@ -65,4 +65,39 @@ test("the name goes in the largest rectangle inside the room", () => {
   const wide = P([14, 2], [30, 2], [30, 8], [22, 8], [22, 12], [14, 12]);
   assert.deepEqual(largestRectangle(wide), { x0: 14, y0: 2, x1: 30, y1: 8 });
   assert.deepEqual(largestRectangle(rectangle({ x: 1, y: 1 }, { x: 3, y: 5 })), { x0: 1, y0: 1, x1: 3, y1: 5 });
+});
+
+const LEFT = { id: "left", name: "Izquierda", polygon: rectangle({ x: 0, y: 0 }, { x: 4, y: 4 }) };
+const RIGHT = { id: "right", name: "Derecha", polygon: rectangle({ x: 4, y: 0 }, { x: 8, y: 4 }) };
+
+test("doors join the rooms of a shared wall, or a room and the exterior", () => {
+  const walls = wallMap([LEFT, RIGHT]);
+  assert.deepEqual(doorRooms(segmentUnits({ x: 4, y: 1 }, { x: 4, y: 3 }), walls), ["left", "right"]);
+  assert.deepEqual(doorRooms(segmentUnits({ x: 1, y: 4 }, { x: 3, y: 4 }), walls), ["left", "exterior"]);
+  assert.equal(doorRooms(segmentUnits({ x: 3, y: 4 }, { x: 5, y: 4 }), walls), null);
+  assert.equal(doorRooms(segmentUnits({ x: 2, y: 2 }, { x: 3, y: 2 }), walls), null);
+});
+
+test("a camera on a shared wall counts in the room it looks into", () => {
+  assert.deepEqual(roomsAt({ x: 4, y: 2 }, [LEFT, RIGHT]).map(room => room.id), ["left", "right"]);
+  assert.equal(cameraRoom({ x: 4, y: 2 }, 90, [LEFT, RIGHT]), "right");
+  assert.equal(cameraRoom({ x: 4, y: 2 }, 270, [LEFT, RIGHT]), "left");
+  assert.equal(cameraRoom({ x: 1.5, y: 1.5 }, 0, [LEFT, RIGHT]), "left");
+  assert.equal(cameraRoom({ x: 20, y: 20 }, 0, [LEFT, RIGHT]), null);
+});
+
+test("reconcile keeps valid doors, turns a covered entrance into a door and drops the rest", () => {
+  const floor = {
+    rooms: [structuredClone(LEFT)],
+    cameras: [{ camera_id: "c", room_id: "left", position: { x: 6, y: 2 }, heading_deg: 0 }],
+    doors: [{ id: "out", rooms: ["left", "exterior"], segment: [{ x: 4, y: 1 }, { x: 4, y: 2 }] },
+      { id: "south", rooms: ["left", "exterior"], segment: [{ x: 1, y: 4 }, { x: 2, y: 4 }] }],
+  };
+  floor.rooms.push(structuredClone(RIGHT));
+  assert.equal(reconcileFloor(floor), 0);
+  assert.deepEqual(floor.doors.map(door => door.rooms), [["left", "right"], ["left", "exterior"]]);
+  assert.equal(floor.cameras[0].room_id, "right");
+  floor.rooms[1].polygon = rectangle({ x: 4, y: 2 }, { x: 8, y: 6 });
+  assert.equal(reconcileFloor(floor), 1);
+  assert.deepEqual(floor.doors.map(door => door.id), ["south"]);
 });

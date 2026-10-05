@@ -385,14 +385,22 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
   - [~] **2b. El editor**, en `http://127.0.0.1:8092/editor`. Las 3 salas de
     prueba se dibujan de nuevo en él, sin importar el mapa actual (decisión
     del propietario). En dos vueltas:
-    - [~] **2b-1, plantas y salas** (2026-10-05), pendiente de la revisión
-      del propietario. Permite crear y renombrar hasta 3 plantas, dibujar
+    - [x] **2b-1, plantas y salas**, aprobada por el propietario el
+      2026-10-05, que ya dibujó con ella las salas de prueba. Permite crear y renombrar hasta 3 plantas, dibujar
       rectángulos arrastrando o formas en L esquina a esquina, mover
       esquinas, paredes y salas enteras, deshacer y guardar. Probado en Chrome
       con clics y arrastres simulados: salas válidas, solapes rechazados con
       su motivo, deshacer, borrar planta en dos pasos y aviso si otra ventana
       guardó antes.
-    - [ ] **2b-2:** cámaras, puertas, Exterior, escaleras y avisos.
+    - [~] **2b-2, cámaras, puertas, Exterior, escaleras y avisos**
+      (2026-10-05), pendiente de la revisión del propietario. Las cámaras
+      se arrastran desde una bandeja con todas las que conoce el sistema.
+      Las puertas se dibujan a lo largo de una pared: entre dos salas, o
+      como entrada desde el Exterior. Al mover o cambiar una sala, sus
+      cámaras y entradas la acompañan y las puertas que ya no están en su
+      pared se quitan con un aviso, así que lo que se guarda siempre es
+      válido. Probado en Chrome y con un test que comprueba que el servidor
+      acepta cada plano que deja el editor.
   - [ ] **2c. El mapa en vivo** de `top_right`.
   - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
     nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
@@ -607,9 +615,11 @@ En curso: la presentación en las 9 pantallas, en la rama
 `codex/batcomputer-presentation`, subida a GitHub el 2026-10-05 y sin mergear.
 Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
 de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
-arriba). La 2a, el plano, está hecha. La 2b-1 del editor (plantas y salas)
-espera la revisión del propietario; después viene la 2b-2 (cámaras, puertas,
-Exterior, escaleras y avisos), según `docs/diseno-batcomputer.md`.
+arriba). La 2a, el plano, está hecha, y la 2b-1 del editor (plantas y
+salas) está aprobada. La 2b-2 (cámaras, puertas, Exterior, escaleras y
+avisos) espera la revisión del propietario, que colocará en el plano nuevo
+las cámaras y puertas de las 3 salas de prueba. Después vienen el mapa en
+vivo (2c) y el cambio al plano nuevo (2d), según `docs/diseno-batcomputer.md`.
 
 El editor está en `http://127.0.0.1:8092/editor` una vez reiniciado el
 servicio de pantallas (en el siguiente inicio de sesión). Mientras tanto se

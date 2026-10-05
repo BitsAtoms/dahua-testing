@@ -31,6 +31,7 @@ python services\batcomputer-ui\server.py
 | `/api/system-health` | health of the system parts (cached 2 s) |
 | `/api/camera-health` | connection and last activity of each camera (cached 2 s) |
 | `/api/space-map` | `GET` the building plan and its revision; `PUT {plan, revision}` saves it |
+| `/api/space-map/cameras` | cameras the editor can place, with whether they count people |
 
 The server listens on localhost only and serves files from `web/` only.
 
@@ -183,17 +184,18 @@ write the plan.
 ### Space editor (`/editor`)
 
 An ordinary window on a work screen: it fills the window instead of a fixed
-canvas. Part 2b-1 (2026-10-05) edits floors and rooms; cameras, doors,
-floor links and warnings come in part 2b-2. Doors, cameras and links already
-in the plan are kept, except that deleting a room or a floor removes what
-referred to it.
+canvas. Part 2b-1 (approved 2026-10-05) edits floors and rooms; part 2b-2
+(2026-10-05) adds cameras, doors, the exterior, floor links and warnings.
 
 | Control | What it does |
 |---|---|
 | floors column | open a floor; `+ Nueva planta` up to three |
 | `▭ Sala` (`S`) | drag: a rectangle; click corner by corner: any shape with straight walls (an L); click the first corner or `Intro` to close, `Retroceso` removes the last corner, `Esc` cancels |
 | `↖ Seleccionar` (`V`) | click a room; drag a corner (its neighbours follow, so walls stay straight), a wall, or the inside to move it; double click or the side panel renames it; `Supr` deletes it |
-| side panel | the room's name and size in grid cells; with no room selected, the floor's and the workspace's names and `Borrar planta` (asks twice when the floor has rooms) |
+| `⇥ Puerta` (`P`) | press on a wall and drag along it: on a wall two rooms share, a door between them; on an outer wall, an entrance from the exterior (drawn with an arrow and `EXTERIOR`); click a door to select it |
+| `⇅ Otra planta` (`E`) | click a room, then pick in the side panel the room of another floor it joins, as stairs or lift; the link is written under both rooms' names |
+| cameras | drag one from `Cámaras sin colocar` to its room; it starts looking at the middle of the room. Selected, drag it to move it (half grid steps) or its round handle to turn it (15° steps). On a wall two rooms share, it counts in the room it looks into |
+| side panel | what is selected: a room (name, size, its cameras and connections, `⇅ Unir con otra planta`), a camera (source, room it counts in, heading), a door or a floor link; with nothing selected, the floor's and the workspace's names and `Borrar planta` (asks twice when the floor has rooms). Below, always, the cameras to place and the warnings |
 | `Ctrl+Z` / `Ctrl+Y` | undo / redo (200 steps) |
 | `Ctrl+S`, `Guardar` | save; `● Cambios sin guardar` until then, and closing the window asks first |
 
@@ -201,14 +203,33 @@ Corners snap to the grid. While drawing or dragging, the shape shows its size
 in cells, or in red with a cross and the reason ("se solapa con «Oficina»")
 when it cannot go there; releasing an invalid shape keeps the previous one.
 The floor before the current one is drawn dashed in grey, to line up the
-floors. A room's name is written in the largest rectangle inside it, so an L
+floors.
+
+The tray lists every camera the system knows (`/api/space-map/cameras`: the
+cameras of `mini_right`, plus any that sent tracks and no source lists now),
+with `SOLO VISTA` or `DESACTIVADA` on the ones that count nobody; they are
+drawn hollow on the plan. Warnings, clickable to show what they name: room
+without camera, room with only cameras that count nobody, isolated room (no
+door, entrance or floor link), camera outside every room, no entrance from
+the exterior at all, and, as information, a room seen by several cameras
+(counted once).
+
+After every change to the rooms, `reconcileFloor` keeps the plan valid: a
+moved room takes its cameras and entrances along; a door stays while it
+still lies on its wall, an entrance becomes a door between rooms when a room
+is drawn against it, and any other door is removed with a notice; a camera
+that left its room moves to the room under it, or to none. Deleting a room
+removes its doors and floor links and leaves its cameras outside the rooms;
+deleting a floor returns its cameras to the tray. A room's name is written in the largest rectangle inside it, so an L
 keeps it in its wider part. If another window saved meanwhile, saving is
 refused with a button to reload.
 
 `web/editor/geometry.js` holds the room rules and mirrors
 `batcomputer_ui/spaces.py`; `tests/batcomputer-ui/test_editor_geometry.py`
-runs its Node tests (`editor_geometry.test.mjs`) and checks on the same cases
-that the editor and the server accept the same rooms (skipped without Node).
+runs its Node tests (`editor_geometry.test.mjs`), checks on the same cases
+that the editor and the server accept the same rooms, and checks that the
+server accepts every plan the editor reconciles step by step (skipped
+without Node).
 
 ### Header icons
 

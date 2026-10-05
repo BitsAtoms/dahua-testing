@@ -59,6 +59,19 @@ class CameraHealthTests(unittest.TestCase):
     def cameras(self) -> dict[str, tuple[str, str, str, bool]]:
         return {c["id"]: (c["name"], c["state"], c["value"], c["active"]) for c in self.health.snapshot()["cameras"]}
 
+    def test_the_editor_can_place_every_known_camera(self) -> None:
+        self.seen["old_camera"] = NOW - 9000
+        cameras = {item["camera_id"]: (item["source"], item["counts"], item["note"])
+                   for item in self.health.placeable()}
+
+        self.assertEqual(cameras, {
+            "cam_recepcion": ("frigate", True, ""),
+            "puerta": ("frigate", False, "solo vista"),
+            "dahua_212": ("dahua", True, ""),
+            "dahua_213": ("dahua", False, "desactivada"),
+            "old_camera": ("", True, "sin fuente ahora"),
+        })
+
     def test_connected_cameras_with_their_last_activity(self) -> None:
         snapshot = self.health.snapshot()
 

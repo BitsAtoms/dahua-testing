@@ -181,3 +181,114 @@ export function largestRectangle(points) {
   }
   return { x0: best.x0, y0: best.y0, x1: best.x1, y1: best.y1 };
 }
+
+// ------------------------------------------------------------ walls, doors
+//
+// A wall unit is one grid step of wall: "x,y,h" runs from (x,y) to (x+1,y),
+// "x,y,v" from (x,y) to (x,y+1). Doors are made of whole units, like the
+// server checks them.
+
+export const unitKey = (x, y, horizontal) => `${x},${y},${horizontal ? "h" : "v"}`;
+
+export function segmentUnits(a, b) {
+  const keys = [];
+  if (a.y === b.y) {
+    for (let x = Math.min(a.x, b.x); x < Math.max(a.x, b.x); x += 1) keys.push(unitKey(x, a.y, true));
+  } else {
+    for (let y = Math.min(a.y, b.y); y < Math.max(a.y, b.y); y += 1) keys.push(unitKey(a.x, y, false));
+  }
+  return keys;
+}
+
+export function boundaryUnits(points) {
+  return new Set(edges(points).flatMap(([a, b]) => segmentUnits(a, b)));
+}
+
+// Every wall unit of a floor with the rooms it borders (one for an outer
+// wall, two for a shared one).
+export function wallMap(rooms) {
+  const walls = new Map();
+  for (const room of rooms) {
+    for (const key of boundaryUnits(room.polygon)) {
+      if (!walls.has(key)) walls.set(key, []);
+      walls.get(key).push(room.id);
+    }
+  }
+  return walls;
+}
+
+// Which rooms a door on these wall units joins, by the server's rules: the
+// wall two rooms share, or an outer wall of one room towards the exterior.
+// Null when the units are not one kind of wall.
+export function doorRooms(keys, walls) {
+  if (!keys.length) return null;
+  const first = walls.get(keys[0]);
+  if (!first) return null;
+  const pair = [...first].sort();
+  for (const key of keys) {
+    const rooms = walls.get(key);
+    if (!rooms || rooms.length !== pair.length || [...rooms].sort().some((id, i) => id !== pair[i])) return null;
+  }
+  return pair.length === 2 ? pair : [pair[0], "exterior"];
+}
+
+// Cells whose closed square holds the point: inside a room or on its wall.
+export function touchingCells(point) {
+  const around = value => (Number.isInteger(value) ? [value - 1, value] : [Math.floor(value)]);
+  return around(point.x).flatMap(x => around(point.y).map(y => cellKey(x, y)));
+}
+
+export function roomsAt(point, rooms) {
+  const keys = touchingCells(point);
+  return rooms.filter(room => {
+    const inside = cells(room.polygon);
+    return keys.some(key => inside.has(key));
+  });
+}
+
+export function headingVector(degrees) {
+  const radians = (degrees * Math.PI) / 180;
+  return { x: Math.sin(radians), y: -Math.cos(radians) };
+}
+
+// The room a camera counts for: the one it stands in, or, on a wall two
+// rooms share, the one it looks into. Null outside every room.
+export function cameraRoom(position, heading, rooms) {
+  const candidates = roomsAt(position, rooms);
+  if (candidates.length < 2) return candidates[0]?.id ?? null;
+  const ahead = headingVector(heading);
+  const probe = { x: position.x + ahead.x * 0.3, y: position.y + ahead.y * 0.3 };
+  const key = cellKey(Math.floor(probe.x), Math.floor(probe.y));
+  return (candidates.find(room => cells(room.polygon).has(key)) ?? candidates[0]).id;
+}
+
+// Keeps the doors and cameras of a floor consistent with its rooms after a
+// change: a door stays while it still lies on its wall; an entrance becomes a
+// door between rooms when a room is drawn against it; other doors are
+// removed. A camera that left its room moves to the room under it, or to
+// none. Returns how many doors were removed.
+export function reconcileFloor(floor) {
+  const walls = wallMap(floor.rooms);
+  const ids = new Set(floor.rooms.map(room => room.id));
+  let removed = 0;
+  floor.doors = floor.doors.filter(door => {
+    const keys = segmentUnits(...door.segment);
+    const now = doorRooms(keys, walls);
+    const before = [...door.rooms].sort();
+    const same = now && now.length === 2 && [...now].sort().every((id, i) => id === before[i]);
+    if (same) return true;
+    const entrance = door.rooms.includes("exterior") ? door.rooms.find(id => id !== "exterior") : null;
+    if (entrance && now && !now.includes("exterior") && now.includes(entrance)) {
+      door.rooms = [entrance, now.find(id => id !== entrance)];
+      return true;
+    }
+    removed += 1;
+    return false;
+  });
+  for (const camera of floor.cameras) {
+    const inRoom = camera.room_id && ids.has(camera.room_id)
+      && roomsAt(camera.position, floor.rooms).some(room => room.id === camera.room_id);
+    if (!inRoom) camera.room_id = cameraRoom(camera.position, camera.heading_deg, floor.rooms);
+  }
+  return removed;
+}

@@ -37,6 +37,8 @@ class CameraItem:
     value: str
     active: bool = False
     enabled: bool = True
+    # False for a view-only camera: it shows images but counts nobody.
+    detects: bool = True
 
 
 def dahua_status(url: str = "http://127.0.0.1:8090/api/status") -> dict | None:
@@ -130,6 +132,24 @@ class CameraHealth:
             "cameras": [asdict(item) for item in items],
         }
 
+    def placeable(self) -> list[dict[str, Any]]:
+        """Cameras the space editor can place: every camera of a source,
+        plus any camera that sent tracks and no source lists any more."""
+        listed = self.snapshot()["cameras"]
+        known = {item["id"] for item in listed}
+        cameras = [
+            {"camera_id": item["id"], "source": item["source"],
+             "counts": item["enabled"] and item.get("detects", True),
+             "note": "desactivada" if not item["enabled"]
+             else "solo vista" if not item.get("detects", True) else ""}
+            for item in listed
+        ]
+        cameras += [
+            {"camera_id": camera_id, "source": "", "counts": True, "note": "sin fuente ahora"}
+            for camera_id in sorted(set(self.seen()) - known)
+        ]
+        return cameras
+
     def _frigate_items(self, now: float, seen: dict[str, float]) -> list[CameraItem]:
         stats = self.frigate("stats")
         if stats is not None:
@@ -145,7 +165,8 @@ class CameraHealth:
             if fps <= 0:
                 items.append(CameraItem(camera_id, name, "frigate", "critical", "sin imagen"))
             elif not camera.get("detection_enabled"):
-                items.append(CameraItem(camera_id, name, "frigate", "ok", f"solo vista · {decimal(fps)} img/s"))
+                items.append(CameraItem(camera_id, name, "frigate", "ok", f"solo vista · {decimal(fps)} img/s",
+                                        detects=False))
             else:
                 text, active = seen_text(seen.get(camera_id), now)
                 value = f"{decimal(fps)} img/s" + (f" · {text}" if text else "")
