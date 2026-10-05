@@ -9,6 +9,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "services" / "tracking-engine"))
 
 from tracking_engine import (  # noqa: E402
+    Link,
     PresenceParams,
     TrackSpan,
     build_presences,
@@ -100,6 +101,58 @@ class PresenceTest(unittest.TestCase):
                "first_observed_at": "2026-09-29T13:32:33+00:00", "last_observed_at": "2026-09-29T13:32:40+00:00",
                "geometry": None, "attributes": {"track_eligibility": {"state": "excluded"}}}
         self.assertIsNone(span_from_track(row))
+
+    # Transfer: a person last seen in the hall (space_1) appears in space_2.
+    def walk(self, *, hall_active: bool = False) -> list[TrackSpan]:
+        return [span("h1", 0, 20, active=hall_active, camera="frigate_hall"),
+                span("d1", 25, 40, active=True)]
+
+    def test_a_linked_new_presence_takes_over_the_one_no_longer_seen(self) -> None:
+        link = [Link("h1", "d1", 0.8)]
+        result = occupancy(self.walk(), SPACES, T + 30, links=link)
+        self.assertEqual((result["spaces"].get("space_1", {}).get("count", 0),
+                          result["spaces"]["space_2"]["count"], result["total"]), (0, 1, 1))
+        self.assertEqual(result["transfers"], [{
+            "origin_presence_id": "h1", "destination_presence_id": "d1",
+            "from_space": "space_1", "to_space": "space_2", "at": T + 25,
+        }])
+        # Without the link the hall keeps holding the person: two places at once.
+        self.assertEqual(occupancy(self.walk(), SPACES, T + 30)["total"], 2)
+
+    def test_the_origin_is_held_until_the_new_presence_counts(self) -> None:
+        result = occupancy(self.walk(), SPACES, T + 26, links=[Link("h1", "d1", 0.8)])
+        self.assertEqual((result["total"], result["transfers"]), (1, []))
+        self.assertEqual(result["spaces"]["space_1"]["count"], 1)
+
+    def test_no_transfer_while_the_origin_is_still_seen(self) -> None:
+        result = occupancy(self.walk(hall_active=True), SPACES, T + 30, links=[Link("h1", "d1", 0.8)])
+        self.assertEqual((result["total"], result["transfers"]), (2, []))
+
+    def test_no_transfer_from_an_earlier_fragment_of_a_presence(self) -> None:
+        # The hall presence went on with h2: h1 ending did not mean leaving.
+        spans = self.walk() + [span("h2", 21, 24, camera="frigate_hall")]
+        result = occupancy(spans, SPACES, T + 30, links=[Link("h1", "d1", 0.8)])
+        self.assertEqual((result["total"], result["transfers"]), (2, []))
+
+    def test_only_a_new_presence_takes_over(self) -> None:
+        # d2 continues the presence d1 started, so it is not an arrival.
+        spans = self.walk() + [span("d2", 26, 40, active=True)]
+        result = occupancy(spans, SPACES, T + 30, links=[Link("h1", "d2", 0.9)])
+        self.assertEqual(result["transfers"], [])
+
+    def test_each_origin_moves_once_to_the_first_arrival(self) -> None:
+        spans = [span("h1", 0, 20, camera="frigate_hall"),
+                 span("h9", 0, 21, camera="frigate_hall", first=(0.9, 0.9), last=(0.9, 0.9)),
+                 span("d1", 25, 40, active=True),
+                 span("d2", 27, 40, active=True, first=(0.8, 0.2), last=(0.8, 0.2))]
+        links = [Link("h1", "d1", 0.8), Link("h1", "d2", 0.9), Link("h9", "d2", 0.5)]
+        moved = [(item["origin_presence_id"], item["destination_presence_id"])
+                 for item in occupancy(spans, SPACES, T + 32, links=links)["transfers"]]
+        self.assertEqual(moved, [("h1", "d1"), ("h9", "d2")])
+
+    def test_links_within_one_space_are_ignored(self) -> None:
+        spans = [span("a", 0, 20), span("b", 25, 40, active=True, first=(0.9, 0.9), last=(0.9, 0.9))]
+        self.assertEqual(occupancy(spans, SPACES, T + 30, links=[Link("a", "b", 1)])["transfers"], [])
 
     def test_rule_is_reported_with_the_result(self) -> None:
         params = PresenceParams(join_distance=0.2, confirm_seconds=5, hold_seconds=30)

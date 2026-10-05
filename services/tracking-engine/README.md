@@ -86,16 +86,30 @@ deterministic:
 - a presence counts after `confirm_seconds` (3 s) of observed track time;
 - a confirmed presence keeps counting for `hold_seconds` (20 s) after its
   last track;
-- a space covered by several cameras counts the maximum over them.
+- a space covered by several cameras counts the maximum over them;
+- **transfer** (owner decision, 2026-10-05): when a handoff candidate's
+  destination track starts a new presence and its origin track is the last
+  one of a presence in another space that is no longer seen, that presence
+  moves. It stops counting in its space as soon as the new presence counts,
+  instead of being held there for 20 s. Each new presence takes the
+  best-scored origin still free, in order of appearance. `occupancy(...,
+  links=...)` applies it and reports the moves as `transfers`; without links
+  nothing changes.
 
 Replaying 26 recorded minutes of one seated person gave the right count in
-93.4 % of seconds, against 78-83 % when counting raw tracks. The defaults are
+93.4 % of seconds, against 78-83 % when counting raw tracks. Replaying 24 h
+of the development PC's three cameras (2026-10-05, one moment every 5 s,
+each seen as known then) with the transfer rule found 47 moves and 2.6 %
+fewer people-moments, the ones a person was counted in two rooms at once.
+A wrong guess undercounts the origin room until its camera sees the person
+again. The defaults are
 provisional until calibrated with group visits after final camera placement;
 joining by proximity can merge two people standing very close.
 
 Each local track stores `first_geometry_json` (schema version 6) so a new
 track can be joined where it appeared. Rows created before that version fall
 back to their latest geometry. The Space Mapper monitor computes occupancy
-from the last 15 minutes of tracks on every refresh.
+from the last 15 minutes of tracks on every refresh, without transfers; the
+Batcomputer live map (`services/batcomputer-ui`, `top_right`) applies them.
 
 Visual identity remains a later, independent scoring layer.

@@ -20,6 +20,14 @@ Rules, deliberately simple and deterministic:
 * **Space.** Presences are per camera. A space covered by several cameras
   counts the maximum over its cameras, never their sum, until overlapping
   views can be de-duplicated geometrically.
+* **Transfer** (owner decision, 2026-10-05). A handoff candidate (``Link``)
+  says that a track may continue the person of a track in another space. When
+  a link's destination track starts a new presence, and its origin track is
+  the last one of a presence that is no longer seen, that presence moves: it
+  stops counting in its space once the new presence counts, instead of being
+  held there. Each new presence takes the best-scored origin still free, in
+  order of appearance. A wrong guess undercounts the origin space until its
+  camera sees the person again.
 
 Defaults come from an offline simulation over 26 recorded minutes; they are
 provisional and must be calibrated with group visits after final camera
@@ -50,6 +58,15 @@ class PresenceParams:
             "confirm_seconds": self.confirm_seconds,
             "hold_seconds": self.hold_seconds,
         }
+
+
+@dataclass(frozen=True)
+class Link:
+    """A handoff candidate between two local tracks; a hypothesis, not an identity."""
+
+    origin_track_id: str
+    destination_track_id: str
+    score: float
 
 
 @dataclass(frozen=True)
@@ -152,17 +169,59 @@ def build_presences(
     return presences
 
 
+def transfers(
+    presences: list[Presence],
+    camera_spaces: dict[str, str | None],
+    links: Iterable[Link],
+) -> list[tuple[Presence, Presence]]:
+    """(origin, destination) presences moved by handoff links (see Transfer)."""
+    by_track = {track_id: presence for presence in presences for track_id in presence.track_ids}
+    options: dict[str, list[tuple[float, Presence]]] = {}
+    for link in links:
+        destination = by_track.get(link.destination_track_id)
+        origin = by_track.get(link.origin_track_id)
+        if destination is None or origin is None or destination.presence_id != link.destination_track_id:
+            continue
+        origin_space = camera_spaces.get(origin.camera_id)
+        destination_space = camera_spaces.get(destination.camera_id)
+        if not origin_space or not destination_space or origin_space == destination_space:
+            continue
+        ended = origin.spans[origin.track_ids.index(link.origin_track_id)][1]
+        if origin.active() or ended < origin.last_seen:
+            continue
+        options.setdefault(destination.presence_id, []).append((link.score, origin))
+    moved: list[tuple[Presence, Presence]] = []
+    taken: set[str] = set()
+    destinations = sorted(
+        (by_track[presence_id] for presence_id in options),
+        key=lambda presence: (presence.first_seen, presence.presence_id),
+    )
+    for destination in destinations:
+        ranked = sorted(options[destination.presence_id],
+                        key=lambda option: (-option[0], option[1].presence_id))
+        for _, origin in ranked:
+            if origin.presence_id not in taken:
+                taken.add(origin.presence_id)
+                moved.append((origin, destination))
+                break
+    return moved
+
+
 def occupancy(
     spans: Iterable[TrackSpan],
     camera_spaces: dict[str, str | None],
     now: float,
     params: PresenceParams = PresenceParams(),
+    links: Iterable[Link] = (),
 ) -> dict[str, Any]:
-    """Count presences per space at ``now``."""
+    """Count presences per space at ``now``, moving the ones that links transfer."""
     presences = build_presences(spans, params)
+    moved = [(origin, destination) for origin, destination in transfers(presences, camera_spaces, links)
+             if destination.counted(now, params)]
+    released = {origin.presence_id for origin, _ in moved}
     per_camera: dict[str, list[Presence]] = {}
     for presence in presences:
-        if presence.counted(now, params):
+        if presence.counted(now, params) and presence.presence_id not in released:
             per_camera.setdefault(presence.camera_id, []).append(presence)
     spaces: dict[str, dict[str, Any]] = {}
     unmapped = 0
@@ -191,6 +250,16 @@ def occupancy(
         "total": sum(entry["count"] for entry in spaces.values()),
         "unmapped_presences": unmapped,
         "spaces": spaces,
+        "transfers": [
+            {
+                "origin_presence_id": origin.presence_id,
+                "destination_presence_id": destination.presence_id,
+                "from_space": camera_spaces.get(origin.camera_id),
+                "to_space": camera_spaces.get(destination.camera_id),
+                "at": destination.first_seen,
+            }
+            for origin, destination in moved
+        ],
     }
 
 

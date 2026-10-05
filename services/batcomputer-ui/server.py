@@ -22,6 +22,7 @@ from functools import partial
 from batcomputer_ui.cameras import CameraHealth, last_seen
 from batcomputer_ui.console import SupervisorConsole
 from batcomputer_ui.health import HealthMonitor, SupervisorWatch, receiver_delays
+from batcomputer_ui.live_map import LiveMap, read_tracking
 from batcomputer_ui.narrator import CameraNames, Narrator
 from batcomputer_ui.screens import SCREENS, screens_document
 from batcomputer_ui.spaces import SpaceMapConflict, SpaceMapError, SpaceMapStore
@@ -81,6 +82,11 @@ class UiHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, self.server.cameras.snapshot())
         elif path == "/api/screens":
             self._json(HTTPStatus.OK, screens_document(built_screens()))
+        elif path == "/api/live-map":
+            if self.server.live_map is None:
+                self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+                return
+            self._json(HTTPStatus.OK, self.server.live_map.snapshot())
         elif path == "/api/space-map/cameras":
             self._json(HTTPStatus.OK, {"cameras": self.server.cameras.placeable()})
         elif path == "/api/space-map":
@@ -193,12 +199,13 @@ class UiServer(ThreadingHTTPServer):
 
     def __init__(self, address: tuple[str, int], console: SupervisorConsole,
                  health: HealthMonitor | None = None, cameras: CameraHealth | None = None,
-                 spaces: SpaceMapStore | None = None) -> None:
+                 spaces: SpaceMapStore | None = None, live_map: LiveMap | None = None) -> None:
         super().__init__(address, UiHandler)
         self.console = console
         self.health = health if health is not None else HealthMonitor(SupervisorWatch())
         self.cameras = cameras if cameras is not None else CameraHealth(CameraNames(Path("missing.json")))
         self.spaces = spaces
+        self.live_map = live_map
 
 
 def main() -> int:
@@ -221,6 +228,11 @@ def main() -> int:
         type=Path,
         default=REPOSITORY_ROOT / "runtime/spaces/space-map.json",
         help="space_map.v2 building plan written by the new editor",
+    )
+    parser.add_argument(
+        "--tracking-database",
+        type=Path,
+        default=REPOSITORY_ROOT / "runtime/tracking-engine/tracking.sqlite3",
     )
     parser.add_argument(
         "--receiver-database",
@@ -246,7 +258,9 @@ def main() -> int:
         refresh=console.refresh,
     )
     cameras = CameraHealth(names, seen=partial(last_seen, args.receiver_database))
-    server = UiServer((args.host, args.port), console, health, cameras, SpaceMapStore(args.space_map))
+    spaces = SpaceMapStore(args.space_map)
+    live_map = LiveMap(spaces, partial(read_tracking, args.tracking_database))
+    server = UiServer((args.host, args.port), console, health, cameras, spaces, live_map)
     try:
         print(f"batcomputer_ui=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)

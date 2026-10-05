@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Batcomputer · mapa en vivo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/web/theme.css">
+<script src="/web/icons.js"></script>
+<style>
+  /* top_right: the floors of the building, one dot per person, moves through doors. */
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .map { position: relative; flex: 1; min-height: 0; margin: 18px 24px 14px; }
+  #floors { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .bc-meta.alarm { color: var(--invert-text); background: var(--invert-bg); padding: 0 0.5em; }
+  .bc-meta.alarm.critical { background: var(--critical); }
+  .bc-meta.total { color: var(--text); font-weight: 700; }
+  .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; text-align: center; }
+  .empty[hidden] { display: none; }
+
+  .floor-name { fill: var(--text-muted); font: 600 22px var(--font-display); letter-spacing: 0.22em; text-transform: uppercase; }
+  .room { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+  .room.busy { stroke: var(--text); stroke-width: 3; }
+  .room-name { fill: var(--text); font: 600 24px var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
+  .room-count { fill: var(--text-muted); font: 700 54px var(--font-display); font-variant-numeric: tabular-nums; }
+  .room-count.busy { fill: var(--text); text-shadow: 0 0 0.25em rgba(253, 227, 17, 0.35); }
+  .room-more { fill: var(--text); font: 600 20px var(--font-mono); }
+  .link-mark { fill: var(--text-muted); font: 600 17px var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; }
+  .door-gap { stroke: var(--bg); stroke-width: 8; }
+  .door-line { stroke: var(--text); stroke-width: 2; stroke-dasharray: 5 4; }
+  .door-tick { stroke: var(--text); stroke-width: 3; }
+  .door-arrow { fill: var(--text); }
+  .door-word { fill: var(--text-muted); font: 600 15px var(--font-display); letter-spacing: 0.2em; }
+
+  /* A person: filled while a camera sees them, hollow while only held. */
+  .person { fill: var(--text); stroke: var(--bg); stroke-width: 2; filter: drop-shadow(0 0 6px rgba(253, 227, 17, 0.55)); }
+  .person.held { fill: var(--bg); stroke: var(--text); stroke-width: 3; filter: none; }
+  .arrival { fill: none; stroke: var(--text); stroke-width: 2; }
+  .trail { fill: none; stroke: var(--text); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 9; opacity: 0.8; }
+
+  /* A faint scan sweeping the map now and then: the screen looks alive with nobody in it. */
+  .sweep { position: absolute; left: 0; right: 0; top: 0; height: 120px; pointer-events: none;
+    background: linear-gradient(to bottom, transparent, rgba(253, 227, 17, 0.025) 75%, rgba(253, 227, 17, 0.07) 98%, transparent);
+    animation: sweep 9s linear infinite; }
+  @keyframes sweep { 0% { transform: translateY(-140px); } 45%, 100% { transform: translateY(1000px); } }
+  @media (prefers-reduced-motion: reduce) { .sweep { display: none; } }
+</style>
+</head>
+<body>
+<div class="bc-screen" id="screen">
+  <div class="bc-header">
+    <span class="bc-code" data-icon="floorplan"></span><span class="bc-title">Mapa en vivo</span>
+    <span class="bc-meta total" id="total"></span>
+    <span class="bc-meta" id="state">CONECTANDO</span><span class="bc-meta" id="clock"></span>
+  </div>
+  <div class="map" id="map">
+    <svg id="floors" xmlns="http://www.w3.org/2000/svg">
+      <g id="layer-plan"></g><g id="layer-trails"></g><g id="layer-people"></g>
+    </svg>
+    <div class="sweep"></div>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+  <div class="bc-hazard"></div>
+</div>
+<script type="module">
+  import { fitCanvas, poll, startClock } from "/web/screen.js";
+  import { bounds, largestRectangle } from "/web/editor/geometry.js";
+
+  fitCanvas(document.getElementById("screen"), 1920, 1080);
+  startClock(document.getElementById("clock"));
+
+  const SVG = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id);
+  const layers = { plan: $("layer-plan"), trails: $("layer-trails"), people: $("layer-people") };
+  const RADIUS = 11;
+  const MOVE_MS = 1800;
+
+  // Drawn plan: px geometry per room (seats, centre, stairs mark) and per door.
+  let drawn = null;
+  // Dots on screen: id -> {room, seat, element}.
+  const dots = new Map();
+  const animated = new Set();
+
+  const escapeText = text => String(text).replace(/[&<>"']/g,
+    char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
+  function element(tag, attributes = {}, parent = null) {
+    const node = document.createElementNS(SVG, tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    if (parent) parent.append(node);
+    return node;
+  }
+
+  // ------------------------------------------------------------ the plan
+
+  // Floors side by side, all at one scale so their rooms compare in size.
+  function layout(plan) {
+    const box = $("map");
+    const width = box.offsetWidth;
+    const height = box.offsetHeight;
+    const gap = 40;
+    const label = 40;
+    const floors = plan.floors.filter(floor => floor.rooms.length);
+    const column = (width - gap * (floors.length - 1)) / floors.length;
+    const extents = floors.map(floor => bounds(floor.rooms.flatMap(room => room.polygon)));
+    const scale = Math.min(...extents.map(extent => Math.min(
+      (column - 60) / Math.max(1, extent.x1 - extent.x0), (height - label - 50) / Math.max(1, extent.y1 - extent.y0))));
+    return floors.map((floor, index) => {
+      const extent = extents[index];
+      const left = index * (column + gap) + (column - (extent.x1 - extent.x0) * scale) / 2;
+      const top = label + (height - label - (extent.y1 - extent.y0) * scale) / 2;
+      return { floor, scale, left, column: index * (column + gap), width: column,
+        at: point => ({ x: left + (point.x - extent.x0) * scale, y: top + (point.y - extent.y0) * scale }) };
+    });
+  }
+
+  function seats(space, at, scale) {
+    const a = at({ x: space.x0, y: space.y0 });
+    const b = at({ x: space.x1, y: space.y1 });
+    const top = a.y + 62;
+    const result = [];
+    let spacing = 34;
+    for (; spacing >= 22; spacing -= 4) {
+      const columns = Math.floor((b.x - a.x - 24) / spacing);
+      const rows = Math.floor((b.y - top - 12) / spacing);
+      if (columns < 1 || rows < 1) continue;
+      result.length = 0;
+      const startX = (a.x + b.x) / 2 - ((columns - 1) * spacing) / 2;
+      for (let row = 0; row < rows; row += 1) {
+        for (let index = 0; index < columns; index += 1) result.push({ x: startX + index * spacing, y: top + spacing / 2 + row * spacing });
+      }
+      if (result.length >= 12 || spacing === 22) break;
+    }
+    return result;
+  }
+
+  function drawPlan(plan) {
+    layers.plan.replaceChildren();
+    layers.people.replaceChildren();
+    layers.trails.replaceChildren();
+    dots.clear();
+    drawn = { rooms: new Map(), doors: new Map(), links: new Map(), signature: JSON.stringify(plan) };
+    for (const placed of layout(plan)) {
+      const { floor, at, scale } = placed;
+      const name = element("text", { class: "floor-name", x: placed.column, y: 24 }, layers.plan);
+      name.textContent = floor.name;
+      for (const room of floor.rooms) {
+        const points = room.polygon.map(at);
+        const shape = element("polygon", { class: "room", points: points.map(p => `${p.x},${p.y}`).join(" ") }, layers.plan);
+        const space = largestRectangle(room.polygon);
+        const corner = at({ x: space.x0, y: space.y0 });
+        const far = at({ x: space.x1, y: space.y1 });
+        const label = element("text", { class: "room-name", x: corner.x + 14, y: corner.y + 32 }, layers.plan);
+        label.textContent = room.name;
+        const count = element("text", { class: "room-count", x: far.x - 14, y: corner.y + 52, "text-anchor": "end" }, layers.plan);
+        count.textContent = "0";
+        const more = element("text", { class: "room-more", x: far.x - 14, y: far.y - 12, "text-anchor": "end" }, layers.plan);
+        drawn.rooms.set(room.id, {
+          shape, count, more, seats: seats(space, at, scale),
+          centre: at({ x: (space.x0 + space.x1) / 2, y: (space.y0 + space.y1) / 2 }),
+          corner, far, floor: floor.id,
+        });
+      }
+      for (const door of floor.doors) drawDoor(door, floor, at);
+    }
+    for (const link of plan.floor_links) {
+      link.rooms.forEach((roomId, index) => {
+        const room = drawn.rooms.get(roomId);
+        const other = plan.floors.flatMap(floor => floor.rooms.map(item => ({ ...item, floor: floor.name })))
+          .find(item => item.id === link.rooms[1 - index]);
+        if (!room || !other) return;
+        const mark = element("text", { class: "link-mark", x: room.corner.x + 14, y: room.corner.y + 54 }, layers.plan);
+        mark.textContent = `⇅ ${link.kind === "elevator" ? "ascensor" : "escalera"} · ${other.floor}`;
+        drawn.links.set(`${link.id}:${roomId}`, { x: room.corner.x + 22, y: room.corner.y + 48 });
+      });
+    }
+  }
+
+  function drawDoor(door, floor, at) {
+    const [a, b] = door.segment.map(at);
+    const horizontal = a.y === b.y;
+    const attributes = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    element("line", { class: "door-gap", ...attributes }, layers.plan);
+    element("line", { class: "door-line", ...attributes }, layers.plan);
+    for (const end of [a, b]) {
+      element("line", horizontal
+        ? { class: "door-tick", x1: end.x, y1: end.y - 7, x2: end.x, y2: end.y + 7 }
+        : { class: "door-tick", x1: end.x - 7, y1: end.y, x2: end.x + 7, y2: end.y }, layers.plan);
+    }
+    const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    drawn.doors.set(door.id, middle);
+    if (!door.rooms.includes("exterior")) return;
+    // The entrance arrow points away from its room.
+    const room = drawn.rooms.get(door.rooms.find(id => id !== "exterior"));
+    const out = horizontal ? { x: 0, y: room && room.centre.y > middle.y ? -1 : 1 }
+      : { x: room && room.centre.x > middle.x ? -1 : 1, y: 0 };
+    const tip = { x: middle.x + out.x * 18, y: middle.y + out.y * 18 };
+    const base = { x: middle.x + out.x * 6, y: middle.y + out.y * 6 };
+    const side = { x: out.y * 9, y: out.x * 9 };
+    element("polygon", { class: "door-arrow",
+      points: `${tip.x},${tip.y} ${base.x + side.x},${base.y + side.y} ${base.x - side.x},${base.y - side.y}` }, layers.plan);
+    const word = element("text", { class: "door-word", x: middle.x + out.x * 40, y: middle.y + out.y * 40 + 5,
+      "text-anchor": "middle" }, layers.plan);
+    word.textContent = "EXTERIOR";
+  }
+
+  // ------------------------------------------------------------- people
+
+  function place(dot, point) {
+    dot.element.setAttribute("cx", point.x);
+    dot.element.setAttribute("cy", point.y);
+    dot.at = point;
+  }
+
+  function arrive(point) {
+    const ring = element("circle", { class: "arrival", cx: point.x, cy: point.y, r: RADIUS }, layers.trails);
+    ring.animate([{ r: RADIUS, opacity: 1 }, { r: RADIUS * 4, opacity: 0 }], { duration: 1200, easing: "ease-out" })
+      .finished.then(() => ring.remove(), () => ring.remove());
+  }
+
+  // The dot walks from where it was, through the door, to its new seat.
+  function walk(dot, from, via, to) {
+    const path = [from, via, to].filter(Boolean);
+    const trail = element("polyline", { class: "trail", points: path.map(p => `${p.x},${p.y}`).join(" ") }, layers.trails);
+    trail.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: MOVE_MS + 1500, easing: "ease-in" })
+      .finished.then(() => trail.remove(), () => trail.remove());
+    place(dot, to);
+    const frames = path.map(p => ({ transform: `translate(${p.x - to.x}px, ${p.y - to.y}px)` }));
+    dot.element.animate(frames, { duration: MOVE_MS, easing: "ease-in-out" });
+  }
+
+  function update(snapshot) {
+    const previous = new Map([...dots].map(([id, dot]) => [id, dot.at]));
+    const wanted = new Map();
+    for (const [roomId, room] of Object.entries(snapshot.rooms)) {
+      for (const person of room.people) wanted.set(person.id, { roomId, seen: person.seen });
+    }
+    const moves = new Map(snapshot.moves.map(move => [move.id, move]));
+    // People who left (or moved away) disappear; moved ones are redrawn at their arrival.
+    const movedAway = new Set(snapshot.moves.map(move => move.from_id));
+    for (const [id, dot] of dots) {
+      if (wanted.get(id)?.roomId === dot.room) continue;
+      dots.delete(id);
+      if (movedAway.has(id)) dot.element.remove();
+      else dot.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700 }).finished
+        .then(() => dot.element.remove(), () => dot.element.remove());
+    }
+    for (const [roomId, room] of Object.entries(snapshot.rooms)) {
+      const shape = drawn.rooms.get(roomId);
+      if (!shape) continue;
+      const taken = new Set([...dots.values()].filter(dot => dot.room === roomId).map(dot => dot.seat));
+      let hidden = 0;
+      for (const person of room.people) {
+        let dot = dots.get(person.id);
+        if (!dot) {
+          const seat = shape.seats.findIndex((_, index) => !taken.has(index));
+          if (seat < 0) { hidden += 1; continue; }
+          taken.add(seat);
+          dot = { room: roomId, seat, element: element("circle", { class: "person", r: RADIUS }, layers.people) };
+          dots.set(person.id, dot);
+          const move = moves.get(person.id);
+          if (move && !animated.has(move.id) && move.age < 10) {
+            animated.add(move.id);
+            const origin = previous.get(move.from_id) ?? drawn.rooms.get(move.from_room)?.centre;
+            const via = move.via?.kind === "door" ? drawn.doors.get(move.via.id) : null;
+            walk(dot, origin, via, shape.seats[seat]);
+          } else {
+            place(dot, shape.seats[seat]);
+            if (previous.size || snapshot.total < 30) arrive(shape.seats[seat]);
+          }
+        }
+        dot.element.classList.toggle("held", !person.seen);
+      }
+      shape.count.textContent = String(room.count);
+      shape.count.classList.toggle("busy", room.count > 0);
+      shape.shape.classList.toggle("busy", room.count > 0);
+      shape.more.textContent = hidden ? `+${hidden}` : "";
+    }
+  }
+
+  // ---------------------------------------------------------------- feed
+
+  function show(snapshot) {
+    $("empty").hidden = snapshot.state !== "no_plan";
+    $("empty").textContent = "Sin plano · dibuja las salas en el editor de espacios";
+    if (snapshot.state === "no_plan") {
+      layers.plan.replaceChildren(); layers.people.replaceChildren(); drawn = null; dots.clear();
+      $("total").textContent = "";
+      $("state").textContent = "SIN PLANO";
+      $("state").className = "bc-meta";
+      return;
+    }
+    if (!drawn || drawn.signature !== JSON.stringify(snapshot.plan)) drawPlan(snapshot.plan);
+    update(snapshot);
+    $("total").textContent = plural(snapshot.total, "persona", "personas").toUpperCase()
+      + (snapshot.unmapped ? ` · +${snapshot.unmapped} FUERA DEL PLANO` : "");
+    const live = snapshot.state === "ok";
+    $("state").textContent = live ? "EN VIVO" : "SIN DATOS DEL SEGUIMIENTO";
+    $("state").className = `bc-meta${live ? "" : " alarm"}`;
+  }
+
+  // ?demo: invented people walking through the real plan, to review the look.
+  function demoFeed() {
+    let base = null;
+    let people = [];
+    let moves = [];
+    let next = 0;
+    const tick = () => {
+      const rooms = base.plan.floors.flatMap(floor => floor.rooms.map(room => room.id));
+      const doors = base.plan.floors.flatMap(floor => floor.doors.filter(door => !door.rooms.includes("exterior")));
+      const now = Date.now() / 1000;
+      if (!people.length) people = rooms.flatMap(room => Array.from({ length: 1 + Math.floor(Math.random() * 3) },
+        () => ({ id: `p${next++}`, room, seen: Math.random() > 0.2 })));
+      const roll = Math.random();
+      if (roll < 0.45 && doors.length) {
+        const door = doors[Math.floor(Math.random() * doors.length)];
+        const [a, b] = Math.random() < 0.5 ? door.rooms : [...door.rooms].reverse();
+        const walker = people.find(person => person.room === a);
+        if (walker) {
+          const id = `p${next++}`;
+          people = people.filter(person => person !== walker).concat({ id, room: b, seen: true });
+          moves.push({ id, from_id: walker.id, from_room: a, to_room: b, via: { kind: "door", id: door.id }, at: now });
+        }
+      } else if (roll < 0.6) {
+        people.push({ id: `p${next++}`, room: rooms[Math.floor(Math.random() * rooms.length)], seen: true });
+      } else if (roll < 0.75 && people.length > 2) {
+        people.splice(Math.floor(Math.random() * people.length), 1);
+      } else if (people.length) {
+        const person = people[Math.floor(Math.random() * people.length)];
+        person.seen = !person.seen;
+      }
+      moves = moves.filter(move => now - move.at < 30);
+      const snapshot = { ...base, state: "ok", total: people.length, unmapped: 0, rooms: {},
+        moves: moves.map(move => ({ ...move, age: now - move.at })) };
+      for (const room of rooms) {
+        const inside = people.filter(person => person.room === room);
+        snapshot.rooms[room] = { count: inside.length, people: inside.map(({ id, seen }) => ({ id, seen })) };
+      }
+      return snapshot;
+    };
+    return async () => {
+      if (!base) base = await (await fetch("/api/live-map", { cache: "no-store" })).json();
+      return base.state === "no_plan" ? base : tick();
+    };
+  }
+
+  const demo = new URLSearchParams(location.search).has("demo");
+  const feed = demo ? demoFeed() : async () => (await fetch("/api/live-map", { cache: "no-store" })).json();
+  poll(demo ? 2.5 : 1, async () => show(await feed()), () => {
+    $("state").textContent = "SIN CONEXIÓN";
+    $("state").className = "bc-meta alarm critical";
+  });
+</script>
+</body>
+</html>

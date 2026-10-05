@@ -32,6 +32,7 @@ python services\batcomputer-ui\server.py
 | `/api/camera-health` | connection and last activity of each camera (cached 2 s) |
 | `/api/space-map` | `GET` the building plan and its revision; `PUT {plan, revision}` saves it |
 | `/api/space-map/cameras` | cameras the editor can place, with whether they count people |
+| `/api/live-map` | people per room of the building plan and their recent moves (cached 1 s) |
 
 The server listens on localhost only and serves files from `web/` only.
 
@@ -47,7 +48,7 @@ canvas about 0.36 mm per CSS pixel.
 | `mini_left` | health of the system parts, and the GOTHAM row | built, approved 2026-10-01 |
 | `mini_right` | health of the cameras | built, approved 2026-10-01 |
 | `top_left` | video wall of every camera with the analysis drawn over it | pending |
-| `top_right` | live map of the floors | pending |
+| `top_right` | live map of the floors | built 2026-10-05, in review |
 | `side_left` | events of every source with thumbnails, and the Dahua collector log | pending |
 | `side_right` | journeys between rooms and the day's summary | pending |
 | `bottom_left`, `bottom_right` | free Windows desktops for work | not shown |
@@ -143,6 +144,33 @@ mark, so the screen moves with real data. The header says `4 DE 4
 CONECTADAS`, in red when a camera is critical. More than six cameras use two
 columns. Camera addresses from the Dahua collector never leave the module.
 `?demo` shows example states.
+
+### Live map (`top_right`)
+
+`batcomputer_ui/live_map.py` reads the last 15 minutes of local tracks and
+handoff candidates from the tracking database (read only) and runs the
+tracking engine's presence rule with transfers (see
+`services/tracking-engine/README.md`). Each presence is one dot in the room
+its camera counts in, from the building plan (`space_map.v2`), already
+before the switch (step 2d); a room seen by several cameras counts the
+maximum over them and draws the dots of the camera that sees most people.
+
+- The floors are drawn side by side, at one scale, without cameras. Each
+  room shows its name, its count (yellow when someone is there) and its
+  dots, seated in its largest rectangle; there are no invented positions.
+  Doors are dashed gaps, entrances point to `EXTERIOR`, and stairs or lifts
+  are written under the room name.
+- A filled dot is a person a camera sees now; a hollow dot is a person no
+  longer seen but still counted (the 20 s hold) (owner, 2026-10-05).
+- A transfer moves the dot from its seat, through the door between the two
+  rooms, to its new seat, leaving a fading trail; a new person appears with
+  an expanding ring. Moves older than 60 s are not sent.
+- No track numbers or scores are shown. The header gives the total, `+N
+  FUERA DEL PLANO` for people seen by cameras not on the plan, and `EN VIVO`,
+  `SIN DATOS DEL SEGUIMIENTO` or `SIN CONEXIÓN`. A faint scan sweeps the map
+  every 9 s so it looks alive when nobody is in.
+- `?demo` makes invented people walk through the real plan, to review the
+  look.
 
 ### Building plan (`space_map.v2`)
 
@@ -250,7 +278,7 @@ a route, and a room with a pencil for the editor.
 
 ```text
 server.py               HTTP server (stdlib), localhost only
-batcomputer_ui/         screens registry, supervisor console reader, narrator, health of the parts and of the cameras, building plan
+batcomputer_ui/         screens registry, supervisor console reader, narrator, health of the parts and of the cameras, building plan, live map
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
 web/icons.js            header icons (classic script, also used by the style sample)
