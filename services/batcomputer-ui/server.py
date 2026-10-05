@@ -24,6 +24,7 @@ from batcomputer_ui.console import SupervisorConsole
 from batcomputer_ui.health import HealthMonitor, SupervisorWatch, receiver_delays
 from batcomputer_ui.narrator import CameraNames, Narrator
 from batcomputer_ui.screens import SCREENS, screens_document
+from batcomputer_ui.spaces import SpaceMapConflict, SpaceMapError, SpaceMapStore
 
 
 WEB_ROOT = SERVICE_ROOT / "web"
@@ -36,6 +37,8 @@ CONTENT_TYPES = {
     ".svg": "image/svg+xml",
     ".png": "image/png",
 }
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+MAX_PLAN_BYTES = 1_000_000
 
 
 def built_screens() -> set[str]:
@@ -76,6 +79,18 @@ class UiHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, self.server.cameras.snapshot())
         elif path == "/api/screens":
             self._json(HTTPStatus.OK, screens_document(built_screens()))
+        elif path == "/api/space-map":
+            store = self.server.spaces
+            if store is None:
+                self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+                return
+            try:
+                plan, revision = store.load()
+            except ValueError as error:
+                self._json(HTTPStatus.INTERNAL_SERVER_ERROR,
+                           {"error": f"el plano guardado no es válido: {error}"})
+                return
+            self._json(HTTPStatus.OK, {"plan": plan, "revision": revision})
         elif path == "/api/console":
             after = parse_qs(url.query).get("after", ["0"])[0]
             try:
@@ -86,6 +101,49 @@ class UiHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, self.server.console.read(after_seq))
         else:
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def do_PUT(self) -> None:
+        store = self.server.spaces
+        if urlparse(self.path).path != "/api/space-map" or store is None:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+            return
+        # Only pages served from this machine may save: a page from another
+        # site open in the same browser must not overwrite the plan.
+        if not self._local_request():
+            self._json(HTTPStatus.FORBIDDEN, {"error": "solo se guarda desde este PC"})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "se espera JSON"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if not 0 < length <= MAX_PLAN_BYTES:
+            self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE if length > 0 else HTTPStatus.BAD_REQUEST,
+                       {"error": "el plano llega vacío o es demasiado grande"})
+            return
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body = None
+        if not isinstance(body, dict) or set(body) != {"plan", "revision"}:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "se espera {plan, revision}"})
+            return
+        try:
+            revision = store.save(body["plan"], body["revision"])
+        except SpaceMapError as error:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+        except SpaceMapConflict as error:
+            self._json(HTTPStatus.CONFLICT, {"error": str(error)})
+            return
+        self._json(HTTPStatus.OK, {"revision": revision})
+
+    def _local_request(self) -> bool:
+        host = urlparse("//" + self.headers.get("Host", "")).hostname
+        origin = self.headers.get("Origin")
+        return host in LOCAL_HOSTS and (origin is None or urlparse(origin).hostname in LOCAL_HOSTS)
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -130,11 +188,13 @@ class UiServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], console: SupervisorConsole,
-                 health: HealthMonitor | None = None, cameras: CameraHealth | None = None) -> None:
+                 health: HealthMonitor | None = None, cameras: CameraHealth | None = None,
+                 spaces: SpaceMapStore | None = None) -> None:
         super().__init__(address, UiHandler)
         self.console = console
         self.health = health if health is not None else HealthMonitor(SupervisorWatch())
         self.cameras = cameras if cameras is not None else CameraHealth(CameraNames(Path("missing.json")))
+        self.spaces = spaces
 
 
 def main() -> int:
@@ -150,6 +210,13 @@ def main() -> int:
         "--map-file",
         type=Path,
         default=REPOSITORY_ROOT / "runtime/space-mapper/space-map.json",
+        help="space_map.v1 of the current editor, read for room names",
+    )
+    parser.add_argument(
+        "--space-map",
+        type=Path,
+        default=REPOSITORY_ROOT / "runtime/spaces/space-map.json",
+        help="space_map.v2 building plan written by the new editor",
     )
     parser.add_argument(
         "--receiver-database",
@@ -175,7 +242,7 @@ def main() -> int:
         refresh=console.refresh,
     )
     cameras = CameraHealth(names, seen=partial(last_seen, args.receiver_database))
-    server = UiServer((args.host, args.port), console, health, cameras)
+    server = UiServer((args.host, args.port), console, health, cameras, SpaceMapStore(args.space_map))
     try:
         print(f"batcomputer_ui=http://{args.host}:{args.port}", flush=True)
         server.serve_forever(poll_interval=0.2)

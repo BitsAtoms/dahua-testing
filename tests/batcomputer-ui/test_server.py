@@ -18,7 +18,11 @@ from batcomputer_ui.console import SupervisorConsole  # noqa: E402
 from batcomputer_ui.health import HealthMonitor, SupervisorWatch  # noqa: E402
 from batcomputer_ui.narrator import CameraNames  # noqa: E402
 from batcomputer_ui.screens import SCREENS  # noqa: E402
+from batcomputer_ui.spaces import SpaceMapStore, default_space_map  # noqa: E402
 from server import UiServer  # noqa: E402
+
+
+EXAMPLE = REPOSITORY_ROOT / "services" / "batcomputer-ui" / "space-map.example.json"
 
 
 class ServerTests(unittest.TestCase):
@@ -101,6 +105,67 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["cameras"], [])
+
+    def test_space_map_is_not_served_without_a_store(self) -> None:
+        status, _, _ = self.get("/api/space-map")
+
+        self.assertEqual(status, 404)
+
+
+class SpaceMapApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.path = Path(self.directory.name) / "spaces" / "space-map.json"
+        console = SupervisorConsole(Path(self.directory.name))
+        self.server = UiServer(("127.0.0.1", 0), console, spaces=SpaceMapStore(self.path))
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.05},
+                                  daemon=True)
+        thread.start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.example = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+
+    def request(self, method: str, body: object = None,
+                headers: dict[str, str] | None = None) -> tuple[int, dict]:
+        data = None if body is None else json.dumps(body).encode("utf-8")
+        request = urllib.request.Request(self.base + "/api/space-map", data=data, method=method,
+                                         headers={"Content-Type": "application/json",
+                                                  **(headers or {})})
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return response.status, json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            return error.code, json.loads(error.read())
+
+    def test_new_plan_starts_empty_and_saves(self) -> None:
+        status, loaded = self.request("GET")
+        self.assertEqual((status, loaded["plan"], loaded["revision"]),
+                         (200, default_space_map(), None))
+
+        status, saved = self.request("PUT", {"plan": self.example, "revision": None})
+        self.assertEqual(status, 200)
+        status, loaded = self.request("GET")
+        self.assertEqual((loaded["plan"], loaded["revision"]), (self.example, saved["revision"]))
+
+    def test_stale_and_invalid_saves_are_refused(self) -> None:
+        self.request("PUT", {"plan": self.example, "revision": None})
+
+        status, answer = self.request("PUT", {"plan": self.example, "revision": None})
+        self.assertEqual(status, 409)
+        self.assertIn("recarga", answer["error"])
+        _, loaded = self.request("GET")
+        broken = dict(self.example, floor_links=[{"id": "x", "kind": "slide", "rooms": []}])
+        status, answer = self.request("PUT", {"plan": broken, "revision": loaded["revision"]})
+        self.assertEqual(status, 400)
+        self.assertIn("escalera o un ascensor", answer["error"])
+
+    def test_only_local_pages_may_save(self) -> None:
+        for headers in ({"Origin": "http://example.com"}, {"Host": "attacker.example"}):
+            status, _ = self.request("PUT", {"plan": self.example, "revision": None}, headers)
+            self.assertEqual(status, 403, headers)
+        self.assertFalse(self.path.exists())
 
 
 if __name__ == "__main__":

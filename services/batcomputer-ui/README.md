@@ -29,6 +29,7 @@ python services\batcomputer-ui\server.py
 | `/api/console?after=<seq>` | supervisor console lines after a sequence number |
 | `/api/system-health` | health of the system parts (cached 2 s) |
 | `/api/camera-health` | connection and last activity of each camera (cached 2 s) |
+| `/api/space-map` | `GET` the building plan and its revision; `PUT {plan, revision}` saves it |
 
 The server listens on localhost only and serves files from `web/` only.
 
@@ -141,6 +142,43 @@ CONECTADAS`, in red when a camera is critical. More than six cameras use two
 columns. Camera addresses from the Dahua collector never leave the module.
 `?demo` shows example states.
 
+### Building plan (`space_map.v2`)
+
+The new space editor (roadmap step 2b) writes the building plan;
+`batcomputer_ui/spaces.py` validates and stores it. Until the switch (step
+2d) it is a separate file, and the tracking engine and the old space mapper
+keep using `runtime/space-mapper/space-map.json` (`space_map.v1`) unchanged.
+
+```text
+workspace (one building or office)
+ ├─ grid: columns x rows, shared by every floor so they draw at one scale
+ ├─ floors (1 to 3, in display order)
+ │   ├─ rooms: outline of grid corners, walls horizontal or vertical only
+ │   ├─ cameras: room (or null), position in half grid steps, heading
+ │   └─ doors: a straight stretch of wall between two rooms, or to "exterior"
+ └─ floor_links: stairs or elevator joining rooms of two floors (no geometry)
+```
+
+- Every room is an exact union of grid cells, so overlaps, shared walls and
+  doors are checked with integers. Rooms may share walls but never cells.
+- A door between two rooms lies on the wall they share; a door to the
+  exterior (a building entrance) lies on a wall that no other room touches.
+- A camera sits inside its room or on its wall. `heading_deg` is 0 towards
+  the top of the plan and grows clockwise.
+- No travel times: until phase 7 measures each door, the tracking engine will
+  use one general window (up to 30 s, as the current transitions).
+- Identifiers are unique across the workspace; `exterior` is reserved.
+- Validation messages are in Spanish: the editor shows them to the owner.
+
+`space-map.example.json` is a versioned example with generic names. The real
+plan names real rooms, so it is site data and stays in the ignored
+`runtime/spaces/space-map.json`. Each save that changes it keeps the previous
+version in `runtime/spaces/backups/` (the newest 50). A save names the
+revision (SHA-256 of the file) it was edited from, so two editor windows
+cannot silently overwrite each other (`409`). `PUT` is refused unless both
+`Host` and `Origin` are local, so another site open in the browser cannot
+write the plan.
+
 ### Header icons
 
 The yellow block of each header is decoration with an icon of what the
@@ -152,7 +190,7 @@ and a route.
 
 ```text
 server.py               HTTP server (stdlib), localhost only
-batcomputer_ui/         screens registry, supervisor console reader, narrator, health of the parts and of the cameras
+batcomputer_ui/         screens registry, supervisor console reader, narrator, health of the parts and of the cameras, building plan
 web/theme.css           palette, contrast roles and shared components
 web/screen.js           canvas fitting, clock and polling shared by the pages
 web/icons.js            header icons (classic script, also used by the style sample)
@@ -163,6 +201,7 @@ web/pending.html        placeholder for screens not built yet and the work scree
 web/preview.html        the nine screens to scale
 web/style-sample.html   the approved style sample, static
 displays.example.json   geometry of the final PC's displays (versioned)
+space-map.example.json  example building plan, generic names (versioned)
 displays.local.json     full inventory of the final PC (ignored: device names, stable ids)
 displays.local.md       the same inventory, readable (ignored)
 ```

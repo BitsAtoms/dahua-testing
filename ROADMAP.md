@@ -367,13 +367,28 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
   La idea es que cada pantalla muestre una parte distinta del sistema.
 - [ ] Censura de la videovigilancia: `Ctrl+Alt+X` (una tecla de la Stream
   Deck) alterna entre las imágenes y estática.
-- [ ] Editor de espacios nuevo, en una pantalla de trabajo, para crear las
+- [~] Editor de espacios nuevo, en una pantalla de trabajo, para crear las
   salas, colocar las cámaras y unir las salas. El actual no convence al
   propietario y arrastra herramientas de pruebas anteriores. Se organiza en espacios de
   trabajo (un edificio), con hasta 3 plantas, salas dibujadas sobre una
   rejilla de ayuda, puertas, Exterior y conexiones entre plantas. Los tiempos
   de paso no se escriben a mano: la propuesta es medirlos por puerta, según por
-  dónde sale y entra cada persona en la imagen de cada cámara.
+  dónde sale y entra cada persona en la imagen de cada cámara. Se hace en
+  cuatro partes (2026-10-05):
+  - [x] **2a. El plano** (`space_map.v2`): el archivo que describe el
+    edificio, con validación, copia de cada versión anterior y aviso si otra
+    ventana lo cambió. Las paredes van solo en horizontal o en vertical, así
+    que cada sala ocupa casillas enteras de la rejilla y los solapes, las
+    paredes compartidas y las puertas se comprueban sin aproximaciones. Se
+    guarda aparte, en `runtime/spaces/space-map.json`: hasta la parte 2d nada
+    más cambia.
+  - [ ] **2b. El editor**, en `http://127.0.0.1:8092/editor`. Las 3 salas de
+    prueba se dibujan de nuevo en él, sin importar el mapa actual (decisión
+    del propietario).
+  - [ ] **2c. El mapa en vivo** de `top_right`.
+  - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
+    nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
+    se retiran el editor y el monitor antiguos (puerto 8091).
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
 - [x] Documento de diseño aprobado por el propietario el 2026-10-01. Se
@@ -411,8 +426,9 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
 - [ ] Guía "cómo seguir en el PC final", incluida la creación manual de los
   secretos.
 - [~] Subir `main` a GitHub, revisando antes que no haya datos del sitio (el
-  repositorio es público). Hecho el 2026-09-30 hasta `d95be09`, revisando cada
-  parche; hay que repetir la revisión antes de cada subida.
+  repositorio es público). Hecho el 2026-09-30 hasta `d95be09` y el
+  2026-10-05 hasta `f67fa6f`; hay que repetir la revisión antes de cada
+  subida.
 
 Salida: clonar, instalar y pasar la verificación en el PC final.
 
@@ -479,6 +495,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | `bottom_left` y `bottom_right` quedan libres para trabajar; `top_left` muestra la videovigilancia, `top_right` el mapa y `side_left` los eventos de Dahua con miniaturas y registro | Decisión del propietario |
 | 2026-10-01 | El ratón se encierra por software en las dos pantallas de trabajo, con atajos para soltarlo y centrarlo | Decisión del propietario: no es fácil alinear las pantallas en Windows sin ver dónde quedan |
 | 2026-10-01 | `side_right`: recorridos y resumen del día; `side_left`: eventos de todas las fuentes; `Ctrl+Alt+X` (Stream Deck) censura los streams con estática | Decisión del propietario: cada pantalla muestra una parte del sistema |
+| 2026-10-05 | El editor nuevo guarda el plano en un archivo aparte hasta que el editor y el mapa estén aprobados; las 3 salas de prueba se dibujan de nuevo, sin importar el mapa actual | Decisión del propietario: nada deja de funcionar mientras se construye |
 
 ## Trabajo actual
 
@@ -487,7 +504,7 @@ mergeada en `main` (`d95be09`), y `main` está subido a GitHub después de
 revisar todos los parches (sin IP, contraseñas, grabaciones ni configuración
 local). La fase 4 está en marcha. Su primera rama, `codex/single-startup`
 (4.0, 4.1 y 4.3: el arranque único), está mergeada en `main` (`1af2aaa`) el
-2026-10-01, sin subir todavía a GitHub. El panel de salud (4.2) sigue en la
+2026-10-01 y subida a GitHub el 2026-10-05. El panel de salud (4.2) sigue en la
 rama `codex/health-panel`.
 
 1. [x] **3.1 Plantilla** de Frigate y Mosquitto en `deploy/docker/`, sin
@@ -579,10 +596,11 @@ rama `codex/health-panel`.
    XT). No se da por validado nada de GPU AMD desde aquí.
 
 En curso: la presentación en las 9 pantallas, en la rama
-`codex/batcomputer-presentation`, sin mergear ni subir. Ya están hechas y aprobadas
-las tres pantallas pequeñas. Siguiente paso: el editor de espacios (espacios de trabajo,
-plantas, salas sobre rejilla, puertas, Exterior) junto con el mapa en vivo de
-`top_right`, según `docs/diseno-batcomputer.md`.
+`codex/batcomputer-presentation`, subida a GitHub el 2026-10-05 y sin mergear.
+Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
+de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
+arriba): la 2a, el plano, está hecha; sigue la 2b, el editor, según
+`docs/diseno-batcomputer.md`.
 
 Para verlas en este PC: `http://127.0.0.1:8092/preview`, o una pantalla en
 `http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud). El
