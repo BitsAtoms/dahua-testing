@@ -8,8 +8,8 @@
 
 import {
   bounds, cameraRoom, cells, doorRooms, edges, headingVector, largestRectangle, moveCorner,
-  moveEdge, orthogonalStep, reconcileFloor, rectangle, roomProblem, segmentUnits, simplify,
-  translate, unitKey, wallMap,
+  moveEdge, neighbours, orthogonalStep, reconcileFloor, rectangle, roomProblem, segmentUnits,
+  simplify, translate, unitKey, wallMap,
 } from "./geometry.js";
 
 const MAX_FLOORS = 3;
@@ -289,6 +289,20 @@ function updateCamera(cameraId, position, heading) {
     target.position = position;
     target.heading_deg = heading;
     target.room_id = cameraRoom(position, heading, floor().rooms);
+    reconcileFloor(floor());
+  });
+}
+
+// Marks or unmarks a room as seen in part of a camera's image.
+function toggleAdditionalView(cameraId, roomId) {
+  change(() => {
+    const target = camera(cameraId);
+    const seen = new Set(target.also_sees ?? []);
+    if (seen.has(roomId)) seen.delete(roomId);
+    else seen.add(roomId);
+    const ordered = floor().rooms.map(item => item.id).filter(id => seen.has(id));
+    if (ordered.length) target.also_sees = ordered;
+    else delete target.also_sees;
   });
 }
 
@@ -767,16 +781,18 @@ function renderCanvas() {
     ? below.rooms.map(item => `<polygon class="ghost" points="${pointsAttr(item.polygon)}"/>`).join("")
     : "";
   const previewed = state.preview?.kind === "room" && state.preview.changed ? state.preview.roomId : null;
+  const watched = state.selected?.kind === "camera" ? new Set(camera(state.selected.id)?.also_sees ?? []) : new Set();
   layers.rooms.innerHTML = current.rooms
     .filter(item => item.id !== previewed)
-    .map(item => `<g class="room${isSelected("room", item.id) ? " selected" : ""}" data-hit="room" data-room="${item.id}">
+    .map(item => `<g class="room${isSelected("room", item.id) ? " selected" : ""}${watched.has(item.id) ? " partial" : ""}"
+      data-hit="room" data-room="${item.id}">
       <polygon points="${pointsAttr(item.polygon)}"/>${labelMarkup(item.polygon, item.name, item.id)}</g>`)
     .join("");
   layers.doors.innerHTML = current.doors.map(item => doorMarkup(item, step)).join("");
   layers.cameras.innerHTML = current.cameras.map(item => {
     const moving = state.preview?.kind === "camera" && state.preview.cameraId === item.camera_id;
     return cameraMarkup(item.camera_id, moving ? state.preview.position : item.position,
-      moving ? state.preview.heading : item.heading_deg, item.room_id, step);
+      moving ? state.preview.heading : item.heading_deg, item.room_id, step, "", item.also_sees?.length ?? 0);
   }).join("");
   layers.handles.innerHTML = handlesMarkup(step);
   layers.preview.innerHTML = previewMarkup(step);
@@ -843,7 +859,7 @@ function doorMarkup(item, step) {
     <line class="door-hit" ${coords}/><line class="door-gap" ${coords}/><line class="door-line" ${coords}/>${ticks}${outside}</g>`;
 }
 
-function cameraMarkup(cameraId, position, heading, roomId, step, extra = "") {
+function cameraMarkup(cameraId, position, heading, roomId, step, extra = "", alsoSees = 0) {
   const info = cameraInfo(cameraId);
   const left = headingVector(heading - 45);
   const right = headingVector(heading + 45);
@@ -857,7 +873,7 @@ function cameraMarkup(cameraId, position, heading, roomId, step, extra = "") {
       A ${VIEW_RADIUS} ${VIEW_RADIUS} 0 0 1 ${x + right.x * VIEW_RADIUS} ${y + right.y * VIEW_RADIUS} Z"/>
     <circle class="camera-body" cx="${x}" cy="${y}" r="${radius}"/>
     <line class="camera-notch" x1="${x}" y1="${y}" x2="${x + ahead.x * radius}" y2="${y + ahead.y * radius}"/>
-    <text class="camera-label" x="${x}" y="${y + radius + 14 * step}" font-size="${11 * step}" text-anchor="middle">${escapeText(cameraId)}</text>
+    <text class="camera-label" x="${x}" y="${y + radius + 14 * step}" font-size="${11 * step}" text-anchor="middle">${escapeText(cameraId)}${alsoSees ? ` +${alsoSees}` : ""}</text>
   </g>`;
 }
 
@@ -1086,6 +1102,7 @@ function roomSection(target) {
   const doors = floor().doors.filter(entry => entry.rooms.includes(target.id));
   const links = linksOf(target.id);
   const cameras = floor().cameras.filter(entry => entry.room_id === target.id);
+  const partial = floor().cameras.filter(entry => (entry.also_sees ?? []).includes(target.id));
   const connections = [
     ...doors.map(entry => item("⇥", entry.rooms.includes("exterior") ? "Entrada desde el Exterior"
       : `Puerta con «${room(entry.rooms.find(id => id !== target.id))?.name}»`,
@@ -1097,8 +1114,11 @@ function roomSection(target) {
     nameField("Sala", target.name, 60, name => { room(target.id).name = name; }),
     note(`Tamaño: ${size(target.polygon)} casillas · ${target.polygon.length} esquinas`),
     element("div", "bc-label", "Cámaras"),
-    cameras.length ? list(...cameras.map(entry => item("◉", entry.camera_id,
-      { text: "Ver", run: () => select("camera", entry.camera_id) }))) : note("Ninguna. Arrastra una desde «sin colocar»."),
+    cameras.length || partial.length ? list(
+      ...cameras.map(entry => item("◉", entry.camera_id, { text: "Ver", run: () => select("camera", entry.camera_id) })),
+      ...partial.map(entry => item("◌", `${entry.camera_id} · vista adicional`,
+        { text: "Ver", run: () => select("camera", entry.camera_id) })),
+    ) : note("Ninguna. Arrastra una desde «sin colocar»."),
     element("div", "bc-label", "Conexiones"),
     connections.length ? list(...connections) : note("Ninguna. Pon una puerta (P) o únela con otra planta."),
     state.linking?.roomId === target.id ? linkPicker(target)
@@ -1128,14 +1148,31 @@ function linkPicker(target) {
 
 function cameraSection(target) {
   const info = cameraInfo(target.camera_id);
-  const where = target.room_id ? `Cuenta en «${room(target.room_id)?.name}»` : "Fuera de las salas: no cuenta en ninguna";
+  const main = target.room_id ? room(target.room_id) : null;
+  const where = main ? `Sala principal: «${main.name}»` : "Fuera de las salas: no cuenta en ninguna";
+  const near = main ? neighbours(main.id, floor().rooms) : new Set();
+  const candidates = floor().rooms.filter(entry => entry.id !== target.room_id)
+    .sort((a, b) => Number(near.has(b.id)) - Number(near.has(a.id)));
+  const seen = new Set(target.also_sees ?? []);
+  const checklist = candidates.map(entry => {
+    const label = `${seen.has(entry.id) ? "☑" : "☐"} ${entry.name}${!main || near.has(entry.id) ? "" : " · no contigua"}`;
+    const button = actionButton(label, () => toggleAdditionalView(target.camera_id, entry.id),
+      `item${seen.has(entry.id) ? " on" : ""}`);
+    button.setAttribute("aria-pressed", String(seen.has(entry.id)));
+    return button;
+  });
+  const explain = main
+    ? ` Hasta que se marquen las zonas de la imagen (fase 7), quien esté en ellas se cuenta en «${main.name}».` : "";
   return section(
     element("div", "bc-label", "Cámara"),
     element("div", "", target.camera_id),
     note([info.source ? info.source.toUpperCase() : "", info.note].filter(Boolean).join(" · ") || " "),
-    item(target.room_id ? "▣" : "▲", where),
+    item(main ? "▣" : "▲", where),
     item("➜", `Mira hacia ${target.heading_deg}°`),
     info.counts ? null : note("Esta cámara no cuenta personas: solo muestra imagen."),
+    element("div", "bc-label", "Vista adicional"),
+    checklist.length ? list(...checklist) : note("No hay otras salas en esta planta."),
+    checklist.length ? note(`Marca las salas que también salen en parte de su imagen.${explain}`) : null,
     note("Arrástrala para moverla. El círculo de la punta la gira. En una pared entre dos salas, cuenta en la sala hacia la que mira."),
     actionButton("Devolver a «sin colocar» · Supr", () => removeCamera(target.camera_id), "danger"),
   );
@@ -1220,12 +1257,25 @@ function warnings() {
       const connected = entry.doors.some(item => item.rooms.includes(target.id))
         || state.plan.floor_links.some(item => item.rooms.includes(target.id));
       const show = { floorId: entry.id, kind: "room", id: target.id };
-      if (!cameras.length) result.push({ level: "warning", text: `${prefix}«${target.name}» sin cámara`, show });
+      const partial = entry.cameras.filter(item => (item.also_sees ?? []).includes(target.id));
+      if (!cameras.length && partial.length) {
+        const names = partial.map(item => item.camera_id).join(", ");
+        result.push({ level: "warning", text: `${prefix}«${target.name}» solo con vista adicional de ${names}`, show });
+      } else if (!cameras.length) {
+        result.push({ level: "warning", text: `${prefix}«${target.name}» sin cámara`, show });
+      }
       else if (!counting.length) result.push({ level: "warning", text: `${prefix}«${target.name}» solo tiene cámaras que no cuentan personas`, show });
       else if (counting.length > 1) result.push({ level: "info", text: `${prefix}«${target.name}» la ven ${counting.length} cámaras: se cuenta una sola vez`, show });
       if (!connected) result.push({ level: "warning", text: `${prefix}«${target.name}» aislada: sin puertas ni escaleras`, show });
     }
     for (const item of entry.cameras) {
+      const main = entry.rooms.find(target => target.id === item.room_id);
+      if (main && item.also_sees?.length) {
+        const names = item.also_sees.map(id => `«${entry.rooms.find(target => target.id === id)?.name}»`).join(", ");
+        result.push({ level: "info",
+          text: `${prefix}${item.camera_id} ve también parte de ${names}: quien esté allí se cuenta en «${main.name}»`,
+          show: { floorId: entry.id, kind: "camera", id: item.camera_id } });
+      }
       if (!item.room_id) {
         result.push({ level: "warning", text: `${prefix}${item.camera_id} fuera de las salas`,
           show: { floorId: entry.id, kind: "camera", id: item.camera_id } });

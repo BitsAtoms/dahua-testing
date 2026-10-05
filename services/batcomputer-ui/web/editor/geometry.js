@@ -246,6 +246,15 @@ export function roomsAt(point, rooms) {
   });
 }
 
+// Rooms sharing at least one step of wall with the given room.
+export function neighbours(roomId, rooms) {
+  const found = new Set();
+  for (const ids of wallMap(rooms).values()) {
+    if (ids.length === 2 && ids.includes(roomId)) found.add(ids.find(id => id !== roomId));
+  }
+  return found;
+}
+
 export function headingVector(degrees) {
   const radians = (degrees * Math.PI) / 180;
   return { x: Math.sin(radians), y: -Math.cos(radians) };
@@ -266,7 +275,8 @@ export function cameraRoom(position, heading, rooms) {
 // change: a door stays while it still lies on its wall; an entrance becomes a
 // door between rooms when a room is drawn against it; other doors are
 // removed. A camera that left its room moves to the room under it, or to
-// none. Returns how many doors were removed.
+// none, and its additional view keeps only other rooms that still exist.
+// Returns how many doors were removed.
 export function reconcileFloor(floor) {
   const walls = wallMap(floor.rooms);
   const ids = new Set(floor.rooms.map(room => room.id));
@@ -289,6 +299,10 @@ export function reconcileFloor(floor) {
     const inRoom = camera.room_id && ids.has(camera.room_id)
       && roomsAt(camera.position, floor.rooms).some(room => room.id === camera.room_id);
     if (!inRoom) camera.room_id = cameraRoom(camera.position, camera.heading_deg, floor.rooms);
+    if (camera.also_sees) {
+      camera.also_sees = camera.also_sees.filter(id => ids.has(id) && id !== camera.room_id);
+      if (!camera.also_sees.length) delete camera.also_sees;
+    }
   }
   return removed;
 }

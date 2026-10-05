@@ -166,7 +166,13 @@ workspace (one building or office)
 - A door between two rooms lies on the wall they share; a door to the
   exterior (a building entrance) lies on a wall that no other room touches.
 - A camera sits inside its room or on its wall. `heading_deg` is 0 towards
-  the top of the plan and grows clockwise.
+  the top of the plan and grows clockwise. The optional `also_sees` lists
+  other rooms of its floor that appear in part of its image ("vista
+  adicional", owner 2026-10-05). It only declares overlapping views: until
+  image zones per room exist (design point 8, calibrated in phase 7),
+  everyone the camera sees counts in its own room. At the switch (step 2d)
+  it lets handoffs between those rooms overlap in time, as the 8 s
+  overlap tolerance typed by hand did in the old map.
 - No travel times: until phase 7 measures each door, the tracking engine will
   use one general window (up to 30 s, as the current transitions).
 - Identifiers are unique across the workspace; `exterior` is reserved.
@@ -195,6 +201,7 @@ canvas. Part 2b-1 (approved 2026-10-05) edits floors and rooms; part 2b-2
 | `⇥ Puerta` (`P`) | press on a wall and drag along it: on a wall two rooms share, a door between them; on an outer wall, an entrance from the exterior (drawn with an arrow and `EXTERIOR`); click a door to select it |
 | `⇅ Otra planta` (`E`) | click a room, then pick in the side panel the room of another floor it joins, as stairs or lift; the link is written under both rooms' names |
 | cameras | drag one from `Cámaras sin colocar` to its room; it starts looking at the middle of the room. Selected, drag it to move it (half grid steps) or its round handle to turn it (15° steps). On a wall two rooms share, it counts in the room it looks into |
+| `Vista adicional` | in the camera's panel, tick the other rooms of the floor that appear in part of its image (neighbours first); they are outlined dashed while the camera is selected, and its label reads `+1` |
 | side panel | what is selected: a room (name, size, its cameras and connections, `⇅ Unir con otra planta`), a camera (source, room it counts in, heading), a door or a floor link; with nothing selected, the floor's and the workspace's names and `Borrar planta` (asks twice when the floor has rooms). Below, always, the cameras to place and the warnings |
 | `Ctrl+Z` / `Ctrl+Y` | undo / redo (200 steps) |
 | `Ctrl+S`, `Guardar` | save; `● Cambios sin guardar` until then, and closing the window asks first |
@@ -209,10 +216,11 @@ The tray lists every camera the system knows (`/api/space-map/cameras`: the
 cameras of `mini_right`, plus any that sent tracks and no source lists now),
 with `SOLO VISTA` or `DESACTIVADA` on the ones that count nobody; they are
 drawn hollow on the plan. Warnings, clickable to show what they name: room
-without camera, room with only cameras that count nobody, isolated room (no
-door, entrance or floor link), camera outside every room, no entrance from
-the exterior at all, and, as information, a room seen by several cameras
-(counted once).
+without camera, room with only cameras that count nobody, room seen only
+through another camera's additional view, isolated room (no door, entrance
+or floor link), camera outside every room, no entrance from the exterior at
+all, and, as information, a room seen by several cameras (counted once) and
+each additional view (people there count in the camera's own room).
 
 After every change to the rooms, `reconcileFloor` keeps the plan valid: a
 moved room takes its cameras and entrances along; a door stays while it

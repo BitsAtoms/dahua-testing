@@ -10,7 +10,11 @@ walls and doors are checked with integers, never with tolerances.
 * A **floor link** (stairs or lift) joins rooms of two floors and has no
   geometry.
 * A **camera** belongs to one room of its floor, or to none yet. Positions use
-  half grid steps so that "inside or on the wall" stays exact.
+  half grid steps so that "inside or on the wall" stays exact. Its optional
+  ``also_sees`` lists other rooms of the floor that appear in part of its
+  image ("vista adicional"). That only declares overlapping views: until the
+  image zones of each room are drawn (phase 7), everyone the camera sees
+  counts in its own room.
 
 Travel times are not part of the plan: the tracking engine uses a general
 window until the times of each door are measured (phase 7).
@@ -218,7 +222,8 @@ def _check_doors(floor: dict[str, Any], floor_name: str, rooms: dict[str, _Room]
 def _check_cameras(floor: dict[str, Any], floor_name: str, rooms: dict[str, _Room],
                    columns: int, rows: int, ids: _Ids) -> None:
     for value in _list(floor["cameras"], f"las cámaras de {floor_name}"):
-        camera = _exact(value, "una cámara", {"camera_id", "room_id", "position", "heading_deg"})
+        camera = _fields(value, "una cámara", {"camera_id", "room_id", "position", "heading_deg"},
+                         {"also_sees"})
         camera_id = ids.add("cámara", camera["camera_id"])
         position = _exact(camera["position"], f"la posición de {camera_id}", {"x", "y"})
         x = _half_step(position["x"], f"la posición de {camera_id}", columns)
@@ -227,12 +232,19 @@ def _check_cameras(floor: dict[str, Any], floor_name: str, rooms: dict[str, _Roo
         if not 0 <= heading < 360:
             raise SpaceMapError(f"la dirección de {camera_id} va de 0 a 359 grados")
         room_id = camera["room_id"]
-        if room_id is None:
-            continue
-        if not isinstance(room_id, str) or room_id not in rooms:
-            raise SpaceMapError(f"{camera_id} está en una sala que no existe en {floor_name}")
-        if not _touching_cells(x, y) & rooms[room_id].cells:
-            raise SpaceMapError(f"{camera_id} está fuera de «{rooms[room_id].name}»")
+        if room_id is not None:
+            if not isinstance(room_id, str) or room_id not in rooms:
+                raise SpaceMapError(f"{camera_id} está en una sala que no existe en {floor_name}")
+            if not _touching_cells(x, y) & rooms[room_id].cells:
+                raise SpaceMapError(f"{camera_id} está fuera de «{rooms[room_id].name}»")
+        extra = _list(camera.get("also_sees", []), f"la vista adicional de {camera_id}")
+        if (not extra and "also_sees" in camera) or len(set(map(str, extra))) != len(extra):
+            raise SpaceMapError(f"la vista adicional de {camera_id} repite salas o está vacía")
+        for seen in extra:
+            if not isinstance(seen, str) or seen not in rooms or seen == room_id:
+                raise SpaceMapError(
+                    f"la vista adicional de {camera_id} solo admite otras salas de {floor_name}"
+                )
 
 
 def _edges(corners: list[Point]) -> list[tuple[Point, Point]]:
@@ -287,6 +299,15 @@ def _exact(value: Any, name: str, fields: set[str]) -> dict[str, Any]:
         raise SpaceMapError(f"{name} no tiene el formato esperado")
     if set(value) != fields:
         raise SpaceMapError(f"{name} debe tener exactamente: {', '.join(sorted(fields))}")
+    return value
+
+
+def _fields(value: Any, name: str, required: set[str], optional: set[str]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise SpaceMapError(f"{name} no tiene el formato esperado")
+    if not required <= set(value) <= required | optional:
+        raise SpaceMapError(f"{name} debe tener: {', '.join(sorted(required))}"
+                            f" (y si acaso: {', '.join(sorted(optional))})")
     return value
 
 

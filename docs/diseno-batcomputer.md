@@ -204,6 +204,11 @@ a otra oficina es crear otro espacio de trabajo.
 - **Cámara:** se arrastra de la bandeja de "sin colocar" a una sala y se gira
   con un tirador. Toma sola la sala donde la sueltas. Si una sala la ven
   varias cámaras, se marca, para no contar dos veces a la misma persona.
+- **Vista adicional** (propuesta del propietario, 2026-10-05): en cada cámara
+  se marcan las otras salas que también salen en parte de su imagen. Así el
+  sistema sabe que dos cámaras pueden ver a la misma persona a la vez. Hasta
+  que existan las zonas de la imagen (punto 8), quien esté en esa parte se
+  cuenta en la sala principal de la cámara.
 - **Puerta:** un clic en la pared entre dos salas. Si la pared da afuera, es
   una entrada del edificio.
 - **Otra planta:** se elige una sala de esta planta y otra de otra planta
@@ -236,6 +241,9 @@ entra en la siguiente**, y cuánto se tarda de verdad entre las dos.
   habitual. No se escribe ningún tiempo a mano, y la puerta muestra, como
   información, "normalmente entre 4 y 9 s".
 - Mientras no haya medidas, se usa un margen general amplio.
+- **Zonas de las salas en la imagen:** sobre la foto de una cámara con vista
+  adicional se marca qué parte de la imagen es cada sala. Así cada persona
+  se cuenta en la sala donde está de verdad, y no dos veces.
 - Depende de dónde quede cada cámara: se construye ahora y se calibra al
   colocarlas (fase 7).
 

@@ -400,7 +400,15 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
       cámaras y entradas la acompañan y las puertas que ya no están en su
       pared se quitan con un aviso, así que lo que se guarda siempre es
       válido. Probado en Chrome y con un test que comprueba que el servidor
-      acepta cada plano que deja el editor.
+      acepta cada plano que deja el editor. El propietario ya colocó en el
+      plano nuevo sus 3 cámaras y las puertas.
+    - [~] **Vista adicional** (propuesta del propietario, 2026-10-05): en
+      cada cámara se marcan las otras salas que también salen en parte de su
+      imagen, como la Recepción que ve en parte la `dahua_212`. Sirve para que
+      el seguimiento acepte que dos cámaras vean a la vez a la misma persona.
+      No decide en qué sala está cada persona: eso lo harán las zonas de la
+      imagen (punto 8 del diseño), que se calibran con las cámaras en su sitio
+      definitivo (fase 7).
   - [ ] **2c. El mapa en vivo** de `top_right`.
   - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
     nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
@@ -512,6 +520,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | El ratón se encierra por software en las dos pantallas de trabajo, con atajos para soltarlo y centrarlo | Decisión del propietario: no es fácil alinear las pantallas en Windows sin ver dónde quedan |
 | 2026-10-01 | `side_right`: recorridos y resumen del día; `side_left`: eventos de todas las fuentes; `Ctrl+Alt+X` (Stream Deck) censura los streams con estática | Decisión del propietario: cada pantalla muestra una parte del sistema |
 | 2026-10-05 | El editor nuevo guarda el plano en un archivo aparte hasta que el editor y el mapa estén aprobados; las 3 salas de prueba se dibujan de nuevo, sin importar el mapa actual | Decisión del propietario: nada deja de funcionar mientras se construye |
+| 2026-10-05 | Cada cámara puede marcar una "vista adicional" de otras salas; las zonas de cada sala en la imagen se dibujan después, con las cámaras en su sitio definitivo | Propuesta del propietario. La lista sirve ya para los pasos solapados entre cámaras; contar a cada persona en su sala exige zonas de la imagen, que dependen de la posición final |
 
 ## Trabajo actual
 

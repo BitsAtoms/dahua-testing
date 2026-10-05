@@ -89,6 +89,7 @@ kbd { font-family: var(--font-mono); font-size: 0.8em; opacity: 0.75; margin-lef
 .item button { font-size: 0.75em; padding: 0.15em 0.5em; }
 button.item { width: 100%; text-align: left; text-transform: none; letter-spacing: 0.02em; font-weight: 400; border-color: var(--line-quiet); }
 button.item.warning { border-color: var(--text); }
+button.item.on { border-color: var(--text); color: var(--text); background: var(--bg); }
 .tray { display: flex; flex-wrap: wrap; gap: 0.4em; }
 .chip {
   display: inline-flex; align-items: center; gap: 0.5em; padding: 0.3em 0.6em;
@@ -110,6 +111,8 @@ button.item.warning { border-color: var(--text); }
 .ghost { fill: none; stroke: var(--line-quiet); stroke-width: 1.5; stroke-dasharray: 6 5; }
 .room polygon { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
 .room.selected polygon { fill: #2e2c1c; stroke: var(--text); stroke-width: 3; }
+/* A room in part of the selected camera's image ("vista adicional"). */
+.room.partial polygon { stroke: var(--text); stroke-width: 2.5; stroke-dasharray: 9 5; fill: #29281f; }
 .room text, .preview-label {
   fill: var(--text); font-family: var(--font-display); font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em; pointer-events: none;

@@ -154,6 +154,17 @@ class ValidationTests(unittest.TestCase):
             "media casilla",
         )
 
+    def test_additional_view_lists_other_rooms_of_the_floor(self) -> None:
+        seeing = dict(camera("c", "a", 4, 2), also_sees=["b"])
+        validate_space_map(plan_with(copy.deepcopy(TWO_ROOMS), cameras=[seeing]))
+        validate_space_map(plan_with(copy.deepcopy(TWO_ROOMS), cameras=[camera("c", "a", 4, 2)]))
+        for wrong in (["a"], ["z"], ["b", "b"], [], [["b"]]):
+            with self.subTest(also_sees=wrong):
+                self.assertRejected(
+                    plan_with(copy.deepcopy(TWO_ROOMS), cameras=[dict(camera("c", "a", 4, 2), also_sees=wrong)]),
+                    "vista adicional",
+                )
+
     def test_camera_ids_are_unique_across_floors(self) -> None:
         plan = plan_with(copy.deepcopy(TWO_ROOMS), cameras=[camera("c", "a", 1, 1)])
         plan["floors"].append({"id": "floor_1", "name": "Planta 1", "rooms": [],

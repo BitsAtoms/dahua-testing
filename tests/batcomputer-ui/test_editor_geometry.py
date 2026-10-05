@@ -75,6 +75,7 @@ floor.doors.push({ id: "d_south", rooms: ["a", "exterior"], segment: [{ x: 2, y:
 reconcileFloor(floor); snapshot(floor);
 floor.rooms.push(R("b", { x: 6, y: 0 }, { x: 12, y: 4 }));            // drawn against the entrance
 reconcileFloor(floor); snapshot(floor);
+floor.cameras[0].also_sees = ["b"];                                     // cam_a also sees part of b
 floor.rooms[1].polygon = rectangle({ x: 6, y: 1 }, { x: 12, y: 8 });   // reshaped, the door's wall still shared
 reconcileFloor(floor); snapshot(floor);
 floor.rooms[1].polygon = translate(floor.rooms[1].polygon, 1, 0);      // a room moves away
@@ -140,6 +141,8 @@ class EditorGeometryTests(unittest.TestCase):
         self.assertEqual(doors[2], [["a", "b"], ["a", "exterior"]])  # wall still shared
         self.assertEqual(doors[3], [["a", "exterior"]])              # moved away: door removed
         self.assertEqual(plans[1]["floors"][0]["cameras"][1]["room_id"], "b")
+        cameras = [plan["floors"][0]["cameras"][0] for plan in plans]
+        self.assertEqual([camera.get("also_sees") for camera in cameras], [None, None, ["b"], ["b"], ["b"]])  # kept when its own room is deleted
 
 
 if __name__ == "__main__":

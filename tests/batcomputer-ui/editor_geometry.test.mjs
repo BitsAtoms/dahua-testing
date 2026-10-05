@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  cameraRoom, cells, doorRooms, largestRectangle, moveCorner, moveEdge, orthogonalStep, outlineProblem,
+  cameraRoom, cells, doorRooms, largestRectangle, moveCorner, moveEdge, neighbours, orthogonalStep, outlineProblem,
   reconcileFloor, rectangle, roomProblem, roomsAt, segmentUnits, simplify, translate, wallMap,
 } from "../../services/batcomputer-ui/web/editor/geometry.js";
 
@@ -100,4 +100,20 @@ test("reconcile keeps valid doors, turns a covered entrance into a door and drop
   floor.rooms[1].polygon = rectangle({ x: 4, y: 2 }, { x: 8, y: 6 });
   assert.equal(reconcileFloor(floor), 1);
   assert.deepEqual(floor.doors.map(door => door.id), ["south"]);
+});
+
+test("the additional view keeps only other rooms that still exist", () => {
+  const floor = {
+    rooms: [structuredClone(LEFT), structuredClone(RIGHT)],
+    cameras: [{ camera_id: "c", room_id: "left", position: { x: 4, y: 2 }, heading_deg: 270, also_sees: ["right"] }],
+    doors: [],
+  };
+  assert.deepEqual([...neighbours("left", floor.rooms)], ["right"]);
+  reconcileFloor(floor);
+  assert.deepEqual(floor.cameras[0].also_sees, ["right"]);
+  floor.cameras[0].heading_deg = 90;
+  floor.cameras[0].room_id = cameraRoom(floor.cameras[0].position, 90, floor.rooms);
+  reconcileFloor(floor);
+  assert.equal(floor.cameras[0].room_id, "right");
+  assert.equal("also_sees" in floor.cameras[0], false);
 });
