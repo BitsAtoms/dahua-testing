@@ -34,17 +34,16 @@
   .door-word { fill: var(--text-muted); font: 600 15px var(--font-display); letter-spacing: 0.2em; }
 
   /* A person: filled while a camera sees them, hollow while only held. */
-  .person { fill: var(--text); stroke: var(--bg); stroke-width: 2; filter: drop-shadow(0 0 6px rgba(253, 227, 17, 0.55)); }
-  .person.held { fill: var(--bg); stroke: var(--text); stroke-width: 3; filter: none; }
-  .arrival { fill: none; stroke: var(--text); stroke-width: 2; }
+  .person { fill: var(--text); stroke: var(--bg); stroke-width: 2; filter: drop-shadow(0 0 6px rgba(253, 227, 17, 0.55));
+    transform-box: fill-box; transform-origin: center; }
+  .person.held { fill: var(--bg); stroke: var(--text); stroke-width: 3; filter: none; opacity: 0.6; }
+  .arrival, .echo { fill: none; stroke: var(--text); stroke-width: 2; }
   .trail { fill: none; stroke: var(--text); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 9; opacity: 0.8; }
 
-  /* A faint scan sweeping the map now and then: the screen looks alive with nobody in it. */
-  .sweep { position: absolute; left: 0; right: 0; top: 0; height: 120px; pointer-events: none;
-    background: linear-gradient(to bottom, transparent, rgba(253, 227, 17, 0.025) 75%, rgba(253, 227, 17, 0.07) 98%, transparent);
-    animation: sweep 9s linear infinite; }
-  @keyframes sweep { 0% { transform: translateY(-140px); } 45%, 100% { transform: translateY(1000px); } }
-  @media (prefers-reduced-motion: reduce) { .sweep { display: none; } }
+  /* Sonar (owner, 2026-10-06): each camera sends a pulse across its room; a
+     person it sees lights up where the pulse finds them, then fades. */
+  .ping { fill: none; stroke: var(--text); stroke-width: 2; }
+  .ping-wake { fill: none; stroke: var(--text); stroke-width: 10; opacity: 0.08; }
 </style>
 </head>
 <body>
@@ -56,9 +55,9 @@
   </div>
   <div class="map" id="map">
     <svg id="floors" xmlns="http://www.w3.org/2000/svg">
-      <g id="layer-plan"></g><g id="layer-trails"></g><g id="layer-people"></g>
+      <defs id="clips"></defs>
+      <g id="layer-plan"></g><g id="layer-sonar"></g><g id="layer-trails"></g><g id="layer-people"></g>
     </svg>
-    <div class="sweep"></div>
     <div class="empty" id="empty" hidden></div>
   </div>
   <div class="bc-hazard"></div>
@@ -72,9 +71,15 @@
 
   const SVG = "http://www.w3.org/2000/svg";
   const $ = id => document.getElementById(id);
-  const layers = { plan: $("layer-plan"), trails: $("layer-trails"), people: $("layer-people") };
+  const layers = { plan: $("layer-plan"), sonar: $("layer-sonar"), trails: $("layer-trails"), people: $("layer-people") };
   const RADIUS = 11;
   const MOVE_MS = 1800;
+  // Sonar: a pulse per room every PING_MS, crossing it in SWEEP_MS; an echo
+  // moves the dot up to JITTER of a seat spacing around its seat.
+  const PING_MS = 2600;
+  const SWEEP_MS = 1400;
+  const JITTER = 0.45;
+  const STILL = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Drawn plan: px geometry per room (seats, centre, stairs mark) and per door.
   let drawn = null;
@@ -133,13 +138,28 @@
       }
       if (result.length >= 12 || spacing === 22) break;
     }
-    return result;
+    return { points: result, spacing };
+  }
+
+  // A new person takes the free seat farthest from everyone already in the
+  // room, so people spread over it instead of queueing along the top.
+  function chooseSeat(shape, taken) {
+    const free = shape.seats.map((point, index) => index).filter(index => !taken.has(index));
+    if (!free.length) return -1;
+    if (!taken.size) return free[Math.floor(Math.random() * free.length)];
+    const away = index => Math.min(...[...taken].map(other =>
+      Math.hypot(shape.seats[index].x - shape.seats[other].x, shape.seats[index].y - shape.seats[other].y)));
+    const best = Math.max(...free.map(away));
+    const choices = free.filter(index => away(index) >= best - 1);
+    return choices[Math.floor(Math.random() * choices.length)];
   }
 
   function drawPlan(plan) {
     layers.plan.replaceChildren();
     layers.people.replaceChildren();
     layers.trails.replaceChildren();
+    layers.sonar.replaceChildren();
+    $("clips").replaceChildren();
     dots.clear();
     drawn = { rooms: new Map(), doors: new Map(), links: new Map(), signature: JSON.stringify(plan) };
     for (const placed of layout(plan)) {
@@ -157,10 +177,16 @@
         const count = element("text", { class: "room-count", x: far.x - 14, y: corner.y + 52, "text-anchor": "end" }, layers.plan);
         count.textContent = "0";
         const more = element("text", { class: "room-more", x: far.x - 14, y: far.y - 12, "text-anchor": "end" }, layers.plan);
+        const clip = element("clipPath", { id: `clip-${room.id}` }, $("clips"));
+        element("polygon", { points: points.map(p => `${p.x},${p.y}`).join(" ") }, clip);
+        const sensors = (floor.sensors ?? []).filter(sensor => sensor.room_id === room.id).map(sensor => at(sensor.position));
+        const reach = Math.max(1, ...sensors.flatMap(sensor => points.map(p => Math.hypot(p.x - sensor.x, p.y - sensor.y))));
+        const layoutSeats = seats(space, at, scale);
         drawn.rooms.set(room.id, {
-          shape, count, more, seats: seats(space, at, scale),
+          shape, count, more, seats: layoutSeats.points, spacing: layoutSeats.spacing,
           centre: at({ x: (space.x0 + space.x1) / 2, y: (space.y0 + space.y1) / 2 }),
-          corner, far, floor: floor.id,
+          corner, far, floor: floor.id, sensors, reach,
+          nextPing: performance.now() + Math.random() * PING_MS,
         });
       }
       for (const door of floor.doors) drawDoor(door, floor, at);
@@ -227,9 +253,60 @@
     trail.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: MOVE_MS + 1500, easing: "ease-in" })
       .finished.then(() => trail.remove(), () => trail.remove());
     place(dot, to);
+    dot.busy = true;
     const frames = path.map(p => ({ transform: `translate(${p.x - to.x}px, ${p.y - to.y}px)` }));
-    dot.element.animate(frames, { duration: MOVE_MS, easing: "ease-in-out" });
+    dot.element.animate(frames, { duration: MOVE_MS, easing: "ease-in-out" }).finished
+      .then(() => { dot.busy = false; echo(dot); }, () => { dot.busy = false; });
   }
+
+  // ---------------------------------------------------------------- sonar
+
+  // The pulse found this person: they light up a little away from their
+  // seat, as an echo would place them, and fade until the next pulse.
+  function echo(dot) {
+    if (STILL || dot.busy || !dot.seen || dots.get(dot.id) !== dot) return;
+    const shape = drawn.rooms.get(dot.room);
+    const seat = shape?.seats[dot.seat];
+    if (!seat) return;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.sqrt(Math.random()) * JITTER * shape.spacing;
+    place(dot, { x: seat.x + Math.cos(angle) * distance, y: seat.y + Math.sin(angle) * distance });
+    dot.element.animate([
+      { transform: "scale(1.6)", opacity: 1 },
+      { transform: "scale(1)", opacity: 1, offset: 0.3 },
+      { transform: "scale(1)", opacity: 0.5 },
+    ], { duration: PING_MS, easing: "ease-out", fill: "forwards" });
+    const ring = element("circle", { class: "echo", cx: dot.at.x, cy: dot.at.y, r: RADIUS }, layers.trails);
+    ring.animate([{ r: RADIUS, opacity: 0.8 }, { r: RADIUS * 2.2, opacity: 0 }], { duration: 600, easing: "ease-out" })
+      .finished.then(() => ring.remove(), () => ring.remove());
+  }
+
+  function ping(roomId, shape) {
+    for (const sensor of shape.sensors) {
+      const clip = `url(#clip-${roomId})`;
+      const wake = element("circle", { class: "ping-wake", cx: sensor.x, cy: sensor.y, r: 0, "clip-path": clip }, layers.sonar);
+      const ring = element("circle", { class: "ping", cx: sensor.x, cy: sensor.y, r: 0, "clip-path": clip }, layers.sonar);
+      for (const [node, peak] of [[ring, 0.75], [wake, 0.12]]) {
+        node.animate([{ r: 0, opacity: peak }, { r: shape.reach, opacity: 0 }], { duration: SWEEP_MS, easing: "linear" })
+          .finished.then(() => node.remove(), () => node.remove());
+      }
+    }
+    for (const dot of dots.values()) {
+      if (dot.room !== roomId) continue;
+      const nearest = Math.min(...shape.sensors.map(sensor => Math.hypot(dot.at.x - sensor.x, dot.at.y - sensor.y)));
+      setTimeout(() => echo(dot), (nearest / shape.reach) * SWEEP_MS);
+    }
+  }
+
+  setInterval(() => {
+    if (STILL || !drawn || document.hidden) return;
+    const now = performance.now();
+    for (const [roomId, shape] of drawn.rooms) {
+      if (!shape.sensors.length || now < shape.nextPing) continue;
+      shape.nextPing = now + PING_MS;
+      ping(roomId, shape);
+    }
+  }, 100);
 
   function update(snapshot) {
     const previous = new Map([...dots].map(([id, dot]) => [id, dot.at]));
@@ -255,10 +332,11 @@
       for (const person of room.people) {
         let dot = dots.get(person.id);
         if (!dot) {
-          const seat = shape.seats.findIndex((_, index) => !taken.has(index));
+          const seat = chooseSeat(shape, taken);
           if (seat < 0) { hidden += 1; continue; }
           taken.add(seat);
-          dot = { room: roomId, seat, element: element("circle", { class: "person", r: RADIUS }, layers.people) };
+          dot = { id: person.id, room: roomId, seat, seen: person.seen,
+            element: element("circle", { class: "person", r: RADIUS }, layers.people) };
           dots.set(person.id, dot);
           const move = moves.get(person.id);
           if (move && !animated.has(move.id) && move.age < 10) {
@@ -269,8 +347,10 @@
           } else {
             place(dot, shape.seats[seat]);
             if (previous.size || snapshot.total < 30) arrive(shape.seats[seat]);
+            echo(dot);
           }
         }
+        dot.seen = person.seen;
         dot.element.classList.toggle("held", !person.seen);
       }
       shape.count.textContent = String(room.count);
@@ -308,8 +388,12 @@
     let moves = [];
     let next = 0;
     const tick = () => {
-      const rooms = base.plan.floors.flatMap(floor => floor.rooms.map(room => room.id));
-      const doors = base.plan.floors.flatMap(floor => floor.doors.filter(door => !door.rooms.includes("exterior")));
+      // Only rooms with a camera can have people, as in reality.
+      const watched = base.plan.floors.flatMap(floor => (floor.sensors ?? []).map(sensor => sensor.room_id));
+      const all = base.plan.floors.flatMap(floor => floor.rooms.map(room => room.id));
+      const rooms = watched.length ? [...new Set(watched)] : all;
+      const doors = base.plan.floors.flatMap(floor => floor.doors)
+        .filter(door => door.rooms.every(id => rooms.includes(id)));
       const now = Date.now() / 1000;
       if (!people.length) people = rooms.flatMap(room => Array.from({ length: 1 + Math.floor(Math.random() * 3) },
         () => ({ id: `p${next++}`, room, seen: Math.random() > 0.2 })));

@@ -162,15 +162,23 @@ maximum over them and draws the dots of the camera that sees most people.
   are written under the room name.
 - A filled dot is a person a camera sees now; a hollow dot is a person no
   longer seen but still counted (the 20 s hold) (owner, 2026-10-05).
+- Sonar (owner, 2026-10-06): every 2.6 s each camera sends a pulse, a ring
+  growing from where it stands and clipped to its room. A person it sees
+  lights up when the ring reaches them, a little away from their seat (up to
+  0.45 of a seat spacing, at random), and fades until the next pulse; hollow
+  dots get no echo. The jitter is decoration, not a position: seats only say
+  how many people are in the room. A new person takes the free seat farthest
+  from the others, so people spread over the room. The live map sends the
+  position of each camera in its room for this, without its name.
 - A transfer moves the dot from its seat, through the door between the two
   rooms, to its new seat, leaving a fading trail; a new person appears with
   an expanding ring. Moves older than 60 s are not sent.
 - No track numbers or scores are shown. The header gives the total, `+N
   FUERA DEL PLANO` for people seen by cameras not on the plan, and `EN VIVO`,
-  `SIN DATOS DEL SEGUIMIENTO` or `SIN CONEXIÓN`. A faint scan sweeps the map
-  every 9 s so it looks alive when nobody is in.
-- `?demo` makes invented people walk through the real plan, to review the
-  look.
+  `SIN DATOS DEL SEGUIMIENTO` or `SIN CONEXIÓN`. The sonar pulses keep the
+  map alive when nobody is in; with reduced motion they stop.
+- `?demo` makes invented people walk through the rooms with a camera of the
+  real plan, to review the look.
 
 ### Building plan (`space_map.v2`)
 

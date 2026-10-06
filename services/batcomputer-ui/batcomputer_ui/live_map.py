@@ -170,12 +170,15 @@ class LiveMap:
 
 
 def _drawing(plan: dict[str, Any]) -> dict[str, Any]:
-    """What the screen draws: floors, rooms, doors and links, no cameras."""
+    """What the screen draws: floors, rooms, doors and links, and where each
+    camera stands in its room (the origin of its sonar pulses), without names."""
     return {
         "workspace": plan["workspace"]["name"],
         "grid": plan["grid"],
         "floors": [
-            {"id": floor["id"], "name": floor["name"], "rooms": floor["rooms"], "doors": floor["doors"]}
+            {"id": floor["id"], "name": floor["name"], "rooms": floor["rooms"], "doors": floor["doors"],
+             "sensors": [{"room_id": camera["room_id"], "position": camera["position"]}
+                         for camera in floor["cameras"] if camera["room_id"]]}
             for floor in plan["floors"]
         ],
         "floor_links": plan["floor_links"],
