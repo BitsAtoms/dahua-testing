@@ -34,7 +34,7 @@
   .door-word { fill: var(--text-muted); font: 600 15px var(--font-display); letter-spacing: 0.2em; }
 
   /* A person: filled while a camera sees them, hollow while only held. */
-  .person { fill: var(--text); stroke: var(--bg); stroke-width: 2; filter: drop-shadow(0 0 6px rgba(253, 227, 17, 0.55));
+  .person { fill: var(--text); stroke: none; filter: drop-shadow(0 0 6px rgba(253, 227, 17, 0.55));
     transform-box: fill-box; transform-origin: center; }
   .person.held { fill: var(--bg); stroke: var(--text); stroke-width: 3; filter: none; opacity: 0.6; }
   .arrival, .echo { fill: none; stroke: var(--text); stroke-width: 2; }
@@ -270,11 +270,13 @@
     const angle = Math.random() * Math.PI * 2;
     const distance = Math.sqrt(Math.random()) * JITTER * shape.spacing;
     place(dot, { x: seat.x + Math.cos(angle) * distance, y: seat.y + Math.sin(angle) * distance });
+    // Bright for a moment, then fading until it has almost vanished when the
+    // next beat comes (owner, 2026-10-06).
     dot.element.animate([
       { transform: "scale(1.6)", opacity: 1 },
-      { transform: "scale(1)", opacity: 1, offset: 0.3 },
-      { transform: "scale(1)", opacity: 0.5 },
-    ], { duration: interval, easing: "ease-out", fill: "forwards" });
+      { transform: "scale(1)", opacity: 1, offset: 0.2, easing: "ease-in" },
+      { transform: "scale(1)", opacity: 0.05 },
+    ], { duration: interval, fill: "forwards" });
     const ring = element("circle", { class: "echo", cx: dot.at.x, cy: dot.at.y, r: RADIUS }, layers.trails);
     ring.animate([{ r: RADIUS, opacity: 0.8 }, { r: RADIUS * 2.4, opacity: 0 }], { duration: 700, easing: "ease-out" })
       .finished.then(() => ring.remove(), () => ring.remove());

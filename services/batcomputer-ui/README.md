@@ -165,7 +165,8 @@ maximum over them and draws the dots of the camera that sees most people.
 - Sonar look (owner, 2026-10-06): every filled dot beats on its own, every
   2 to 3 s at random. Each beat it lights up a little away from its seat (up
   to 0.45 of a seat spacing, at random) with a ring over it, and fades until
-  the next beat. It is simulated: cameras only decide who is on the map.
+  it has almost vanished when the next beat comes. Filled dots have no
+  outline. It is simulated: cameras only decide who is on the map.
   Hollow dots do not beat; they stay still and dim. The jitter is
   decoration, not a position: seats only say how many people are in the
   room. A new person takes the free seat farthest from the others, so people
