@@ -75,7 +75,7 @@ starting anything:
 python services\local-supervisor\run.py --check
 ```
 
-The check also verifies that ports `8090`, `8091`, `8092` and, in GPU mode,
+The check also verifies that ports `8090`, `8092` and, in GPU mode,
 `5555` are free. An occupied port normally means an individually launched copy is still
 active.
 

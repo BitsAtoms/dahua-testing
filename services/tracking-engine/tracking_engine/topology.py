@@ -1,4 +1,14 @@
-"""Tracking-oriented view of the source-neutral ``space_map.v1`` contract."""
+"""Tracking-oriented view of the space map: which room each camera counts
+in, and which rooms a person can pass between.
+
+``space_map.v2`` is the building plan of the Batcomputer space editor. It has
+no typed travel times: each door between two rooms and each floor link
+(stairs or lift) becomes one two-way transition with a general window, until
+the times of each door are measured (phase 7). Rooms a camera partly sees
+("vista adicional") get a wider overlap, because one person can be seen by
+both cameras at once. ``space_map.v1``, the old space mapper's format with
+typed transitions, still loads (tests and older maps).
+"""
 
 from __future__ import annotations
 
@@ -7,6 +17,14 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+
+
+EXTERIOR = "exterior"
+GENERAL_MIN_SECONDS = 0.0
+GENERAL_MAX_SECONDS = 30.0
+GENERAL_OVERLAP_SECONDS = 2.0
+# As typed by hand in the old map for the pair one camera partly sees.
+PARTIAL_VIEW_OVERLAP_SECONDS = 8.0
 
 
 class TopologyError(ValueError):
@@ -49,8 +67,11 @@ class SpaceTopology:
     @classmethod
     def load(cls, path: Path) -> "SpaceTopology":
         document = json.loads(path.read_text(encoding="utf-8-sig"))
-        if not isinstance(document, dict) or document.get("schema_version") != "space_map.v1":
-            raise TopologyError("space map must use schema_version space_map.v1")
+        version = document.get("schema_version") if isinstance(document, dict) else None
+        if version == "space_map.v2":
+            return cls._from_plan(document)
+        if version != "space_map.v1":
+            raise TopologyError("space map must use schema_version space_map.v1 or space_map.v2")
         spaces_value = document.get("spaces")
         cameras_value = document.get("cameras")
         transitions_value = document.get("transitions")
@@ -113,6 +134,74 @@ class SpaceTopology:
             )
 
         canonical = json.dumps(document, sort_keys=True, separators=(",", ":"))
+        return cls(
+            fingerprint=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            cameras=cameras,
+            transitions=tuple(transitions),
+        )
+
+    @classmethod
+    def _from_plan(cls, document: dict[str, Any]) -> "SpaceTopology":
+        floors = document.get("floors")
+        links = document.get("floor_links", [])
+        if not isinstance(floors, list) or not isinstance(links, list):
+            raise TopologyError("floors and floor_links must be lists")
+        rooms: set[str] = set()
+        cameras: dict[str, CameraPlacement] = {}
+        partial: set[frozenset[str]] = set()
+        passages: set[frozenset[str]] = set()
+        for floor in floors:
+            if not isinstance(floor, dict):
+                raise TopologyError("floor must be an object")
+            rooms |= {_required_text(room, "id", "room") for room in floor.get("rooms", [])}
+        for floor in floors:
+            for camera in floor.get("cameras", []):
+                camera_id = _required_text(camera, "camera_id", "camera")
+                if camera_id in cameras:
+                    raise TopologyError(f"duplicate camera id: {camera_id}")
+                room_id = camera.get("room_id")
+                if room_id is not None and room_id not in rooms:
+                    raise TopologyError(f"camera {camera_id} references an unknown room")
+                cameras[camera_id] = CameraPlacement(camera_id, room_id, True)
+                for seen in camera.get("also_sees", []) if room_id else []:
+                    partial.add(frozenset((room_id, seen)))
+            for door in floor.get("doors", []):
+                pair = door.get("rooms") if isinstance(door, dict) else None
+                if not isinstance(pair, list) or len(pair) != 2:
+                    raise TopologyError("door must join two rooms")
+                if EXTERIOR not in pair:
+                    passages.add(frozenset(pair))
+        for link in links:
+            pair = link.get("rooms") if isinstance(link, dict) else None
+            if not isinstance(pair, list) or len(pair) != 2:
+                raise TopologyError("floor link must join two rooms")
+            passages.add(frozenset(pair))
+        if any(room not in rooms for pair in passages for room in pair):
+            raise TopologyError("a door or floor link references an unknown room")
+        transitions = []
+        for pair in sorted(passages, key=sorted):
+            origin, destination = sorted(pair)
+            overlap = PARTIAL_VIEW_OVERLAP_SECONDS if pair in partial else GENERAL_OVERLAP_SECONDS
+            transitions.append(Transition(
+                f"{origin}~{destination}", origin, destination, True,
+                GENERAL_MIN_SECONDS, GENERAL_MAX_SECONDS, overlap,
+            ))
+        # Only what changes candidates: renaming or redrawing a room does not
+        # make the engine rebuild them.
+        canonical = json.dumps(
+            {
+                "schema_version": "space_map.v2",
+                "cameras": sorted([item.camera_id, item.space_id] for item in cameras.values()
+                                  if item.space_id),
+                "transitions": [
+                    [item.from_space_id, item.to_space_id, item.min_seconds, item.max_seconds,
+                     item.overlap_tolerance_seconds]
+                    for item in transitions
+                ],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return cls(
             fingerprint=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
             cameras=cameras,

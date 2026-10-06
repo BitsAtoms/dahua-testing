@@ -47,16 +47,24 @@ crash between them can replay a message but cannot duplicate track state.
 `Ctrl+C` requests a clean shutdown. A compact status line reports active and
 ended tracks, handoff candidates and the current input backlog.
 
-When `runtime/space-mapper/space-map.json` exists, the live service reloads it
-automatically. It creates a handoff candidate only when an ended local track
-and a later track satisfy a configured directed/bidirectional transition and
-its travel-time window. The score ranks timing within that window; it is not an
+When the building plan `runtime/spaces/space-map.json` exists, the live
+service reloads it automatically. The plan is written by the Batcomputer space
+editor (`space_map.v2`, see `services/batcomputer-ui/README.md`): each camera
+counts in its room, and each door between two rooms or floor link becomes one
+two-way transition with a general window of 0 to 30 s, until door times are
+measured (roadmap phase 7). Doors to the exterior are not transitions. The
+engine creates a handoff candidate only when an ended local track and a later
+track satisfy a transition and its travel-time window. The score ranks timing within that window; it is not an
 identity probability and no `global_person_id` is assigned yet.
 The temporal matcher uses each transition's `overlap_tolerance_seconds`
 (two seconds by default) because one source can publish its track closure just
 after the next camera has already opened a track. The signed raw gap remains
-stored in the candidate evidence. Configure this tolerance from Space Mapper
-for transitions whose source lifecycles need a wider margin.
+stored in the candidate evidence. Two rooms joined by a transition get 8 s
+instead when a camera of one sees part of the other ("vista adicional" in
+the editor), because both cameras can see the same person at once. The
+engine rebuilds its candidates only when cameras or transitions change, not
+when a room is renamed or redrawn. The old space mapper's `space_map.v1`,
+with typed directed transitions, still loads for tests and older maps.
 
 Inspect recent candidates without stopping the service:
 
@@ -108,8 +116,8 @@ joining by proximity can merge two people standing very close.
 
 Each local track stores `first_geometry_json` (schema version 6) so a new
 track can be joined where it appeared. Rows created before that version fall
-back to their latest geometry. The Space Mapper monitor computes occupancy
-from the last 15 minutes of tracks on every refresh, without transfers; the
-Batcomputer live map (`services/batcomputer-ui`, `top_right`) applies them.
+back to their latest geometry. The Batcomputer live map
+(`services/batcomputer-ui`, `top_right`) computes occupancy, with transfers,
+from the last 15 minutes of tracks on every refresh.
 
 Visual identity remains a later, independent scoring layer.

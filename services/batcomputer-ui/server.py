@@ -218,16 +218,10 @@ def main() -> int:
         default=REPOSITORY_ROOT / "runtime/local-supervisor/logs",
     )
     parser.add_argument(
-        "--map-file",
-        type=Path,
-        default=REPOSITORY_ROOT / "runtime/space-mapper/space-map.json",
-        help="space_map.v1 of the current editor, read for room names",
-    )
-    parser.add_argument(
         "--space-map",
         type=Path,
         default=REPOSITORY_ROOT / "runtime/spaces/space-map.json",
-        help="space_map.v2 building plan written by the new editor",
+        help="space_map.v2 building plan written by the space editor",
     )
     parser.add_argument(
         "--tracking-database",
@@ -246,7 +240,7 @@ def main() -> int:
         parser.error("batcomputer ui only listens on localhost")
 
     watch = SupervisorWatch()
-    names = CameraNames(args.map_file)
+    names = CameraNames(args.space_map)
     console = SupervisorConsole(
         args.supervisor_logs,
         narrator=Narrator(names),

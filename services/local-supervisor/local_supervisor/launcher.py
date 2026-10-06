@@ -18,8 +18,8 @@ from typing import Callable, Protocol, TextIO
 import urllib.request
 
 
-MAP_URL = "http://127.0.0.1:8091/?view=monitor"
-MAP_HEALTH_URL = "http://127.0.0.1:8091/api/health"
+MAP_URL = "http://127.0.0.1:8092/screen/top_right"
+MAP_HEALTH_URL = "http://127.0.0.1:8092/api/health"
 CHROME_CANDIDATES = (
     Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
     / "Google/Chrome/Application/chrome.exe",

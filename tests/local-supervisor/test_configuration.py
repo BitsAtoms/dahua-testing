@@ -78,6 +78,17 @@ class ConfigurationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unknown services"):
                 load_config(path, root)
 
+    def test_retired_space_mapper_in_an_older_local_file_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "custom.json"
+            path.write_text(json.dumps({"services": {"space_mapper": True}}), encoding="utf-8")
+
+            config = load_config(path, root)
+
+            self.assertNotIn("space_mapper", config.enabled)
+            self.assertNotIn("space_mapper", [spec.name for spec in build_specs(config, root)])
+
     def test_non_boolean_service_value_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

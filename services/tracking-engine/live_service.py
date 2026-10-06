@@ -39,7 +39,7 @@ def main() -> int:
     parser.add_argument(
         "--space-map",
         type=Path,
-        default=Path("runtime/space-mapper/space-map.json"),
+        default=Path("runtime/spaces/space-map.json"),
     )
     args = parser.parse_args()
     if args.poll_ms <= 0:

@@ -33,11 +33,11 @@ class CameraHealthTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         map_file = Path(self.directory.name) / "space-map.json"
-        map_file.write_text(json.dumps({
-            "spaces": [{"id": "s1", "name": "Recepción"}, {"id": "s2", "name": "Showroom"}],
-            "cameras": [{"camera_id": "cam_recepcion", "label": "cam_recepcion", "space_id": "s1"},
-                        {"camera_id": "dahua_212", "label": "dahua_212", "space_id": "s2"}],
-        }), encoding="utf-8")
+        map_file.write_text(json.dumps({"schema_version": "space_map.v2", "floors": [{
+            "rooms": [{"id": "s1", "name": "Recepción"}, {"id": "s2", "name": "Showroom"}],
+            "cameras": [{"camera_id": "cam_recepcion", "room_id": "s1"},
+                        {"camera_id": "dahua_212", "room_id": "s2"}],
+        }]}), encoding="utf-8")
         self.stats: dict | None = {"cameras": {
             "cam_recepcion": frigate_camera(5.1),
             "puerta": frigate_camera(10.0, detect=False),

@@ -39,7 +39,8 @@ The task:
 ## Map window
 
 The map opens as a Chrome app window (no tabs or address bar) in full screen,
-on the monitor view (`http://127.0.0.1:8091/?view=monitor`). It uses its own
+on the Batcomputer live map (`http://127.0.0.1:8092/screen/top_right`; owner,
+2026-10-06, it replaced the old space mapper monitor). It uses its own
 Chrome profile under `runtime/map-window/chrome-profile`, so it is separate
 from the user's Chrome and its flags apply even when that Chrome is open.
 
@@ -61,7 +62,7 @@ is decided with its installation (roadmap phase 5).
 - retries a failed start every 30 s (for example Docker Desktop not ready in
   time, exit code 3), so a slow boot does not leave the PC without a system;
 - ends when the supervisor exits cleanly (`Ctrl+C` in its window);
-- opens the map window once, when `http://127.0.0.1:8091/api/health` answers.
+- opens the map window once, when `http://127.0.0.1:8092/api/health` answers.
 
 Its log is `runtime/local-supervisor/logs/autostart-YYYYMMDD.log`; the
 supervisor's own output is in `runtime/local-supervisor/logs/<session>/supervisor.log`.

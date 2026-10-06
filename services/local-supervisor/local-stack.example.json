@@ -2,7 +2,6 @@
   "schema_version": "local_stack.v1",
   "services": {
     "track_receiver": true,
-    "space_mapper": true,
     "batcomputer_ui": true,
     "tracking_engine": true,
     "dahua_dashboard": true,

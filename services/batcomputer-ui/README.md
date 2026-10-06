@@ -73,8 +73,7 @@ something real:
 
 On 2026-10-01, 4000 log lines in 12 minutes became 41 visitor lines. Each
 line keeps its track number, so it still reads as live data. Cameras are
-named after their map label, or else their room (the space mapper's map), or
-else their id.
+named after the room they count in on the building plan, or else their id.
 
 - Times are shown in local time, one row per line; older lines fade out under
   the header.
@@ -129,7 +128,7 @@ The supervisor will reuse these detector rules for automatic recovery
 ### Health of the cameras (`mini_right`)
 
 `batcomputer_ui/cameras.py`: one row per camera, named like the console
-(map label, else its room, else its id), with a `DAHUA` or `FRIGATE` tag.
+(its room on the building plan, else its id), with a `DAHUA` or `FRIGATE` tag.
 
 | Camera | Ok | Problem |
 |---|---|---|
@@ -151,8 +150,8 @@ columns. Camera addresses from the Dahua collector never leave the module.
 handoff candidates from the tracking database (read only) and runs the
 tracking engine's presence rule with transfers (see
 `services/tracking-engine/README.md`). Each presence is one dot in the room
-its camera counts in, from the building plan (`space_map.v2`), already
-before the switch (step 2d); a room seen by several cameras counts the
+its camera counts in, from the building plan (`space_map.v2`); a room seen
+by several cameras counts the
 maximum over them and draws the dots of the camera that sees most people.
 
 - The floors are drawn side by side, at one scale, without cameras. Each
@@ -184,10 +183,13 @@ maximum over them and draws the dots of the camera that sees most people.
 
 ### Building plan (`space_map.v2`)
 
-The new space editor (roadmap step 2b) writes the building plan;
-`batcomputer_ui/spaces.py` validates and stores it. Until the switch (step
-2d) it is a separate file, and the tracking engine and the old space mapper
-keep using `runtime/space-mapper/space-map.json` (`space_map.v1`) unchanged.
+The space editor writes the building plan; `batcomputer_ui/spaces.py`
+validates and stores it. Since the switch (roadmap step 2d, 2026-10-06) it is
+the only map: the tracking engine derives its transitions from it (see
+`services/tracking-engine/README.md`), the live map draws it and the console
+and camera health name each camera after its room. The old space mapper
+(port 8091) is gone; its last map stays in the ignored
+`runtime/space-mapper/` as a backup.
 
 ```text
 workspace (one building or office)
@@ -208,11 +210,11 @@ workspace (one building or office)
   other rooms of its floor that appear in part of its image ("vista
   adicional", owner 2026-10-05). It only declares overlapping views: until
   image zones per room exist (design point 8, calibrated in phase 7),
-  everyone the camera sees counts in its own room. At the switch (step 2d)
-  it lets handoffs between those rooms overlap in time, as the 8 s
-  overlap tolerance typed by hand did in the old map.
-- No travel times: until phase 7 measures each door, the tracking engine will
-  use one general window (up to 30 s, as the current transitions).
+  everyone the camera sees counts in its own room. The tracking engine lets
+  handoffs between those rooms overlap in time by 8 s, as the overlap
+  tolerance typed by hand did in the old map.
+- No travel times: until phase 7 measures each door, the tracking engine
+  uses one general window (up to 30 s, as the old map's transitions).
 - Identifiers are unique across the workspace; `exterior` is reserved.
 - Validation messages are in Spanish: the editor shows them to the owner.
 

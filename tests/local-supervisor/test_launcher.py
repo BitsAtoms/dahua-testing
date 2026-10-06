@@ -89,7 +89,7 @@ class LauncherTests(unittest.TestCase):
     def test_map_window_is_a_full_screen_app_window_with_its_own_profile(self) -> None:
         command = map_window_command(Path("chrome.exe"), Path("profile"))
 
-        self.assertIn("--app=http://127.0.0.1:8091/?view=monitor", command)
+        self.assertIn("--app=http://127.0.0.1:8092/screen/top_right", command)
         self.assertIn("--start-fullscreen", command)
         self.assertIn(f"--user-data-dir={Path('profile')}", command)
         self.assertNotIn("--kiosk", command)  # --kiosk cannot be left with F11

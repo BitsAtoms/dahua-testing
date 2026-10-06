@@ -86,9 +86,12 @@ Evidencia: `docs/dahua-research.md`, validación en vivo de Frigate 0.17.2 el
 - [x] Tracking engine: tracks locales reconstruibles desde el log del
   receptor.
 - [x] Space Mapper: salas, cámaras y transiciones con tiempos de tránsito.
+  Retirado el 2026-10-06: lo sustituyen el editor de espacios y el mapa en
+  vivo del Batcomputer.
 - [x] Candidatos de handoff por topología y tiempo, con la evidencia visual
   en un canal separado.
-- [x] Monitor 2D en vivo y sesiones de validación etiquetadas.
+- [x] Monitor 2D en vivo y sesiones de validación etiquetadas (retirados
+  el 2026-10-06 con el Space Mapper).
 - [x] **Ocupación por sala y total**, calculada con presencias y mostrada en
   el monitor (contador por sala y total). Es el núcleo del MVP. Validada en
   vivo con una persona el 2026-09-29; falta una prueba con varias personas.
@@ -424,9 +427,18 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
     siguiente latido; es simulado, la cámara solo decide si el punto existe.
     Los huecos quedan quietos y tenues, y un barrido suave recorre el mapa.
     `?demo` inventa personas para revisar el aspecto.
-  - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
-    nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
-    se retiran el editor y el monitor antiguos (puerto 8091).
+  - [~] **2d. El cambio** (2026-10-06): el seguimiento lee el plano nuevo.
+    Cada puerta entre salas y cada escalera es un paso en los dos sentidos,
+    con un margen general de hasta 30 s hasta la fase 7, y 8 s de solape
+    entre las salas de una vista adicional. Las entradas desde el Exterior no
+    son pasos. La consola y la salud de cámaras nombran cada cámara por su
+    sala. El editor y el monitor antiguos (puerto 8091) se han borrado del
+    repositorio (decisión del propietario); su último mapa queda en
+    `runtime/space-mapper/` como respaldo. La ventana del arranque abre el
+    mapa en vivo (decisión del propietario). Probado con tests y con el plano
+    real: 3 cámaras, 5 pasos y 8 s de solape entre Recepción y Oficina.
+    **Entra en vigor en el próximo inicio de sesión**, cuando el supervisor
+    se arranque de nuevo; falta comprobarlo en vivo después.
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
 - [x] Documento de diseño aprobado por el propietario el 2026-10-01. Se
@@ -535,6 +547,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | `side_right`: recorridos y resumen del día; `side_left`: eventos de todas las fuentes; `Ctrl+Alt+X` (Stream Deck) censura los streams con estática | Decisión del propietario: cada pantalla muestra una parte del sistema |
 | 2026-10-05 | El editor nuevo guarda el plano en un archivo aparte hasta que el editor y el mapa estén aprobados; las 3 salas de prueba se dibujan de nuevo, sin importar el mapa actual | Decisión del propietario: nada deja de funcionar mientras se construye |
 | 2026-10-05 | Traspaso: cuando el sistema cree que una persona pasó de una sala a otra, la sala de origen deja de contarla en cuanto cuenta en la nueva, en vez de mantenerla 20 s; en el mapa, punto hueco para quien no se ve pero se sigue contando | Decisión del propietario: la misma persona no aparece en dos salas. Si la hipótesis falla, la sala de origen cuenta una persona menos hasta que la cámara la vuelve a ver |
+| 2026-10-06 | El plano nuevo sustituye al antiguo: el editor y el monitor antiguos se borran del repositorio y la ventana del arranque abre el mapa en vivo | Decisión del propietario: un solo editor y un solo mapa; el código antiguo queda en el historial de Git |
 | 2026-10-06 | Mapa en vivo con aspecto de sonar: cada punto visto late por su cuenta cada 2-3 s con un pequeño salto al azar y se apaga casi del todo entre latidos; los huecos no laten; se mantiene el barrido | Decisión del propietario: los puntos estáticos parecían muertos. El salto es decorativo, no una posición |
 | 2026-10-05 | Cada cámara puede marcar una "vista adicional" de otras salas; las zonas de cada sala en la imagen se dibujan después, con las cámaras en su sitio definitivo | Propuesta del propietario. La lista sirve ya para los pasos solapados entre cámaras; contar a cada persona en su sala exige zonas de la imagen, que dependen de la posición final |
 
@@ -624,9 +637,10 @@ rama `codex/health-panel`.
    - `deploy/camera-inventory.local.json`: inventario de cámaras;
    - `.env.dahua_212`: datos de la 212 para el programa de prueba;
    - `experiments/dahua-netsdk/cameras.local.json`: 213 y 212;
-   - `runtime/space-mapper/space-map.json`: la 212 está en "Espacio 2", donde
-     antes estaba la 213. Hay una copia del mapa anterior en
-     `runtime/space-mapper/space-map.backup-20260929T152009.json`.
+   - `runtime/spaces/space-map.json`: el plano del edificio (salas, cámaras,
+     puertas y escaleras), que se edita en `http://127.0.0.1:8092/editor`.
+     Cada guardado deja la versión anterior en `runtime/spaces/backups/`. El
+     mapa del editor antiguo queda en `runtime/space-mapper/` como respaldo.
 4. Estado de las cámaras de prueba: la 213 está desconectada y en su lugar
    está la 212. Cuando vuelva la 213, hay que añadirla otra vez al mapa. La
    212 tiene NTP (`pool.ntp.org`).
@@ -640,21 +654,21 @@ En curso: la presentación en las 9 pantallas, en la rama
 `codex/batcomputer-presentation`, subida a GitHub el 2026-10-05 y sin mergear.
 Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
 de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
-arriba). La 2a, el plano, está hecha, y el editor (2b) está hecho, con la
-vista adicional de las cámaras, y el propietario ya dibujó en él las 3 salas,
-sus cámaras y sus puertas. El mapa en vivo (2c) está aprobado. Después
-viene el cambio al plano nuevo (2d), según `docs/diseno-batcomputer.md`.
+arriba). La 2a (el plano), la 2b (el editor, con la vista adicional) y la 2c
+(el mapa en vivo) están aprobadas. La 2d (el cambio al plano nuevo) está
+hecha y entra en vigor en el próximo inicio de sesión; después hay que
+comprobar en vivo que el seguimiento propone pasos con el plano nuevo
+(`handoff_topology` en el registro del supervisor) y que la ventana del
+arranque abre el mapa. Siguiente pantalla, según `docs/diseno-batcomputer.md`:
+la videovigilancia de `top_left`.
 
-El editor está en `http://127.0.0.1:8092/editor` una vez reiniciado el
-servicio de pantallas (en el siguiente inicio de sesión). Mientras tanto se
-puede revisar con un servidor aparte que guarda en el mismo plano:
-`python services\batcomputer-ui\server.py --port 8093` y
-`http://127.0.0.1:8093/editor`.
-
-Para verlas en este PC: `http://127.0.0.1:8092/preview`, o una pantalla en
-`http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud). El
-supervisor arranca el servicio de pantallas desde el siguiente inicio de
-sesión; a mano: `python services\batcomputer-ui\server.py`. La recuperación
+Para verlas en este PC: `http://127.0.0.1:8092/preview`, el editor en
+`http://127.0.0.1:8092/editor`, o una pantalla en
+`http://127.0.0.1:8092/screen/<pantalla>` (`?demo` en las de salud y en el
+mapa). El supervisor arranca el servicio de pantallas; a mano:
+`python services\batcomputer-ui\server.py`. Un cambio en su código Python
+solo se ve tras reiniciarlo (en el siguiente inicio de sesión); los archivos
+de `web/` se ven al recargar la página. La recuperación
 ante fallos (4.4) sigue pendiente y no depende de la estética.
 
 Pendiente del propietario: la revisión de privacidad antes de usar la

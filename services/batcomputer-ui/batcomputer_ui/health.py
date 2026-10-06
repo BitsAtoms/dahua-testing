@@ -35,7 +35,6 @@ STATE_ORDER = {"ok": 0, "unknown": 1, "warning": 2, "error": 3, "critical": 4}
 INFRASTRUCTURE = {"mqtt", "frigate", "frigate_gpu_detector"}
 SERVICE_NAMES = {
     "track_receiver": "receptor",
-    "space_mapper": "mapa",
     "batcomputer_ui": "pantallas",
     "tracking_engine": "seguimiento",
     "dahua_dashboard": "colector Dahua",

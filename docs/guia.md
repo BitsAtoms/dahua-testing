@@ -162,15 +162,21 @@ información.
 
 ## 7. Salas, puertas y handoffs
 
-El **Space Mapper** es donde se describe el lugar: las salas, dónde está
-cada cámara, qué sala cubre y qué **transiciones** existen (puertas o
-pasillos), cada una con un tiempo de tránsito mínimo y máximo.
+El **editor de espacios** (`http://127.0.0.1:8092/editor`) es donde se
+describe el lugar: las plantas, las salas, en qué sala cuenta cada cámara y
+por qué **puertas** o escaleras se pasa de una sala a otra. Los tiempos de
+paso no se escriben: hasta medirlos, cada puerta acepta un margen general de
+hasta 30 s.
 
 Con eso, el tracking engine propone un **candidato de handoff** cuando un
 track termina en una sala y otro empieza en una sala conectada dentro de ese
 margen de tiempo. La puntuación mide solo si el tiempo encaja. La evidencia
 visual (parecido de ropa o de cara) se calcula en un canal aparte. Nada de
 esto es una identidad confirmada.
+
+Cuando un candidato une una persona que ya no se ve con otra que acaba de
+aparecer en la sala de al lado, la primera deja de contarse en su sala: es el
+**traspaso**, y en el mapa en vivo su punto cruza la puerta.
 
 Esto no depende de dónde estén las cámaras: el plano de salas y puertas sale
 del edificio. Lo que sí depende de las cámaras son los tiempos reales de

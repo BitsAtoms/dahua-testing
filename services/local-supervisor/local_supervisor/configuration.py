@@ -11,7 +11,6 @@ from typing import Any
 
 SERVICE_NAMES = (
     "track_receiver",
-    "space_mapper",
     "batcomputer_ui",
     "tracking_engine",
     "dahua_dashboard",
@@ -19,6 +18,11 @@ SERVICE_NAMES = (
     "detector_consensus",
     "visual_reid",
 )
+
+# Services that no longer exist: accepted in local-stack.json and ignored, so
+# an older local file does not stop the system (space_mapper was replaced by
+# the Batcomputer screens on 2026-10-06).
+RETIRED_SERVICES = ("space_mapper",)
 
 FRIGATE_DETECTORS = ("cpu", "gpu")
 GPU_DETECTOR_SERVICE = "frigate_gpu_detector"
@@ -81,7 +85,7 @@ def load_config(path: Path, repository_root: Path) -> StackConfig:
     configured_services = document.get("services", {})
     if not isinstance(configured_services, dict):
         raise ValueError("services must be a JSON object")
-    unknown_services = sorted(set(configured_services) - set(SERVICE_NAMES))
+    unknown_services = sorted(set(configured_services) - set(SERVICE_NAMES) - set(RETIRED_SERVICES))
     if unknown_services:
         raise ValueError(f"unknown services: {', '.join(unknown_services)}")
     enabled = {
@@ -143,11 +147,6 @@ def build_specs(config: StackConfig, repository_root: Path) -> list[ServiceSpec]
             ),
             (config.env_file,),
             ("paho.mqtt.client",),
-        ),
-        "space_mapper": ServiceSpec(
-            "space_mapper",
-            (str(system_python), "-u", script("services/space-mapper/server.py")),
-            listen_endpoints=(("127.0.0.1", 8091),),
         ),
         "batcomputer_ui": ServiceSpec(
             "batcomputer_ui",

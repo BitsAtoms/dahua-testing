@@ -22,7 +22,6 @@ from typing import Callable
 
 SERVICE_NAMES = {
     "track_receiver": "el receptor de datos",
-    "space_mapper": "el mapa",
     "batcomputer_ui": "las pantallas",
     "tracking_engine": "el motor de seguimiento",
     "dahua_dashboard": "el colector Dahua",
@@ -71,7 +70,8 @@ def duration_text(seconds: float) -> str:
 
 
 class CameraNames:
-    """Visitor names for cameras: the map label, else the camera's room."""
+    """Visitor names for cameras: the room each one counts in, from the
+    building plan (space_map.v2), else the camera id."""
 
     def __init__(self, map_file: Path, refresh_seconds: float = 30.0,
                  clock: Callable[[], float] = time.monotonic) -> None:
@@ -93,16 +93,14 @@ class CameraNames:
             document = json.loads(self.map_file.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             return {}
-        spaces = {space.get("id"): space.get("name") for space in document.get("spaces", [])}
-        names = {}
-        for camera in document.get("cameras", []):
-            camera_id = camera.get("camera_id")
-            label = camera.get("label")
-            if label and label != camera_id:
-                names[camera_id] = label
-            elif spaces.get(camera.get("space_id")):
-                names[camera_id] = spaces[camera.get("space_id")]
-        return names
+        floors = document.get("floors", []) if isinstance(document, dict) else []
+        rooms = {room.get("id"): room.get("name") for floor in floors for room in floor.get("rooms", [])}
+        return {
+            camera.get("camera_id"): rooms[camera.get("room_id")]
+            for floor in floors
+            for camera in floor.get("cameras", [])
+            if rooms.get(camera.get("room_id"))
+        }
 
 
 class Narrator:

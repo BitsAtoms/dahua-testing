@@ -16,6 +16,7 @@ from tracking_engine import HandoffEngine, SpaceTopology, TrackingStore  # noqa:
 
 
 NOW = datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc)
+PLAN_EXAMPLE = REPOSITORY_ROOT / "services" / "batcomputer-ui" / "space-map.example.json"
 
 
 class HandoffEngineTests(unittest.TestCase):
@@ -216,14 +217,51 @@ class HandoffEngineTests(unittest.TestCase):
         self.assertFalse(restarted.changed)
         self.assertEqual(restarted.candidates, 1)
 
-    def test_committed_example_loads_as_tracking_topology(self) -> None:
-        example = (
-            REPOSITORY_ROOT / "services" / "space-mapper" / "space-map.example.json"
-        )
-        topology = SpaceTopology.load(example)
+    def test_building_plan_doors_and_stairs_become_two_way_transitions(self) -> None:
+        topology = SpaceTopology.load(PLAN_EXAMPLE)
 
-        self.assertEqual(topology.space_for_camera("camera_entry"), "entry")
-        self.assertEqual(len(topology.transitions_between("room", "entry")), 1)
+        self.assertEqual(topology.space_for_camera("camera_entrada"), "room_entrada")
+        (door,) = topology.transitions_between("room_oficina", "room_entrada")
+        self.assertEqual(topology.transitions_between("room_entrada", "room_oficina"), [door])
+        self.assertEqual((door.min_seconds, door.max_seconds, door.overlap_tolerance_seconds),
+                         (0.0, 30.0, 2.0))
+        self.assertEqual(len(topology.transitions_between("room_taller", "room_oficina")), 1)
+        # The entrance from the exterior is not a passage between cameras.
+        self.assertEqual(len(topology.transitions), 2)
+
+    def test_a_partial_view_widens_the_overlap_of_that_passage(self) -> None:
+        plan = json.loads(PLAN_EXAMPLE.read_text(encoding="utf-8"))
+        plan["floors"][0]["cameras"][0]["also_sees"] = ["room_oficina"]
+        self.map_path.write_text(json.dumps(plan), encoding="utf-8")
+
+        (door,) = SpaceTopology.load(self.map_path).transitions_between("room_entrada", "room_oficina")
+
+        self.assertEqual(door.overlap_tolerance_seconds, 8.0)
+
+    def test_renaming_a_room_keeps_the_fingerprint_but_a_new_passage_changes_it(self) -> None:
+        plan = json.loads(PLAN_EXAMPLE.read_text(encoding="utf-8"))
+        self.map_path.write_text(json.dumps(plan), encoding="utf-8")
+        before = SpaceTopology.load(self.map_path).fingerprint
+        plan["floors"][0]["rooms"][0]["name"] = "Otra"
+        self.map_path.write_text(json.dumps(plan), encoding="utf-8")
+        self.assertEqual(SpaceTopology.load(self.map_path).fingerprint, before)
+        plan["floor_links"].append({"id": "lift", "kind": "elevator", "rooms": ["room_entrada", "room_taller"]})
+        self.map_path.write_text(json.dumps(plan), encoding="utf-8")
+        self.assertNotEqual(SpaceTopology.load(self.map_path).fingerprint, before)
+
+    def test_engine_builds_candidates_both_ways_from_the_building_plan(self) -> None:
+        plan = json.loads(PLAN_EXAMPLE.read_text(encoding="utf-8"))
+        self.map_path.write_text(json.dumps(plan), encoding="utf-8")
+        self.store.project(message("in-a", "camera_oficina", "end", NOW), NOW)
+        self.store.project(message("in-b", "camera_entrada", "new", NOW + timedelta(seconds=6)),
+                           NOW + timedelta(seconds=6))
+
+        sync = HandoffEngine(self.map_path, self.store).sync_topology()
+
+        self.assertEqual(sync.candidates, 1)
+        candidate = self.store.list_handoff_candidates()[0]
+        self.assertEqual((candidate["origin_space_id"], candidate["destination_space_id"]),
+                         ("room_oficina", "room_entrada"))
 
     def write_map(
         self,

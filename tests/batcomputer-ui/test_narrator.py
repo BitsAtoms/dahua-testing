@@ -27,13 +27,10 @@ class NarratorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         map_file = Path(self.directory.name) / "space-map.json"
-        map_file.write_text(json.dumps({
-            "spaces": [{"id": "s1", "name": "Recepción"}, {"id": "s2", "name": "Reuniones"}],
-            "cameras": [
-                {"camera_id": "cam_a", "label": "cam_a", "space_id": "s1"},
-                {"camera_id": "cam_b", "label": "Puerta norte", "space_id": "s2"},
-            ],
-        }), encoding="utf-8")
+        map_file.write_text(json.dumps({"schema_version": "space_map.v2", "floors": [{
+            "rooms": [{"id": "s1", "name": "Recepción"}, {"id": "s2", "name": "Puerta norte"}],
+            "cameras": [{"camera_id": "cam_a", "room_id": "s1"}, {"camera_id": "cam_b", "room_id": "s2"}],
+        }]}), encoding="utf-8")
         self.narrator = Narrator(CameraNames(map_file))
 
     def tearDown(self) -> None:
