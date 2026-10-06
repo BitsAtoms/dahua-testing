@@ -1,0 +1,15 @@
+{
+  "notes": "Corners of each display (top-left, top-right, bottom-right, bottom-left, in pixels) in the owner's reference photo of the Batcomputer, read on 2026-10-06. The photo itself is site imagery and stays local: services/batcomputer-ui/web/local/batcomputer.png (ignored by Git). Corners follow the screen's own orientation, so portrait screens keep their upright content.",
+  "photo": {"path": "/web/local/batcomputer.png", "width": 1280, "height": 962},
+  "screens": {
+    "top_left": [[307, 285], [669, 284], [667, 462], [350, 464]],
+    "top_right": [[684, 284], [1057, 281], [1004, 465], [684, 460]],
+    "bottom_left": [[360, 474], [668, 472], [668, 632], [361, 642]],
+    "bottom_right": [[698, 474], [980, 475], [979, 637], [699, 628]],
+    "side_left": [[77, 406], [310, 407], [335, 708], [124, 735]],
+    "side_right": [[1062, 414], [1271, 415], [1249, 732], [1034, 708]],
+    "mini_left": [[265, 740], [385, 740], [352, 818], [230, 817]],
+    "mini_center": [[591, 661], [712, 661], [719, 728], [587, 727]],
+    "mini_right": [[986, 748], [1110, 748], [1144, 828], [1021, 829]]
+  }
+}

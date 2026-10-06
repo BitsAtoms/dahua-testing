@@ -427,7 +427,7 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
     siguiente latido; es simulado, la cámara solo decide si el punto existe.
     Los huecos quedan quietos y tenues, y un barrido suave recorre el mapa.
     `?demo` inventa personas para revisar el aspecto.
-  - [~] **2d. El cambio** (2026-10-06): el seguimiento lee el plano nuevo.
+  - [x] **2d. El cambio** (2026-10-06): el seguimiento lee el plano nuevo.
     Cada puerta entre salas y cada escalera es un paso en los dos sentidos,
     con un margen general de hasta 30 s hasta la fase 7, y 8 s de solape
     entre las salas de una vista adicional. Las entradas desde el Exterior no
@@ -437,8 +437,14 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
     `runtime/space-mapper/` como respaldo. La ventana del arranque abre el
     mapa en vivo (decisión del propietario). Probado con tests y con el plano
     real: 3 cámaras, 5 pasos y 8 s de solape entre Recepción y Oficina.
-    **Entra en vigor en el próximo inicio de sesión**, cuando el supervisor
-    se arranque de nuevo; falta comprobarlo en vivo después.
+    Comprobado en vivo tras reiniciar el PC: el supervisor arranca sin el
+    editor antiguo, el seguimiento cargó el plano nuevo y recalculó 2737
+    candidatos, todos entre salas del plano nuevo, y la ventana del arranque
+    abre el mapa en vivo.
+- [x] **Vista real en `/preview`** (2026-10-06, propuesta del propietario): un
+  botón alterna entre las pantallas a escala y las pantallas montadas en
+  perspectiva sobre la foto del Batcomputer real, con datos reales. La foto
+  es una imagen del sitio y se queda solo en este PC, fuera de Git.
 - [ ] Ratón encerrado en las dos pantallas de trabajo, por software, con
   atajos para soltarlo y para centrarlo.
 - [x] Documento de diseño aprobado por el propietario el 2026-10-01. Se
@@ -655,12 +661,11 @@ En curso: la presentación en las 9 pantallas, en la rama
 Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
 de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
 arriba). La 2a (el plano), la 2b (el editor, con la vista adicional) y la 2c
-(el mapa en vivo) están aprobadas. La 2d (el cambio al plano nuevo) está
-hecha y entra en vigor en el próximo inicio de sesión; después hay que
-comprobar en vivo que el seguimiento propone pasos con el plano nuevo
-(`handoff_topology` en el registro del supervisor) y que la ventana del
-arranque abre el mapa. Siguiente pantalla, según `docs/diseno-batcomputer.md`:
-la videovigilancia de `top_left`.
+(el mapa en vivo) están aprobadas, y la 2d (el cambio al plano nuevo) está
+comprobada en vivo tras un reinicio. La vista previa tiene un botón `Vista
+real` que muestra las pantallas sobre la foto del Batcomputer real. Siguiente
+pantalla, según `docs/diseno-batcomputer.md`: la videovigilancia de
+`top_left`.
 
 Para verlas en este PC: `http://127.0.0.1:8092/preview`, el editor en
 `http://127.0.0.1:8092/editor`, o una pantalla en

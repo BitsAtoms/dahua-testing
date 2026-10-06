@@ -3,13 +3,22 @@
 <head>
 <meta charset="utf-8">
 <title>Batcomputer · vista previa</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/web/theme.css">
 <style>
-  /* The nine live screens drawn to scale on one display (development PC). */
+  /* The nine live screens on one display (development PC): to scale, or
+     mapped onto the photo of the real Batcomputer (owner, 2026-10-06). */
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--text); font-family: var(--font-display); }
   .page-header { height: 56px; display: flex; align-items: center; gap: 24px; padding: 0 24px; border-bottom: 2px solid var(--line);
     text-transform: uppercase; letter-spacing: 0.16em; font-size: 22px; font-stretch: condensed; font-variation-settings: "wdth" 75; }
-  .page-header .note { color: var(--text-muted); letter-spacing: 0.06em; text-transform: none; font-size: 17px; }
+  .page-header .note { flex: 1; color: var(--text-muted); letter-spacing: 0.06em; text-transform: none; font-size: 17px; }
+  .page-header button {
+    font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--invert-text); background: var(--invert-bg); border: 2px solid var(--invert-bg); padding: 6px 14px; cursor: pointer;
+  }
+  .page-header button:hover { filter: brightness(1.1); }
+  .page-header button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  .page-header button:disabled { color: var(--text-muted); background: transparent; border: 2px dashed var(--line-quiet); cursor: default; }
   .wall { position: relative; margin: 30px auto 0; }
   .bezel { position: absolute; background: #000; outline: 1px solid #1c1c1c; box-shadow: 0 0 18px rgba(80, 92, 124, 0.25); overflow: hidden; }
   .bezel iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #000; }
@@ -17,17 +26,35 @@
     color: var(--line-quiet); white-space: nowrap; text-decoration: none; }
   .tag.built { color: var(--text-muted); }
   .tag:hover { color: var(--text); }
+
+  /* Photo view: each screen is warped onto its display in the photo. */
+  #photo { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; user-select: none; }
+  .wall.real { margin-top: 12px; }
+  .wall.real #photo { display: block; }
+  .wall.real .bezel { transform-origin: 0 0; outline: none; box-shadow: none; }
+  .wall.real .tag { display: none; }
+  /* A faint glass sheen over each display, as in the photo. */
+  .wall.real .bezel::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), transparent 40%, transparent 70%, rgba(120, 140, 200, 0.05)); }
 </style>
 </head>
 <body>
 <header class="page-header">
   <strong>Batcomputer · vista previa</strong>
-  <span class="note">Las 9 pantallas a escala con datos reales. Clic en el nombre de una pantalla para abrirla sola.</span>
+  <span class="note" id="note"></span>
+  <button id="toggle" disabled>Vista real</button>
 </header>
-<main class="wall" id="wall"></main>
+<main class="wall" id="wall"><img id="photo" alt="El Batcomputer real con las pantallas encima"></main>
 <script type="module">
+  const NOTES = {
+    scale: "Las 9 pantallas a escala con datos reales. Clic en el nombre de una pantalla para abrirla sola.",
+    real: "Las 9 pantallas sobre la foto del Batcomputer real, con datos reales.",
+  };
   const { screens } = await (await fetch("/api/screens", { cache: "no-store" })).json();
   const wall = document.getElementById("wall");
+  const photo = document.getElementById("photo");
+  const toggle = document.getElementById("toggle");
+  const note = document.getElementById("note");
   const items = screens.map(screen => {
     const bezel = document.createElement("div");
     bezel.className = "bezel";
@@ -45,7 +72,48 @@
     wall.append(bezel, tag);
     return { screen, bezel, frame, tag };
   });
-  function layout() {
+
+  // Where each display is in the photo; the photo itself is local only.
+  let mapping = null;
+  try {
+    mapping = await (await fetch("/web/data/photo-screens.json", { cache: "no-store" })).json();
+  } catch {
+    mapping = null;
+  }
+  let view = "scale";
+  try { view = localStorage.getItem("preview-view") === "real" ? "real" : "scale"; } catch { /* private window */ }
+
+  // The projective transform taking the rectangle w x h onto the quad
+  // (top-left, top-right, bottom-right, bottom-left), as a CSS matrix3d.
+  function homography(w, h, quad) {
+    const source = [[0, 0], [w, 0], [w, h], [0, h]];
+    const rows = [];
+    const values = [];
+    source.forEach(([x, y], index) => {
+      const [u, v] = quad[index];
+      rows.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); values.push(u);
+      rows.push([0, 0, 0, x, y, 1, -v * x, -v * y]); values.push(v);
+    });
+    const n = 8;
+    for (let column = 0; column < n; column += 1) {
+      let pivot = column;
+      for (let row = column + 1; row < n; row += 1) {
+        if (Math.abs(rows[row][column]) > Math.abs(rows[pivot][column])) pivot = row;
+      }
+      [rows[column], rows[pivot]] = [rows[pivot], rows[column]];
+      [values[column], values[pivot]] = [values[pivot], values[column]];
+      for (let row = 0; row < n; row += 1) {
+        if (row === column) continue;
+        const factor = rows[row][column] / rows[column][column];
+        for (let k = column; k < n; k += 1) rows[row][k] -= factor * rows[column][k];
+        values[row] -= factor * values[column];
+      }
+    }
+    const [a, b, c, d, e, f, g, i] = values.map((value, index) => value / rows[index][index]);
+    return `matrix3d(${a}, ${d}, 0, ${g}, ${b}, ${e}, 0, ${i}, 0, 0, 1, 0, ${c}, ${f}, 0, 1)`;
+  }
+
+  function layoutScale() {
     const width = Math.max(...screens.map(s => s.wall_cm[0] + s.wall_cm[2]));
     const height = Math.max(...screens.map(s => s.wall_cm[1] + s.wall_cm[3]));
     const k = Math.min((innerWidth - 40) / width, (innerHeight - 56 - 50) / height);
@@ -53,12 +121,54 @@
     wall.style.height = `${height * k}px`;
     for (const { screen, bezel, frame, tag } of items) {
       const [x, y, w, h] = screen.wall_cm;
-      Object.assign(bezel.style, { left: `${x * k}px`, top: `${y * k}px`, width: `${w * k}px`, height: `${h * k}px` });
+      Object.assign(bezel.style, { left: `${x * k}px`, top: `${y * k}px`, width: `${w * k}px`, height: `${h * k}px`, transform: "" });
       frame.style.transform = `scale(${(w * k) / screen.width})`;
       Object.assign(tag.style, { left: `${x * k}px`, top: `${y * k}px` });
     }
   }
+
+  function layoutReal() {
+    const { width, height } = mapping.photo;
+    const k = Math.min((innerWidth - 24) / width, (innerHeight - 56 - 24) / height);
+    wall.style.width = `${width * k}px`;
+    wall.style.height = `${height * k}px`;
+    for (const { screen, bezel, frame } of items) {
+      const quad = mapping.screens[screen.position_id];
+      bezel.style.display = quad ? "" : "none";
+      if (!quad) continue;
+      Object.assign(bezel.style, { left: "0px", top: "0px", width: `${screen.width}px`, height: `${screen.height}px` });
+      bezel.style.transform = homography(screen.width, screen.height, quad.map(([x, y]) => [x * k, y * k]));
+      frame.style.transform = "";
+    }
+  }
+
+  function layout() {
+    const real = view === "real" && !toggle.disabled;
+    wall.classList.toggle("real", real);
+    if (real) layoutReal();
+    else {
+      for (const { bezel } of items) bezel.style.display = "";
+      layoutScale();
+    }
+    note.textContent = NOTES[real ? "real" : "scale"];
+    toggle.textContent = real ? "Vista a escala" : "Vista real";
+  }
+
+  toggle.addEventListener("click", () => {
+    view = view === "real" ? "scale" : "real";
+    try { localStorage.setItem("preview-view", view); } catch { /* private window */ }
+    layout();
+  });
   addEventListener("resize", layout);
+
+  // The button works only when the local photo and its mapping exist.
+  if (mapping?.photo?.path) {
+    photo.addEventListener("load", () => { toggle.disabled = false; toggle.title = ""; layout(); });
+    photo.addEventListener("error", () => { toggle.title = "Falta la foto local: ver services/batcomputer-ui/README.md"; layout(); });
+    photo.src = mapping.photo.path;
+  } else {
+    toggle.title = "Falta la correspondencia de las pantallas con la foto";
+  }
   layout();
 </script>
 </body>

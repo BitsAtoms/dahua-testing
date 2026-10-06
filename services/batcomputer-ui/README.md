@@ -23,7 +23,7 @@ python services\batcomputer-ui\server.py
 
 | Address | What |
 |---|---|
-| `http://127.0.0.1:8092/preview` | the nine screens to scale on one display, with live data |
+| `http://127.0.0.1:8092/preview` | the nine screens to scale on one display, with live data; `Vista real` shows them on the photo of the real Batcomputer |
 | `http://127.0.0.1:8092/screen/<position_id>` | one screen; on the final PC each display shows one of these |
 | `http://127.0.0.1:8092/editor` | the space editor, an ordinary window on a work screen |
 | `/api/screens` | screens, design canvases and which ones are built |
@@ -286,6 +286,24 @@ screen shows, without letters (owner, 2026-10-01): `web/icons.js` draws a
 terminal, a pulse line, a video camera, four screens, a folded map, a photo
 a route, and a room with a pencil for the editor.
 
+## Preview on the photo of the real Batcomputer
+
+`Vista real`, in the preview's header, toggles between the screens to scale
+and the screens warped onto the owner's reference photo of the Batcomputer
+(owner, 2026-10-06). Each live screen page keeps its design canvas and is
+mapped onto its display in the photo with a projective transform
+(`matrix3d`), so a screen seen at an angle looks as it would on the real
+monitor; switching views does not reload the screens. The choice is
+remembered per browser.
+
+`web/data/photo-screens.json` has the four corners of each display in the
+photo (1280 x 962 px), read on 2026-10-06 from a zoomed grid over the photo;
+`tests/batcomputer-ui/test_preview_photo.py` checks them. The photo itself is
+site imagery and stays out of Git, in the ignored
+`web/local/batcomputer.png`; without it the button is disabled. To set it up
+on another computer, save the photo as that PNG (the server serves `.png`
+from `web/`).
+
 ## Files
 
 ```text
@@ -299,7 +317,9 @@ web/data/gotham-alerts.json  its fictional messages (edit freely)
 web/screens/<id>.html   one page per built screen
 web/editor/             the space editor: page, style, logic and room geometry
 web/pending.html        placeholder for screens not built yet and the work screens
-web/preview.html        the nine screens to scale
+web/preview.html        the nine screens to scale, or on the photo of the real Batcomputer
+web/data/photo-screens.json  corners of each display in that photo (versioned)
+web/local/              the photo itself (ignored: site imagery)
 web/style-sample.html   the approved style sample, static
 displays.example.json   geometry of the final PC's displays (versioned)
 space-map.example.json  example building plan, generic names (versioned)

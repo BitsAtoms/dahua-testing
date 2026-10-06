@@ -30,3 +30,4 @@ deploy/camera-inventory.local.json
 experiments/frigate-replay-bench/output/
 services/batcomputer-ui/displays.local.json
 services/batcomputer-ui/displays.local.md
+services/batcomputer-ui/web/local/
