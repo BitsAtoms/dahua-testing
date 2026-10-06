@@ -409,8 +409,8 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
       No decide en qué sala está cada persona: eso lo harán las zonas de la
       imagen (punto 8 del diseño), que se calibran con las cámaras en su sitio
       definitivo (fase 7).
-  - [~] **2c. El mapa en vivo** de `top_right` (2026-10-05), pendiente de la
-    revisión del propietario. Muestra las plantas una al lado de otra, el
+  - [x] **2c. El mapa en vivo** de `top_right`, aprobado por el propietario
+    el 2026-10-06. Muestra las plantas una al lado de otra, el
     número de personas de cada sala y un punto por persona: relleno si una
     cámara la ve ahora, hueco si ya no se ve pero aún se cuenta (decisión del
     propietario). Usa ya el plano nuevo para saber en qué sala cuenta cada
@@ -418,8 +418,12 @@ hace aquí. El diseño completo, pendiente de aprobar, está en
     punto cruza la puerta y la sala de origen deja de contarlo en ese momento
     (**traspaso**, decisión del propietario; la regla está en el seguimiento).
     Reproduciendo 24 h reales: 47 pasos, y un 2,6 % menos de personas
-    contadas en dos salas a la vez. `?demo` inventa personas para revisar el
-    aspecto.
+    contadas en dos salas a la vez. Aspecto de sonar (propietario,
+    2026-10-06): cada punto relleno late por su cuenta cada 2 a 3 s, con un
+    pequeño salto al azar y un anillo, y se apaga casi del todo antes del
+    siguiente latido; es simulado, la cámara solo decide si el punto existe.
+    Los huecos quedan quietos y tenues, y un barrido suave recorre el mapa.
+    `?demo` inventa personas para revisar el aspecto.
   - [ ] **2d. El cambio:** el seguimiento y las pantallas pasan al plano
     nuevo, con un margen general de hasta 30 s por puerta hasta la fase 7, y
     se retiran el editor y el monitor antiguos (puerto 8091).
@@ -531,6 +535,7 @@ quedan como pendientes en vez de convertirse en identidades erróneas.
 | 2026-10-01 | `side_right`: recorridos y resumen del día; `side_left`: eventos de todas las fuentes; `Ctrl+Alt+X` (Stream Deck) censura los streams con estática | Decisión del propietario: cada pantalla muestra una parte del sistema |
 | 2026-10-05 | El editor nuevo guarda el plano en un archivo aparte hasta que el editor y el mapa estén aprobados; las 3 salas de prueba se dibujan de nuevo, sin importar el mapa actual | Decisión del propietario: nada deja de funcionar mientras se construye |
 | 2026-10-05 | Traspaso: cuando el sistema cree que una persona pasó de una sala a otra, la sala de origen deja de contarla en cuanto cuenta en la nueva, en vez de mantenerla 20 s; en el mapa, punto hueco para quien no se ve pero se sigue contando | Decisión del propietario: la misma persona no aparece en dos salas. Si la hipótesis falla, la sala de origen cuenta una persona menos hasta que la cámara la vuelve a ver |
+| 2026-10-06 | Mapa en vivo con aspecto de sonar: cada punto visto late por su cuenta cada 2-3 s con un pequeño salto al azar y se apaga casi del todo entre latidos; los huecos no laten; se mantiene el barrido | Decisión del propietario: los puntos estáticos parecían muertos. El salto es decorativo, no una posición |
 | 2026-10-05 | Cada cámara puede marcar una "vista adicional" de otras salas; las zonas de cada sala en la imagen se dibujan después, con las cámaras en su sitio definitivo | Propuesta del propietario. La lista sirve ya para los pasos solapados entre cámaras; contar a cada persona en su sala exige zonas de la imagen, que dependen de la posición final |
 
 ## Trabajo actual
@@ -637,7 +642,7 @@ Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
 de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
 arriba). La 2a, el plano, está hecha, y el editor (2b) está hecho, con la
 vista adicional de las cámaras, y el propietario ya dibujó en él las 3 salas,
-sus cámaras y sus puertas. El mapa en vivo (2c) espera su revisión. Después
+sus cámaras y sus puertas. El mapa en vivo (2c) está aprobado. Después
 viene el cambio al plano nuevo (2d), según `docs/diseno-batcomputer.md`.
 
 El editor está en `http://127.0.0.1:8092/editor` una vez reiniciado el
