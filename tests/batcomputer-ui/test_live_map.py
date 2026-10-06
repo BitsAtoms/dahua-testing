@@ -87,12 +87,11 @@ class LiveMapTests(unittest.TestCase):
 
         self.assertEqual(room, {"count": 1, "people": [{"id": "e1", "seen": False}]})
 
-    def test_the_plan_is_sent_with_camera_positions_but_no_camera_names(self) -> None:
+    def test_the_plan_is_sent_without_cameras(self) -> None:
         plan = self.map.snapshot()["plan"]
 
         self.assertEqual([floor["name"] for floor in plan["floors"]], ["Planta 0", "Planta 1"])
         self.assertNotIn("cameras", plan["floors"][0])
-        self.assertEqual(plan["floors"][0]["sensors"][0], {"room_id": "room_entrada", "position": {"x": 2.5, "y": 2.5}})
         self.assertNotIn("camera_entrada", json.dumps(plan))
         self.assertEqual(plan["floor_links"][0]["kind"], "stairs")
 
