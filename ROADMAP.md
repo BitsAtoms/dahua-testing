@@ -657,15 +657,22 @@ rama `codex/health-panel`.
    XT). No se da por validado nada de GPU AMD desde aquí.
 
 En curso: la presentación en las 9 pantallas, en la rama
-`codex/batcomputer-presentation`, subida a GitHub el 2026-10-05 y sin mergear.
-Ya están hechas y aprobadas las tres pantallas pequeñas. Ahora toca el editor
-de espacios con el mapa en vivo, en cuatro partes (ver la presentación más
-arriba). La 2a (el plano), la 2b (el editor, con la vista adicional) y la 2c
-(el mapa en vivo) están aprobadas, y la 2d (el cambio al plano nuevo) está
-comprobada en vivo tras un reinicio. La vista previa tiene un botón `Vista
-real` que muestra las pantallas sobre la foto del Batcomputer real. Siguiente
-pantalla, según `docs/diseno-batcomputer.md`: la videovigilancia de
-`top_left`.
+`codex/batcomputer-presentation`, subida a GitHub (al día el 2026-10-06) y sin
+mergear. Hechas y aprobadas: las tres pantallas pequeñas y el paso 2 completo
+(el plano del edificio, el editor de espacios con la vista adicional, el mapa
+en vivo de `top_right` con aspecto de sonar y el cambio de todo el sistema al
+plano nuevo, comprobado tras un reinicio). La vista previa tiene un botón
+`Vista real` que muestra las pantallas sobre la foto del Batcomputer real.
+
+**Próxima sesión: la videovigilancia de `top_left`** (punto 4 de
+`docs/diseno-batcomputer.md`): cuadrícula 3x3 con el vídeo de las cámaras, los
+recuadros del seguimiento encima y el modo privado (`Ctrl+Alt+X`, estática
+sobre vídeos y fotos, que recuerda su último estado). Empezar explicando al
+propietario cómo llegará el vídeo a la pantalla: las cámaras de Frigate ya
+pasan por su go2rtc, pero las Dahua no; habría que añadir sus streams
+secundarios a go2rtc solo para verlas, un cambio en la configuración de
+Frigate que hace el propietario desde su web. Los recuadros salen del
+seguimiento propio, igual para las dos marcas.
 
 Para verlas en este PC: `http://127.0.0.1:8092/preview`, el editor en
 `http://127.0.0.1:8092/editor`, o una pantalla en
